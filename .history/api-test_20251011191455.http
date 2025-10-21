@@ -1,0 +1,196 @@
+### 配置变量
+@baseUrl = http://localhost:8080
+
+### Token 配置
+@tokenGroup = 68e8c25f32dfc54d1f846184
+@tokenEnterprise = 9eaebbf614104879b81c2da7c41819bd
+
+### ChatId 配置
+@chatIdGroup = 68e763179d6d3a463bac17d0
+@chatIdRoom = 68e762e09d6d3a463ba7b5f6
+@ArielChatId = 68e7618f9d6d3a463b8dec3d
+// 通过小组联系人列表获取
+@GroupChatId = 68e763179d6d3a463bac17d0
+
+### 其他常用参数
+@wecomUserId = ZhuJie
+@imBotId = 68d3b986de170dd6eb01982a
+@wxid = 1688854747775509
+
+### ========================================
+### 4. 测试托管账号列表接口（使用小组级 token）
+GET {{baseUrl}}/bot/list
+  ?token={{tokenGroup}}
+
+### ========================================
+### 5. 测试消息接收接口（旧格式 - 兼容）⭐ 路由已更新为 /message
+POST {{baseUrl}}/message
+Content-Type: application/json
+
+{
+  "type": "text",
+  "content": "这是一条测试消息",
+  "from": "test_user",
+  "timestamp": 1234567890
+}
+
+### ========================================
+### 5.0 测试消息发送结果回调接口 ⭐ 路由已更新为 /message/sent-result
+POST {{baseUrl}}/message/sent-result
+Content-Type: application/json
+
+{
+  "messageId": "msg_123456",
+  "status": "success",
+  "timestamp": 1728648000000
+}
+
+### ========================================
+### 5.1 测试消息接收接口（企微机器人标准格式 - 文本消息）
+POST {{baseUrl}}/message
+Content-Type: application/json
+
+{
+  "data": {
+    "messageId": "msg_test_12345",
+    "chatId": "{{GroupChatId}}",
+    "token": "{{tokenGroup}}",
+    "botId": "{{imBotId}}",
+    "botWxid": "weixin_bot_123",
+    "botWeixin": "bot_employee_id",
+    "contactName": "测试用户",
+    "contactId": "wxid_test123456",
+    "externalUserId": "external_user_123",
+    "type": 7,
+    "timestamp": 1728648000000,
+    "payload": {
+      "text": "你好，这是一条测试消息，请回复"
+    },
+    "contactType": 1,
+    "isSelf": false,
+    "mentionSelf": false
+  }
+}
+
+### ========================================
+### 5.2 测试群聊消息（@ 机器人）
+POST {{baseUrl}}/message
+Content-Type: application/json
+
+{
+  "data": {
+    "messageId": "msg_room_12345",
+    "chatId": "{{GroupChatId}}",
+    "token": "{{tokenGroup}}",
+    "botId": "{{imBotId}}",
+    "botWxid": "weixin_bot_123",
+    "botWeixin": "bot_employee_id",
+    "contactName": "群聊测试用户",
+    "contactId": "wxid_room_test123",
+    "externalUserId": "external_room_123",
+    "type": 7,
+    "timestamp": 1728648000000,
+    "payload": {
+      "text": "@机器人 帮我查询一下今天的天气"
+    },
+    "contactType": 2,
+    "isSelf": false,
+    "mentionSelf": true,
+    "roomId": "{{chatIdRoom}}",
+    "roomName": "测试群聊"
+  }
+}
+
+### ========================================
+### 6. 测试发送消息接口 ⭐ 已迁移到 MessageSenderModule
+POST {{baseUrl}}/message/send
+Content-Type: application/json
+
+{
+  "token": "{{tokenGroup}}",
+  "wxid": "{{GroupChatId}}",
+  "content": "测试消息内容",
+  "type": "text"
+}
+
+
+### ========================================
+### 7. 测试创建群发消息接口 ⭐ 已迁移到 MessageSenderModule
+POST {{baseUrl}}/message/broadcast
+Content-Type: application/json
+
+{
+    "token": "{{tokenGroup}}",
+    "messages": [{
+        "type": 0,
+        "payload": {
+            "text": "这是群发消息"
+        }
+    }],
+    "members": [{
+        "botUserId": "{{imBotId}}",
+        "wxids": ["wxid1", "wxid2"]
+    }],
+    "hasMore": false,
+    "type": 0
+}
+
+### ========================================
+### 8. 测试获取群列表接口（简单版）⭐ 已迁移到 RoomModule
+GET {{baseUrl}}/room/simple-list
+  ?token={{tokenGroup}}
+  &current=0
+  &pageSize=5
+
+### ========================================
+### 9. 测试获取群列表接口（含成员信息）⭐ 已迁移到 RoomModule
+GET {{baseUrl}}/room/list
+  ?token={{tokenGroup}}
+  &current=0
+  &pageSize=5
+
+### ========================================
+### 10. 测试群聊加好友接口 ⭐ 已迁移到 RoomModule
+POST {{baseUrl}}/room/add-friend
+Content-Type: application/json
+
+{
+  "token": "{{tokenGroup}}",
+  "roomId": "{{chatIdRoom}}",
+  "contactId": "contact_id_mock",
+  "remark": "test remark",
+  "helloMsg": "hello from api-test",
+  "extraInfo": "extra info",
+  "userId": "{{wecomUserId}}"
+}
+
+
+### ========================================
+### 11. 测试聊天历史接口（使用小组级 token）⭐ 已迁移到 ChatModule
+GET {{baseUrl}}/chat/history
+  ?token={{tokenGroup}}
+  &pageSize=5
+  &snapshotDay=2025-10-10
+
+### ========================================
+### 12. 测试获取会话列表接口（使用小组级 token）⭐ 已迁移到 ChatModule
+GET {{baseUrl}}/chat/list
+  ?token={{tokenGroup}}
+  &pageSize=10
+
+### ========================================
+### 13. 测试获取联系人列表接口（使用小组级 token）
+GET {{baseUrl}}/contact/list
+  ?token={{tokenGroup}}
+
+### ========================================
+### 14. 测试获取客户列表接口 V2（使用企业级 token）✅ CustomerModule 保留
+GET {{baseUrl}}/customer/v2/list
+  ?token={{tokenEnterprise}}
+
+### ========================================
+### 15. 测试获取企业成员列表接口 ⭐ 已迁移到 UserModule
+GET {{baseUrl}}/user/list
+  ?token={{tokenGroup}}
+  &current=0
+  &pageSize=20

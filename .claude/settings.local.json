@@ -1,0 +1,51 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(tree:*)",
+      "Bash(npm run format:*)",
+      "Bash(npm run build:*)",
+      "Bash(npm run lint:*)",
+      "Bash(mv:*)",
+      "Bash(rm:*)",
+      "Bash(find:*)",
+      "Bash(npm run start:dev:*)",
+      "Bash(cat:*)",
+      "Bash(NODE_ENV=development npm run start:dev)",
+      "Bash(echo $AGENT_API_BASE_URL)",
+      "Bash(unset AGENT_API_BASE_URL)",
+      "Bash(curl:*)",
+      "Bash(python3:*)",
+      "Bash(echo \"AGENT_API_KEY=$AGENT_API_KEY\")",
+      "Bash(unset AGENT_API_KEY)",
+      "Bash(pnpm --version)",
+      "Bash(git init:*)",
+      "Bash(git add:*)"
+    ],
+    "deny": [],
+    "ask": []
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "npm run format",
+            "timeout": 30
+          }
+        ]
+      },
+      {
+        "matcher": "Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "npm run format",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  }
+}
