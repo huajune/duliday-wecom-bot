@@ -1,0 +1,27 @@
+{
+  "name": "candidate-consultation",
+  "description": "候选人私聊咨询服务 - 通过企微私聊为候选人提供招聘咨询和对话服务",
+
+  "model": "${AGENT_DEFAULT_MODEL}",
+  "allowedTools": "${AGENT_ALLOWED_TOOLS}",
+
+  "contextStrategy": "skip",
+  "prune": true,
+  "pruneOptions": {
+    "targetTokens": 8000,
+    "preserveRecentMessages": 5
+  },
+
+  "files": {
+    "systemPrompt": "system-prompt.md",
+    "context": "context.json",
+    "toolContext": "tool-context.ts"
+  },
+
+  "metadata": {
+    "version": "1.0.0",
+    "author": "DuLiDay Team",
+    "lastUpdated": "2024-10-24",
+    "description": "候选人通过企业微信私聊咨询岗位信息、预约面试的场景"
+  }
+}

@@ -3,6 +3,10 @@
 /node_modules
 /build
 
+# Lock files (using pnpm)
+package-lock.json
+yarn.lock
+
 # Logs
 logs
 *.log
@@ -34,9 +38,10 @@ lerna-debug.log*
 !.vscode/extensions.json
 
 # Environment
+# 忽略所有 .env 文件，除了 .env.example
 .env
-.env.local
-.env.production
+.env.*
+!.env.example
 
 # Temp
 *.tmp

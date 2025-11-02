@@ -43,6 +43,12 @@ export class EnvironmentVariables {
   })
   STRIDE_API_BASE_URL: string;
 
+  @IsUrl({ require_tld: false }, { message: 'STRIDE_ENTERPRISE_API_BASE_URL 必须是有效的 URL' })
+  @IsNotEmpty({
+    message: 'STRIDE_ENTERPRISE_API_BASE_URL 环境变量未配置，请在 .env 文件中设置',
+  })
+  STRIDE_ENTERPRISE_API_BASE_URL: string;
+
   // ==================== Agent API 配置 ====================
   @IsString({ message: 'AGENT_API_KEY 必须是字符串' })
   @IsNotEmpty({
@@ -61,6 +67,24 @@ export class EnvironmentVariables {
     message: 'AGENT_DEFAULT_MODEL 环境变量未配置，请在 .env 文件中设置',
   })
   AGENT_DEFAULT_MODEL: string;
+
+  @IsString({ message: 'AGENT_CHAT_MODEL 必须是字符串' })
+  @IsNotEmpty({
+    message: 'AGENT_CHAT_MODEL 环境变量未配置，请在 .env 文件中设置',
+  })
+  AGENT_CHAT_MODEL: string;
+
+  @IsString({ message: 'AGENT_CLASSIFY_MODEL 必须是字符串' })
+  @IsNotEmpty({
+    message: 'AGENT_CLASSIFY_MODEL 环境变量未配置，请在 .env 文件中设置',
+  })
+  AGENT_CLASSIFY_MODEL: string;
+
+  @IsString({ message: 'AGENT_REPLY_MODEL 必须是字符串' })
+  @IsNotEmpty({
+    message: 'AGENT_REPLY_MODEL 环境变量未配置，请在 .env 文件中设置',
+  })
+  AGENT_REPLY_MODEL: string;
 
   @IsNumber({}, { message: 'AGENT_API_TIMEOUT 必须是数字' })
   @Min(1000, { message: 'AGENT_API_TIMEOUT 必须大于等于 1000ms' })
@@ -101,10 +125,35 @@ export class EnvironmentVariables {
   })
   HTTP_CLIENT_TIMEOUT: number;
 
+  // ==================== Redis 配置 ====================
+  @IsString({ message: 'UPSTASH_REDIS_REST_URL 必须是字符串' })
+  @IsUrl({ require_tld: false }, { message: 'UPSTASH_REDIS_REST_URL 必须是有效的 URL' })
+  @IsNotEmpty({
+    message: 'UPSTASH_REDIS_REST_URL 环境变量未配置，请在 .env 文件中设置',
+  })
+  UPSTASH_REDIS_REST_URL: string;
+
+  @IsString({ message: 'UPSTASH_REDIS_REST_TOKEN 必须是字符串' })
+  @IsNotEmpty({
+    message: 'UPSTASH_REDIS_REST_TOKEN 环境变量未配置，请在 .env 文件中设置',
+  })
+  UPSTASH_REDIS_REST_TOKEN: string;
+
+  // ==================== DuLiDay API 配置 ====================
+  @IsString({ message: 'DULIDAY_API_TOKEN 必须是字符串' })
+  @IsNotEmpty({
+    message: 'DULIDAY_API_TOKEN 环境变量未配置，请在 .env 文件中设置',
+  })
+  DULIDAY_API_TOKEN: string;
+
   // ==================== 可选配置 ====================
   @IsOptional()
   @IsString({ message: 'ENABLE_AI_REPLY 必须是字符串' })
   ENABLE_AI_REPLY?: string;
+
+  @IsOptional()
+  @IsString({ message: 'ENABLE_MESSAGE_SPLIT_SEND 必须是字符串' })
+  ENABLE_MESSAGE_SPLIT_SEND?: string;
 }
 
 /**

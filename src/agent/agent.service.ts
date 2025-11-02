@@ -2,26 +2,31 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AxiosInstance, AxiosResponse } from 'axios';
 import { ApiResponse, ChatRequest, ChatResponse, SimpleMessage } from './dto/chat-request.dto';
-import { ConversationService } from '@common/conversation';
-import { HttpClientFactory } from '@core/http/http-client.factory';
+import { HttpClientFactory } from '@core/http';
 import {
   AgentApiException,
   AgentConfigException,
   AgentContextMissingException,
   AgentRateLimitException,
 } from './exceptions/agent.exception';
+import { parseToolsFromEnv, getModelDisplayName } from './utils';
+import { AgentCacheService } from './agent-cache.service';
+import { AgentRegistryService } from './agent-registry.service';
 
 /**
- * 响应缓存项
- */
-interface CacheItem {
-  response: ChatResponse;
-  timestamp: number;
-}
-
-/**
- * Agent 服务
- * 用于调用 花卷agent 项目的 /api/v1/chat 接口
+ * Agent 服务（重构版）
+ * 负责调用 Agent API 的 HTTP 接口，简化为纯 API 调用层
+ *
+ * 职责：
+ * 1. HTTP 客户端管理
+ * 2. API 调用封装（chat, getModels, getTools 等）
+ * 3. 请求重试和错误处理
+ * 4. Token 使用统计
+ *
+ * 不再负责：
+ * - 模型/工具验证（委托给 AgentRegistryService）
+ * - 响应缓存（委托给 AgentCacheService）
+ * - 健康检查缓存（委托给 AgentConfigService）
  */
 @Injectable()
 export class AgentService {
@@ -33,14 +38,14 @@ export class AgentService {
   private readonly timeout: number;
   private readonly maxRetries: number = 3;
 
-  // 响应缓存（简单的内存缓存）
-  private readonly responseCache = new Map<string, CacheItem>();
-  private readonly cacheTTL: number = 3600000; // 1小时
+  // 从环境变量读取的配置
+  private readonly configuredTools: string[];
 
   constructor(
     private readonly configService: ConfigService,
-    private readonly conversationService: ConversationService,
     private readonly httpClientFactory: HttpClientFactory,
+    private readonly cacheService: AgentCacheService,
+    private readonly registryService: AgentRegistryService,
   ) {
     // 从环境变量读取配置（已在启动时验证，这里可以安全使用）
     this.apiKey = this.configService.get<string>('AGENT_API_KEY')!;
@@ -48,7 +53,15 @@ export class AgentService {
     this.defaultModel = this.configService.get<string>('AGENT_DEFAULT_MODEL')!;
     this.timeout = this.configService.get<number>('AGENT_API_TIMEOUT')!;
 
+    // 解析配置的工具列表
+    const toolsString = this.configService.get<string>('AGENT_ALLOWED_TOOLS', '');
+    this.configuredTools = parseToolsFromEnv(toolsString);
+
     this.logger.log(`初始化 Agent API 客户端: ${this.baseURL}`);
+    this.logger.log(`默认模型: ${this.defaultModel}`);
+    this.logger.log(
+      `配置的工具: ${this.configuredTools.length > 0 ? this.configuredTools.join(', ') : '无'}`,
+    );
     this.logger.log(`API 超时设置: ${this.timeout}ms`);
 
     // 使用工厂创建 HTTP 客户端实例
@@ -65,11 +78,12 @@ export class AgentService {
 
   /**
    * 调用 /api/v1/chat 接口（非流式）
-   * 自动管理会话历史，支持完整的 API 契约参数
+   * 支持完整的 API 契约参数
    */
   async chat(params: {
     conversationId: string;
     userMessage: string;
+    historyMessages?: SimpleMessage[];
     model?: string;
     systemPrompt?: string;
     promptType?: string;
@@ -88,7 +102,8 @@ export class AgentService {
     const {
       conversationId,
       userMessage,
-      model = this.defaultModel,
+      historyMessages = [],
+      model: requestedModel,
       systemPrompt,
       promptType,
       allowedTools,
@@ -101,29 +116,47 @@ export class AgentService {
     } = params;
 
     try {
-      // 验证用户消息不为空
+      // 1. 验证用户消息不为空
       if (!userMessage || userMessage.trim() === '') {
         throw new AgentConfigException('用户消息内容不能为空');
       }
 
-      // 获取会话历史（默认最近20条）
-      const history = this.conversationService.getHistory(conversationId);
+      // 2. 模型验证（委托给 RegistryService）
+      const validatedModel = this.registryService.validateModel(requestedModel);
+      if (requestedModel && requestedModel !== validatedModel) {
+        this.logger.warn(
+          `请求的模型 "${requestedModel}" 不可用，已回退到默认模型 "${validatedModel}"`,
+        );
+        this.logger.warn(`会话: ${conversationId}`);
+      } else if (validatedModel !== this.defaultModel && requestedModel) {
+        this.logger.log(
+          `使用模型: ${getModelDisplayName(validatedModel)}，会话: ${conversationId}`,
+        );
+      }
 
-      // 添加用户消息到历史
+      // 3. 工具验证（委托给 RegistryService）
+      const validatedTools = this.registryService.validateTools(allowedTools);
+      if (allowedTools && allowedTools.length > 0 && validatedTools.length === 0) {
+        this.logger.warn(`请求的 ${allowedTools.length} 个工具全部不可用，将不使用任何工具`);
+      }
+
+      // 4. 构建请求
       const userMsg: SimpleMessage = { role: 'user', content: userMessage };
-      this.conversationService.addMessage(conversationId, userMsg);
-
-      // 构建请求（完全对齐 API 契约）
       const chatRequest: ChatRequest = {
-        model,
-        messages: [...history, userMsg],
-        stream: false, // 本项目不使用流式输出
+        model: validatedModel,
+        messages: [...historyMessages, userMsg],
+        stream: false,
       };
+
+      // 记录传递给 Agent API 的消息数量
+      this.logger.log(
+        `传递给 Agent API 的消息: ${chatRequest.messages.length} 条 (历史: ${historyMessages.length}, 当前: 1)`,
+      );
 
       // 只添加有值的可选字段
       if (systemPrompt) chatRequest.systemPrompt = systemPrompt;
       if (promptType) chatRequest.promptType = promptType as any;
-      if (allowedTools && allowedTools.length > 0) chatRequest.allowedTools = allowedTools;
+      if (validatedTools && validatedTools.length > 0) chatRequest.allowedTools = validatedTools;
       if (context && Object.keys(context).length > 0) chatRequest.context = context;
       if (toolContext && Object.keys(toolContext).length > 0) chatRequest.toolContext = toolContext;
       if (contextStrategy) chatRequest.contextStrategy = contextStrategy;
@@ -131,29 +164,66 @@ export class AgentService {
       if (pruneOptions) chatRequest.pruneOptions = pruneOptions;
       if (validateOnly !== undefined) chatRequest.validateOnly = validateOnly;
 
-      this.logger.log(`调用 /api/v1/chat (非流式)，会话: ${conversationId}`);
+      // 打印完整的请求参数
+      this.logger.log(`========== Agent 请求参数 [${conversationId}] ==========`);
+      this.logger.log(`模型: ${chatRequest.model}`);
+      this.logger.log(`消息数量: ${chatRequest.messages.length}`);
 
-      // 生产环境不打印详细请求体（避免泄露敏感信息）
-      if (process.env.NODE_ENV !== 'production') {
-        this.logger.debug('发送给 Agent 的请求体:', JSON.stringify(chatRequest, null, 2));
+      // 打印聊天记录
+      this.logger.log(`\n聊天记录:`);
+      chatRequest.messages.forEach((msg, index) => {
+        // 提取消息内容（支持 SimpleMessage 和 UIMessage 两种格式）
+        let content: string;
+        if ('content' in msg) {
+          // SimpleMessage 格式
+          content = msg.content;
+        } else if ('parts' in msg) {
+          // UIMessage 格式
+          content = msg.parts.map((p) => p.text).join('');
+        } else {
+          content = JSON.stringify(msg);
+        }
+
+        const preview = content.substring(0, 100);
+        this.logger.log(
+          `  [${index + 1}] ${msg.role}: ${preview}${content.length > 100 ? '...' : ''}`,
+        );
+      });
+      this.logger.log('');
+
+      if (chatRequest.allowedTools && chatRequest.allowedTools.length > 0) {
+        this.logger.log(`允许的工具: [${chatRequest.allowedTools.join(', ')}]`);
       }
+      if (chatRequest.context && Object.keys(chatRequest.context).length > 0) {
+        this.logger.log(`上下文参数: ${JSON.stringify(chatRequest.context.modelConfig, null, 2)}`);
+      }
+      this.logger.log('='.repeat(50));
 
-      // 尝试从缓存获取响应（仅针对简单查询）
-      const cacheKey = this.getCacheKey(chatRequest);
-      const cached = this.getFromCache(cacheKey);
+      // 5. 尝试从缓存获取响应（委托给 CacheService）
+      const cacheKey = this.cacheService.generateCacheKey({
+        model: validatedModel,
+        messages: chatRequest.messages,
+        tools: validatedTools,
+        context,
+        toolContext,
+        systemPrompt,
+        promptType,
+      });
+
+      const cached = await this.cacheService.get(cacheKey);
       if (cached) {
         this.logger.log(`命中缓存，会话: ${conversationId}`);
         return cached;
       }
 
-      // 发送请求（带重试机制）
+      // 6. 发送请求（带重试机制）
       const response = await this.chatWithRetry(chatRequest, conversationId);
 
-      // 提取 correlationId
+      // 7. 提取 correlationId
       const correlationId =
         response.headers['x-correlation-id'] || response.data.correlationId || 'N/A';
 
-      // 检查 API 响应是否成功
+      // 8. 检查 API 响应是否成功
       if (!response.data.success) {
         const errorData = response.data as any;
 
@@ -175,30 +245,28 @@ export class AgentService {
 
       const chatResponse = response.data.data;
 
-      // 记录 correlationId 和使用统计
+      // 9. 记录 correlationId 和使用统计
       this.logger.log(`Agent API 成功，会话: ${conversationId}, correlationId: ${correlationId}`);
+
+      // 打印完整的 Agent 响应数据
+      this.logger.log(`========== Agent 响应数据 [${conversationId}] ==========`);
+      this.logger.log(JSON.stringify(chatResponse, null, 2));
+      this.logger.log('='.repeat(50));
+
       this.logUsageStats(chatResponse, conversationId);
 
-      // 验证模式不需要保存历史
-      if (validateOnly) {
-        this.logger.log(`配置验证完成，会话: ${conversationId}`);
-        return chatResponse;
+      // 10. 缓存响应（委托给 CacheService）
+      // 基于实际使用的工具（而不是 allowedTools）决定是否缓存
+      if (
+        this.cacheService.shouldCache({
+          usedTools: chatResponse.tools?.used,
+          context,
+          toolContext,
+        })
+      ) {
+        await this.cacheService.set(cacheKey, chatResponse);
       }
 
-      // 添加助手回复到历史
-      if (chatResponse.messages && chatResponse.messages.length > 0) {
-        const assistantMessages = chatResponse.messages.filter((m) => m.role === 'assistant');
-        this.conversationService.addMessages(conversationId, assistantMessages);
-      }
-
-      // 缓存响应（仅缓存简单查询）
-      if (!allowedTools || allowedTools.length === 0) {
-        this.saveToCache(cacheKey, chatResponse);
-      }
-
-      this.logger.log(
-        `AI 回复生成成功，会话: ${conversationId}，Token使用: ${chatResponse.usage?.totalTokens || 'N/A'}`,
-      );
       return chatResponse;
     } catch (error) {
       // 如果已经是我们的自定义异常，直接抛出
@@ -290,71 +358,6 @@ export class AgentService {
   }
 
   /**
-   * 获取可用的 promptType 列表
-   */
-  async getPromptTypes() {
-    try {
-      this.logger.log('获取可用的 promptType 列表...');
-      const response = await this.httpClient.get('/prompt-types');
-      return response.data;
-    } catch (error) {
-      this.logger.error('获取 promptType 列表失败:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * 获取配置 Schema
-   */
-  async getConfigSchema() {
-    try {
-      this.logger.log('获取配置 Schema...');
-      const response = await this.httpClient.get('/config-schema');
-      return response.data;
-    } catch (error) {
-      this.logger.error('获取配置 Schema 失败:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * 清空会话历史
-   */
-  clearConversation(conversationId: string) {
-    this.conversationService.clearConversation(conversationId);
-    this.logger.log(`会话 ${conversationId} 已清空`);
-  }
-
-  /**
-   * 获取会话统计信息
-   */
-  getConversationStats(conversationId: string) {
-    return this.conversationService.getStats(conversationId);
-  }
-
-  /**
-   * 健康检查
-   */
-  async healthCheck() {
-    try {
-      // 尝试获取模型列表来验证连接
-      await this.getModels();
-      return {
-        status: 'healthy',
-        baseURL: this.baseURL,
-        message: 'Agent API 连接正常',
-      };
-    } catch (error) {
-      return {
-        status: 'unhealthy',
-        baseURL: this.baseURL,
-        message: 'Agent API 连接失败',
-        error: error instanceof Error ? error.message : 'Unknown error',
-      };
-    }
-  }
-
-  /**
    * 带重试机制的 chat 请求
    * 实现指数退避策略
    */
@@ -417,69 +420,36 @@ export class AgentService {
   }
 
   /**
-   * 生成缓存键
-   * 基于消息内容和模型生成唯一键
-   */
-  private getCacheKey(request: ChatRequest): string {
-    const lastMessage = request.messages[request.messages.length - 1];
-    const content =
-      'content' in lastMessage
-        ? lastMessage.content
-        : lastMessage.parts?.map((p) => p.text).join('') || '';
-
-    // 生成简单的哈希键
-    return `${request.model}:${content.substring(0, 100)}`;
-  }
-
-  /**
-   * 从缓存获取响应
-   */
-  private getFromCache(key: string): ChatResponse | null {
-    const cached = this.responseCache.get(key);
-    if (!cached) {
-      return null;
-    }
-
-    // 检查是否过期
-    if (Date.now() - cached.timestamp > this.cacheTTL) {
-      this.responseCache.delete(key);
-      return null;
-    }
-
-    return cached.response;
-  }
-
-  /**
-   * 保存响应到缓存
-   */
-  private saveToCache(key: string, response: ChatResponse): void {
-    this.responseCache.set(key, {
-      response,
-      timestamp: Date.now(),
-    });
-
-    // 限制缓存大小，避免内存泄漏
-    if (this.responseCache.size > 1000) {
-      const firstKey = this.responseCache.keys().next().value;
-      this.responseCache.delete(firstKey);
-    }
-  }
-
-  /**
    * 记录使用统计
    */
   private logUsageStats(response: ChatResponse, conversationId: string): void {
-    const { usage } = response;
+    const { usage, tools } = response;
 
-    this.logger.log(`Token使用统计 [会话=${conversationId}]`, {
-      inputTokens: usage.inputTokens,
-      outputTokens: usage.outputTokens,
-      totalTokens: usage.totalTokens,
-      cachedTokens: usage.cachedInputTokens || 0,
-    });
+    // 记录 Token 使用情况
+    this.logger.log(
+      `Token使用 [会话: ${conversationId}] - ` +
+        `输入: ${usage.inputTokens}, 输出: ${usage.outputTokens}, 总计: ${usage.totalTokens}` +
+        (usage.cachedInputTokens ? `, 缓存: ${usage.cachedInputTokens}` : ''),
+    );
+
+    // 记录工具调用情况
+    if (tools) {
+      if (tools.used && tools.used.length > 0) {
+        this.logger.log(`工具调用 [会话: ${conversationId}] - 已使用: [${tools.used.join(', ')}]`);
+      } else {
+        this.logger.log(`工具调用 [会话: ${conversationId}] - 未使用任何工具`);
+      }
+
+      if (tools.skipped && tools.skipped.length > 0) {
+        this.logger.debug(
+          `工具调用 [会话: ${conversationId}] - 已跳过: [${tools.skipped.join(', ')}]`,
+        );
+      }
+    }
 
     // 可以在这里添加监控指标上报逻辑
     // 例如：this.metricsService.recordTokenUsage(usage);
+    // 例如：this.metricsService.recordToolUsage(tools);
   }
 
   /**

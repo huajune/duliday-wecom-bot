@@ -314,21 +314,89 @@ src/
    - PUT/PATCH：更新资源
    - DELETE：删除资源
 
-3. **响应格式**
+3. **统一响应格式（重要！）**
+
+   **全局策略：所有 HTTP 响应自动统一包装（main.ts 中已全局注册）**
+
+   **成功响应：**
    ```typescript
-   // 成功响应
    {
      "success": true,
-     "data": { /* 数据 */ },
-     "message": "操作成功"
+     "data": { /* 业务数据 */ },
+     "message": "操作成功",  // 可选
+     "timestamp": "2024-10-24T12:00:00.000Z"
    }
+   ```
 
-   // 错误响应
+   **错误响应：**
+   ```typescript
    {
      "success": false,
      "error": {
-       "code": "ERROR_CODE",
-       "message": "错误描述"
+       "code": "BAD_REQUEST",
+       "message": "错误描述",
+       "details": { /* 错误详情 */ }  // 可选
+     },
+     "timestamp": "2024-10-24T12:00:00.000Z",
+     "path": "/api/v1/resource"  // 可选
+   }
+   ```
+
+   **Controller 开发规范：**
+   ```typescript
+   // ✅ 推荐：直接返回业务数据，拦截器自动包装
+   @Get('list')
+   async getList() {
+     const data = await this.service.getList();
+     return data;  // 自动包装为 { success: true, data: {...}, timestamp: '...' }
+   }
+
+   // ✅ 推荐：抛出异常，过滤器自动处理
+   @Post('create')
+   async create(@Body() dto: CreateDto) {
+     if (!dto.name) {
+       throw new BadRequestException('名称不能为空');
+       // 自动转换为: { success: false, error: { code: 'BAD_REQUEST', ... } }
+     }
+     return await this.service.create(dto);
+   }
+
+   // ⚠️ 特殊场景：需要返回原始格式（第三方回调、透传第三方 API）
+   import { RawResponse } from '@core/response';
+
+   @RawResponse()  // 明确标记：豁免统一包装
+   @Post('callback')
+   async handleCallback(@Body() body: any) {
+     await this.service.handle(body);
+     return { errcode: 0, errmsg: 'ok' };  // 返回第三方要求的原始格式
+   }
+   ```
+
+   **何时使用 @RawResponse：**
+   1. **第三方回调接口** - 企微、支付等回调必须返回特定格式
+   2. **透传第三方 API** - 直接返回第三方 API 原始响应
+   3. **特殊协议接口** - 需要特定响应格式的协议
+
+   **示例对比：**
+   ```typescript
+   // 业务接口（使用统一格式）
+   @Controller('bot')
+   export class BotController {
+     @Get('list')
+     async getBotList() {
+       return await this.botService.getList();
+       // 响应: { success: true, data: [...], timestamp: '...' }
+     }
+   }
+
+   // 企微回调（使用原始格式）
+   @Controller('message')
+   export class MessageController {
+     @RawResponse()  // 必须添加
+     @Post()
+     async receiveMessage(@Body() body: any) {
+       await this.messageService.handle(body);
+       return { errcode: 0, errmsg: 'ok' };  // 企微要求的格式
      }
    }
    ```

@@ -1,17 +1,41 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { AgentController } from './agent.controller';
 import { AgentService } from './agent.service';
+import { AgentConfigService } from './agent-config.service';
+import { AgentRegistryService } from './agent-registry.service';
+import { AgentCacheService } from './agent-cache.service';
+import { ConfigService } from '@nestjs/config';
 
 describe('AgentController', () => {
   let controller: AgentController;
   let service: AgentService;
+  let registryService: AgentRegistryService;
 
   const mockAgentService = {
-    healthCheck: jest.fn(),
     getTools: jest.fn(),
     getModels: jest.fn(),
-    getPromptTypes: jest.fn(),
     chat: jest.fn(),
+  };
+
+  const mockRegistryService = {
+    getHealthStatus: jest.fn(),
+    getConfiguredTools: jest.fn(),
+    getAvailableModels: jest.fn(),
+    refresh: jest.fn(),
+  };
+
+  const mockAgentConfigService = {
+    getAllProfiles: jest.fn(),
+    getProfile: jest.fn(),
+    validateProfile: jest.fn(),
+  };
+
+  const mockCacheService = {
+    getStats: jest.fn(),
+  };
+
+  const mockConfigService = {
+    get: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -22,11 +46,28 @@ describe('AgentController', () => {
           provide: AgentService,
           useValue: mockAgentService,
         },
+        {
+          provide: AgentRegistryService,
+          useValue: mockRegistryService,
+        },
+        {
+          provide: AgentConfigService,
+          useValue: mockAgentConfigService,
+        },
+        {
+          provide: AgentCacheService,
+          useValue: mockCacheService,
+        },
+        {
+          provide: ConfigService,
+          useValue: mockConfigService,
+        },
       ],
     }).compile();
 
     controller = module.get<AgentController>(AgentController);
     service = module.get<AgentService>(AgentService);
+    registryService = module.get<AgentRegistryService>(AgentRegistryService);
   });
 
   afterEach(() => {
@@ -38,23 +79,36 @@ describe('AgentController', () => {
   });
 
   describe('healthCheck', () => {
-    it('should call agentService.healthCheck', async () => {
-      const mockResult = { status: 'ok', timestamp: Date.now() };
+    it('should return healthy status when all configured resources are available', async () => {
+      const mockHealthStatus = {
+        models: { configuredAvailable: true },
+        tools: { allAvailable: true },
+        lastRefreshTime: new Date().toISOString(),
+      };
 
-      mockAgentService.healthCheck.mockResolvedValue(mockResult);
+      mockRegistryService.getHealthStatus.mockReturnValue(mockHealthStatus);
 
       const result = await controller.healthCheck();
 
-      expect(service.healthCheck).toHaveBeenCalled();
-      expect(result).toEqual(mockResult);
+      expect(registryService.getHealthStatus).toHaveBeenCalled();
+      expect(result.success).toBe(true);
+      expect(result.data.status).toEqual('healthy');
     });
 
-    it('should handle errors from agentService.healthCheck', async () => {
-      const error = new Error('Health check failed');
+    it('should return degraded status when some resources are unavailable', async () => {
+      const mockHealthStatus = {
+        models: { configuredAvailable: true },
+        tools: { allAvailable: false },
+        lastRefreshTime: new Date().toISOString(),
+      };
 
-      mockAgentService.healthCheck.mockRejectedValue(error);
+      mockRegistryService.getHealthStatus.mockReturnValue(mockHealthStatus);
 
-      await expect(controller.healthCheck()).rejects.toThrow('Health check failed');
+      const result = await controller.healthCheck();
+
+      expect(registryService.getHealthStatus).toHaveBeenCalled();
+      expect(result.success).toBe(true);
+      expect(result.data.status).toEqual('degraded');
     });
   });
 
@@ -114,30 +168,6 @@ describe('AgentController', () => {
       mockAgentService.getModels.mockRejectedValue(error);
 
       await expect(controller.getModels()).rejects.toThrow('Get models failed');
-    });
-  });
-
-  describe('getPromptTypes', () => {
-    it('should call agentService.getPromptTypes', async () => {
-      const mockResult = {
-        promptTypes: ['default', 'customer-service', 'technical-support'],
-        count: 3,
-      };
-
-      mockAgentService.getPromptTypes.mockResolvedValue(mockResult);
-
-      const result = await controller.getPromptTypes();
-
-      expect(service.getPromptTypes).toHaveBeenCalled();
-      expect(result).toEqual(mockResult);
-    });
-
-    it('should handle errors from agentService.getPromptTypes', async () => {
-      const error = new Error('Get prompt types failed');
-
-      mockAgentService.getPromptTypes.mockRejectedValue(error);
-
-      await expect(controller.getPromptTypes()).rejects.toThrow('Get prompt types failed');
     });
   });
 

@@ -1,0 +1,32 @@
+{
+  "duliday_job_list": {
+    "replyPrompts": {
+      "noResults": "抱歉，暂时没有符合条件的岗位😔\n\n您可以考虑：\n1. 放宽地点要求\n2. 查看其他岗位类型",
+      "tooManyResults": "我们有很多符合条件的岗位，为了更精准推荐，请告诉我：\n- 您期望的工作地点？\n- 您感兴趣的岗位类型？"
+    },
+    "maxResults": 5,
+    "defaultSortBy": "createdAt"
+  },
+
+  "duliday_job_details": {
+    "replyPrompts": {
+      "notFound": "抱歉，该岗位信息暂时无法获取，请稍后再试。",
+      "success": "我已经为您获取到岗位详情，请查看以下信息："
+    },
+    "includeFields": ["salary", "workHours", "benefits", "interviewInfo"],
+    "formatStyle": "detailed"
+  },
+
+  "duliday_interview_booking": {
+    "replyPrompts": {
+      "success": "面试预约成功！✅\n我们的HR会在面试前一天给您发送提醒。",
+      "failure": "抱歉，预约失败。可能的原因：\n- 该时间段已满\n- 系统繁忙\n请选择其他时间或联系人工客服。",
+      "pendingInfo": "还需要以下信息才能完成预约：\n{missingFields}",
+      "confirmInfo": "请确认以下信息：\n{bookingInfo}"
+    },
+    "requiredFields": ["name", "phone", "gender", "age", "interviewTime"],
+    "autoConfirm": false,
+    "sendReminder": true,
+    "reminderBeforeHours": 24
+  }
+}

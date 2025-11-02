@@ -4,7 +4,14 @@
   "sourceRoot": "src",
   "compilerOptions": {
     "deleteOutDir": true,
-    "tsConfigPath": "tsconfig.json"
+    "tsConfigPath": "tsconfig.json",
+    "assets": [
+      {
+        "include": "agent/context/**/*",
+        "outDir": "dist"
+      }
+    ],
+    "watchAssets": true
   }
 }
 
