@@ -34,6 +34,7 @@ export class MessageService {
   private readonly enableAiReply: boolean;
   private readonly enableMessageMerge: boolean;
   private readonly enableMessageSplitSend: boolean;
+  private readonly messageSendDelay: number;
 
   // 监控统计：跟踪正在处理的消息数（用于监控，不做并发限制）
   private processingCount: number = 0;
@@ -57,10 +58,12 @@ export class MessageService {
       this.configService.get<string>('ENABLE_MESSAGE_MERGE', 'true') === 'true';
     this.enableMessageSplitSend =
       this.configService.get<string>('ENABLE_MESSAGE_SPLIT_SEND', 'true') === 'true';
+    this.messageSendDelay = this.configService.get<number>('MESSAGE_SEND_DELAY', 1500);
 
     this.logger.log(`AI 自动回复功能: ${this.enableAiReply ? '已启用' : '已禁用'}`);
     this.logger.log(`消息聚合功能: ${this.enableMessageMerge ? '已启用' : '已禁用'}`);
     this.logger.log(`消息分段发送功能: ${this.enableMessageSplitSend ? '已启用' : '已禁用'}`);
+    this.logger.log(`消息发送延迟: ${this.messageSendDelay}ms`);
   }
 
   /**
@@ -226,12 +229,14 @@ export class MessageService {
       );
 
       // 9. 发送回复消息（使用企业级接口 v2）
-      // 检查是否启用消息分段发送功能，以及消息是否需要按换行符拆分
+      // 检查是否启用消息分段发送功能，以及消息是否需要按双换行符或"～"拆分
       if (this.enableMessageSplitSend && MessageSplitter.needsSplit(replyContent)) {
-        const segments = MessageSplitter.splitByNewlines(replyContent);
+        const segments = MessageSplitter.split(replyContent);
         this.logger.log(
-          `[${scenarioType}][${contactName}] 消息包含换行符，拆分为 ${segments.length} 条消息发送`,
+          `[${scenarioType}][${contactName}] 消息包含双换行符或"～"，拆分为 ${segments.length} 条消息发送`,
         );
+        this.logger.log(`[${scenarioType}][${contactName}] 原始消息: "${replyContent}"`);
+        this.logger.log(`[${scenarioType}][${contactName}] 拆分结果: ${JSON.stringify(segments)}`);
 
         // 依次发送每个片段
         for (let i = 0; i < segments.length; i++) {
@@ -240,20 +245,31 @@ export class MessageService {
             `[${scenarioType}][${contactName}] 发送第 ${i + 1}/${segments.length} 条消息: "${segment.substring(0, 30)}${segment.length > 30 ? '...' : ''}"`,
           );
 
-          await this.messageSenderService.sendMessage({
-            token, // 企业级token
-            imBotId, // 托管账号的系统wxid
-            imContactId, // 私聊：客户的系统wxid
-            imRoomId, // 群聊：群的系统wxid
-            messageType: SendMessageType.TEXT, // TEXT = 7
-            payload: {
-              text: segment,
-            },
-          });
+          try {
+            await this.messageSenderService.sendMessage({
+              token, // 企业级token
+              imBotId, // 托管账号的系统wxid
+              imContactId, // 私聊：客户的系统wxid
+              imRoomId, // 群聊：群的系统wxid
+              messageType: SendMessageType.TEXT, // TEXT = 7
+              payload: {
+                text: segment,
+              },
+            });
 
-          // 添加短暂延迟，避免发送过快（除了最后一条消息）
-          if (i < segments.length - 1) {
-            await new Promise((resolve) => setTimeout(resolve, 300));
+            this.logger.debug(
+              `[${scenarioType}][${contactName}] 第 ${i + 1}/${segments.length} 条消息发送成功`,
+            );
+
+            // 添加延迟，确保消息按顺序到达
+            if (i < segments.length - 1) {
+              await new Promise((resolve) => setTimeout(resolve, this.messageSendDelay));
+            }
+          } catch (error) {
+            this.logger.error(
+              `[${scenarioType}][${contactName}] 第 ${i + 1}/${segments.length} 条消息发送失败: ${error.message}`,
+            );
+            // 发送失败时仍然继续发送后续消息
           }
         }
 
@@ -507,8 +523,10 @@ export class MessageService {
 
     // 检查是否启用消息分段发送
     if (this.enableMessageSplitSend && MessageSplitter.needsSplit(replyContent)) {
-      const segments = MessageSplitter.splitByNewlines(replyContent);
-      this.logger.log(`[聚合处理] 消息包含换行符，拆分为 ${segments.length} 条消息发送`);
+      const segments = MessageSplitter.split(replyContent);
+      this.logger.log(`[聚合处理] 消息包含双换行符或"～"，拆分为 ${segments.length} 条消息发送`);
+      this.logger.log(`[聚合处理] 原始消息: "${replyContent}"`);
+      this.logger.log(`[聚合处理] 拆分结果: ${JSON.stringify(segments)}`);
 
       for (let i = 0; i < segments.length; i++) {
         const segment = segments[i];
@@ -516,17 +534,27 @@ export class MessageService {
           `[聚合处理] 发送第 ${i + 1}/${segments.length} 条消息: "${segment.substring(0, 30)}..."`,
         );
 
-        await this.messageSenderService.sendMessage({
-          token,
-          imBotId,
-          imContactId,
-          imRoomId,
-          messageType: SendMessageType.TEXT,
-          payload: { text: segment },
-        });
+        try {
+          await this.messageSenderService.sendMessage({
+            token,
+            imBotId,
+            imContactId,
+            imRoomId,
+            messageType: SendMessageType.TEXT,
+            payload: { text: segment },
+          });
 
-        if (i < segments.length - 1) {
-          await new Promise((resolve) => setTimeout(resolve, 300));
+          this.logger.debug(`[聚合处理] 第 ${i + 1}/${segments.length} 条消息发送成功`);
+
+          // 添加延迟，确保消息按顺序到达
+          if (i < segments.length - 1) {
+            await new Promise((resolve) => setTimeout(resolve, this.messageSendDelay));
+          }
+        } catch (error) {
+          this.logger.error(
+            `[聚合处理] 第 ${i + 1}/${segments.length} 条消息发送失败: ${error.message}`,
+          );
+          // 发送失败时仍然继续发送后续消息
         }
       }
 
