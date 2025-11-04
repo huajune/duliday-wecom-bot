@@ -3,7 +3,6 @@ name: Update Version and Changelog
 on:
   push:
     branches:
-      - develop
       - main
       - master
 
@@ -45,8 +44,12 @@ jobs:
         run: |
           if git diff --quiet package.json CHANGELOG.md; then
             echo "has_changes=false" >> $GITHUB_OUTPUT
+            echo "version=unchanged" >> $GITHUB_OUTPUT
           else
             echo "has_changes=true" >> $GITHUB_OUTPUT
+            # 读取新版本号
+            NEW_VERSION=$(node -p "require('./package.json').version")
+            echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
           fi
 
       - name: Commit and push changes
@@ -55,3 +58,10 @@ jobs:
           git add package.json CHANGELOG.md
           git commit -m "chore: update version and changelog [skip ci]"
           git push
+
+      - name: Create Git Tag
+        if: steps.check_changes.outputs.has_changes == 'true'
+        run: |
+          VERSION="${{ steps.check_changes.outputs.version }}"
+          git tag "v$VERSION"
+          git push origin "v$VERSION"

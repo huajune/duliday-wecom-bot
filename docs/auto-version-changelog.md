@@ -16,13 +16,14 @@
 
 ## 🔄 工作原理
 
-当代码被推送到远程的 `develop` 或 `main`/`master` 分支时，GitHub Actions 会自动：
+当 `develop` 分支合并到 `main`/`master` 分支时，GitHub Actions 会自动：
 
 1. **分析提交历史** - 检查从上次版本 tag 以来的所有 commits
 2. **判断版本类型** - 根据 Conventional Commits 规范确定版本更新级别
 3. **更新版本号** - 自动修改 [package.json](../package.json) 中的 `version` 字段
 4. **生成 CHANGELOG** - 在 [CHANGELOG.md](../CHANGELOG.md) 中添加新版本记录
 5. **自动提交** - 将更新提交并推送回远程仓库
+6. **创建 Git Tag** - 自动创建版本 tag（如 v1.2.3）并推送
 
 **文件结构：**
 ```
@@ -40,37 +41,40 @@ scripts/
 
 ### 自动触发条件
 
-GitHub Actions 会在以下情况自动运行：
+GitHub Actions 只在 **`main`/`master` 分支**接收到推送时自动运行：
 
 ```yaml
 on:
   push:
     branches:
-      - develop     # 推送到 develop 分支
       - main        # 推送到 main 分支
       - master      # 推送到 master 分支
 ```
 
 ### 典型场景
 
-1. **合并 Pull Request**
-   ```bash
-   # 在 GitHub 上合并 PR 到 develop
-   # → 自动触发版本更新
-   ```
+**推荐流程**：develop → master
 
-2. **直接推送到保护分支**
-   ```bash
-   git push origin develop
-   # → 自动触发版本更新
-   ```
-
-3. **合并功能分支**
+1. **在 develop 分支开发**
    ```bash
    git checkout develop
-   git merge feature/new-feature
+   git add .
+   git commit -m "feat: 添加新功能"
    git push origin develop
-   # → 自动触发版本更新
+   ```
+
+2. **合并到 master 触发版本更新**
+   ```bash
+   # 方式 1: 通过 Pull Request（推荐）
+   # 在 GitHub 上创建 develop → master 的 PR 并合并
+   # → 自动触发版本更新、生成 CHANGELOG、创建 Tag
+
+   # 方式 2: 本地合并
+   git checkout master
+   git pull origin master
+   git merge develop
+   git push origin master
+   # → 自动触发版本更新、生成 CHANGELOG、创建 Tag
    ```
 
 ---
@@ -227,16 +231,30 @@ git merge feature/new-feature
 git push origin develop
 ```
 
-#### 5. 自动化流程开始 🚀
+#### 5. 合并到 master 发布版本
 
-一旦代码推送到 `develop` 分支：
+```bash
+# 方式 1: GitHub PR（推荐）
+# 在 GitHub 创建 develop → master 的 PR 并合并
+
+# 方式 2: 本地合并
+git checkout master
+git pull origin master
+git merge develop
+git push origin master
+```
+
+#### 6. 自动化流程开始 🚀
+
+一旦代码推送到 `master` 分支：
 
 1. GitHub Actions 自动触发
 2. 分析所有新的 commits
 3. 更新版本号（如 `1.2.3` → `1.3.0`）
 4. 更新 CHANGELOG.md
 5. 自动提交：`chore: update version and changelog [skip ci]`
-6. 推送回 develop 分支
+6. 推送回 master 分支
+7. 创建并推送 Git Tag：`v1.3.0`
 
 ---
 
@@ -305,25 +323,42 @@ chore: update version and changelog [skip ci]
 - GitHub Actions 有 `contents: write` 权限
 - 或者在分支保护设置中允许 bot 直接推送
 
-### 4. 手动发布
+### 4. 版本发布
 
-对于 `main` 分支的正式发布，建议：
+对于正式版本发布，**必须合并到 master 分支**：
 
 ```bash
-# 合并到 main
-git checkout main
+# 合并 develop 到 master
+git checkout master
 git merge develop
-git push origin main
+git push origin master
 
-# GitHub Actions 会自动更新版本和 CHANGELOG
+# GitHub Actions 会自动：
+# 1. 更新版本号
+# 2. 生成 CHANGELOG
+# 3. 创建 Git Tag（如 v1.3.0）
 ```
 
 ### 5. Git Tags
 
-目前版本号基于分析 commits 计算，未来可以考虑：
+系统会**自动创建 Git Tag**：
 
-- 在 main 分支自动创建 Git Tag
-- 使用 Tag 作为版本边界
+- ✅ 每次版本更新时自动创建 Tag
+- ✅ Tag 格式：`v{version}`（如 `v1.3.0`）
+- ✅ Tag 会自动推送到远程仓库
+- ✅ 可在 GitHub Releases 页面查看所有版本
+
+**查看 Tags**：
+```bash
+# 查看所有 tags
+git tag
+
+# 查看最新 tag
+git describe --tags --abbrev=0
+
+# 拉取远程 tags
+git fetch --tags
+```
 
 ---
 
@@ -341,9 +376,10 @@ git push origin main
 ### 问题 1: Actions 没有触发
 
 **检查：**
-- 确认推送到了 `develop` 或 `main` 分支
+- 确认推送到了 `main` 或 `master` 分支（不是 develop）
 - 检查 `.github/workflows/version-changelog.yml` 文件是否存在
 - 查看 GitHub Actions 页面是否有错误日志
+- 确认是从 develop 合并到 master，而不是直接推送
 
 ### 问题 2: 版本号没有更新
 
