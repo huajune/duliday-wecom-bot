@@ -1,0 +1,65 @@
+name: Update Version and Changelog
+
+on:
+  push:
+    branches:
+      - develop
+      - main
+      - master
+
+jobs:
+  update-version-changelog:
+    runs-on: ubuntu-latest
+
+    # 避免无限循环：如果是 bot 提交则跳过
+    if: "!contains(github.event.head_commit.message, '[skip ci]')"
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # 获取完整历史记录，用于分析 commits
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Run version and changelog update script
+        run: node scripts/update-version-changelog.js
+        env:
+          GITHUB_REF: ${{ github.ref }}
+          GITHUB_SHA: ${{ github.sha }}
+
+      - name: Check for changes
+        id: check_changes
+        run: |
+          if git diff --quiet package.json CHANGELOG.md; then
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+          else
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Commit and push changes
+        if: steps.check_changes.outputs.has_changes == 'true'
+        run: |
+          git add package.json CHANGELOG.md
+          git commit -m "chore: update version and changelog [skip ci]"
+          git push
