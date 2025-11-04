@@ -68,10 +68,13 @@ function getCommits() {
   const output = execGit(command);
   if (!output) return [];
 
-  return output.split('\n').map(line => {
-    const [hash, subject, body, author, email, date] = line.split('||');
-    return { hash, subject, body, author, email, date };
-  });
+  return output
+    .split('\n')
+    .filter(line => line.trim()) // 过滤空行
+    .map(line => {
+      const [hash, subject, body, author, email, date] = line.split('||');
+      return { hash, subject, body, author, email, date };
+    });
 }
 
 /**
@@ -97,7 +100,11 @@ function analyzeCommits(commits) {
 
   commits.forEach(commit => {
     const { subject, body } = commit;
-    const fullMessage = `${subject}\n${body}`;
+
+    // 跳过无效的 commit
+    if (!subject) return;
+
+    const fullMessage = `${subject}\n${body || ''}`;
 
     // 检查是否有 BREAKING CHANGE
     if (fullMessage.match(/BREAKING[- ]CHANGE:/i)) {
