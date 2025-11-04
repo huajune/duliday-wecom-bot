@@ -29,14 +29,6 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Install pnpm
-        uses: pnpm/action-setup@v2
-        with:
-          version: 8
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
       - name: Configure Git
         run: |
           git config user.name "github-actions[bot]"
