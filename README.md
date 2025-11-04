@@ -52,7 +52,7 @@
 ### 1. 安装依赖
 
 ```bash
-npm install
+pnpm install
 ```
 
 ### 2. 配置环境变量
@@ -84,11 +84,11 @@ NODE_ENV=production
 
 ```bash
 # 开发模式（支持热重载）
-npm run start:dev
+pnpm run start:dev
 
 # 生产模式
-npm run build
-npm run start:prod
+pnpm run build
+pnpm run start:prod
 ```
 
 ### 4. 验证服务
@@ -272,7 +272,10 @@ POST /room/remove-member
 }
 ```
 
-详细 API 文档请查看 [API_CONFIG.md](./API_CONFIG.md)
+详细 API 文档请查看：
+- [Agent API 使用指南](./docs/huajune-agent-api-guide.md)
+- [Agent 服务架构](./docs/agent-service-architecture.md)
+- [消息服务架构](./docs/message-service-architecture.md)
 
 ## 配置说明
 
@@ -282,9 +285,9 @@ POST /room/remove-member
 
 | 配置文件 | 用途 | 使用命令 |
 |---------|------|----------|
-| `.env.development` | 开发环境 | `npm run start:dev` |
-| `.env.production` | 生产环境 | `npm run start:prod` |
-| `.env.test` | 测试环境 | `npm run test` |
+| `.env.development` | 开发环境 | `pnpm run start:dev` |
+| `.env.production` | 生产环境 | `pnpm run start:prod` |
+| `.env.test` | 测试环境 | `pnpm run test` |
 | `.env` | 本地覆盖配置（可选） | - |
 
 ### 主要环境变量
@@ -302,8 +305,6 @@ POST /room/remove-member
 | `CONVERSATION_MAX_MESSAGES` | 会话最大消息数 | 20 | ❌ |
 | `CONVERSATION_TIMEOUT_MS` | 会话超时时间（ms） | 7200000 | ❌ |
 | `HTTP_CLIENT_TIMEOUT` | HTTP 请求超时时间（ms） | 10000 | ❌ |
-
-📖 **完整配置说明请参考：[环境变量配置指南](./docs/ENV_CONFIG.md)**
 
 ### 快速配置
 
@@ -332,13 +333,13 @@ vim .env
 
 ```bash
 # 单元测试
-npm run test
+pnpm run test
 
 # 端到端测试
-npm run test:e2e
+pnpm run test:e2e
 
 # AI 集成测试
-npm run test:ai
+pnpm run test:ai
 ```
 
 ### 手动测试
@@ -397,7 +398,7 @@ curl -X POST http://localhost:8080/message \
 ### 使用 PM2
 
 ```bash
-npm run build
+pnpm run build
 pm2 start dist/main.js --name duliday-wecom-service
 pm2 save
 ```
@@ -518,6 +519,34 @@ tail -f logs/combined-$(date +%Y-%m-%d).log
 - 检查服务是否正常运行在配置的端口
 - 查看托管平台后台的回调日志
 
+## 版本管理
+
+本项目使用 **GitHub Actions 自动化版本管理系统**：
+
+- **自动触发**：推送到 `develop`/`main`/`master` 分支时自动更新版本
+- **智能判断**：根据 Conventional Commits 规范自动确定版本号
+  - `feat:` → 次版本 +1
+  - `fix:` → 修订号 +1
+  - `BREAKING CHANGE` → 主版本 +1
+- **自动生成**：自动更新 `package.json` 和 `CHANGELOG.md`
+
+详细说明请查看：[自动化版本管理文档](./docs/auto-version-changelog.md)
+
+### 提交规范
+
+请遵循 [Conventional Commits](https://www.conventionalcommits.org/) 规范：
+
+```bash
+# 新功能
+git commit -m "feat: 添加用户认证功能"
+
+# Bug 修复
+git commit -m "fix: 修复消息发送失败问题"
+
+# 文档更新
+git commit -m "docs: 更新 API 文档"
+```
+
 ## 技术栈
 
 - **框架**：NestJS 10.x
@@ -526,6 +555,7 @@ tail -f logs/combined-$(date +%Y-%m-%d).log
 - **日志**：Winston
 - **配置管理**：@nestjs/config
 - **文档**：Swagger
+- **CI/CD**：GitHub Actions
 
 ## 相关资源
 
