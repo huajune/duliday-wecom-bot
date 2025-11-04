@@ -22,7 +22,7 @@ priority: high
 >
 > **FOR HUMAN DEVELOPERS**: See [code-standards.md](code-standards.md) for detailed reference
 
-**Last Updated**: 2024-10-15
+**Last Updated**: 2025-11-04
 **Purpose**: Ensure all AI-generated code meets project quality standards
 **Target Audience**: Claude Code AI agents
 
@@ -143,10 +143,10 @@ Refer to [code-standards.md#forbidden-practices](code-standards.md#forbidden-pra
 npx tsc --noEmit
 
 # ESLint check
-npm run lint
+pnpm run lint
 
 # Prettier format
-npm run format
+pnpm run format
 ```
 
 **Expected Result**: All checks pass with zero errors and zero warnings.
@@ -172,7 +172,6 @@ For all AI-generated code:
 
 - **[code-standards.md](code-standards.md)** - Complete coding standards reference (human-readable)
 - **[architecture-principles.md](architecture-principles.md)** - System design patterns
-- **[development-workflow.md](development-workflow.md)** - Git workflow and testing
 
 ---
 

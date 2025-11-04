@@ -51,7 +51,14 @@
       "Bash(chmod:*)",
       "Bash(./switch-agent-env.sh:*)",
       "Read(//private/tmp/**)",
-      "Bash(npm install:*)"
+      "Bash(npm install:*)",
+      "Bash(git log:*)",
+      "Bash(git mv:*)",
+      "Bash(node scripts/update-changelog.js:*)",
+      "Bash(node scripts/update-changelog.mjs:*)",
+      "Bash(.git/hooks/post-merge)",
+      "Bash(git ls-tree:*)",
+      "Bash(git pull:*)"
     ],
     "deny": [],
     "ask": []
