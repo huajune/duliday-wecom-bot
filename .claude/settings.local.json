@@ -20,10 +20,8 @@
       "Bash(pnpm --version)",
       "Bash(git init:*)",
       "Bash(git add:*)",
-      "Bash(git commit:*)",
       "Bash(git remote add:*)",
       "Bash(git branch:*)",
-      "Bash(git push:*)",
       "Bash(git config:*)",
       "Bash(git remote remove:*)",
       "Bash(pnpm install:*)",
@@ -74,6 +72,8 @@
       "Bash(rm -rf:*)"
     ],
     "ask": [
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
       "Bash(git reset:*)",
       "Bash(git rebase:*)",
       "Bash(git push --force:*)",
