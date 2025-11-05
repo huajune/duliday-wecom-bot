@@ -84,7 +84,7 @@ import { MessageStatisticsService } from './services/message-statistics.service'
     BullModule.registerQueueAsync({
       name: 'message-merge',
       imports: [ConfigModule],
-      useFactory: async (configService: ConfigService) => ({
+      useFactory: async () => ({
         // 队列配置
         defaultJobOptions: {
           attempts: 3, // 失败重试 3 次
@@ -96,7 +96,6 @@ import { MessageStatisticsService } from './services/message-statistics.service'
           removeOnFail: false, // 失败保留用于调试
         },
       }),
-      inject: [ConfigService],
     }),
   ],
   controllers: [MessageController],

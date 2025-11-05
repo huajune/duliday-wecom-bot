@@ -4,7 +4,6 @@ import { EnterpriseMessageCallbackDto } from '../dto/message-callback.dto';
 import {
   ConversationState,
   ConversationStatus,
-  PendingMessage,
   OverflowStrategy,
   MessageProcessor,
 } from '../interfaces/message-merge.interface';

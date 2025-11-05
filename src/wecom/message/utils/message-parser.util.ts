@@ -61,7 +61,7 @@ export class MessageParser {
    * 判断消息场景
    * 当前业务只有候选人私聊咨询这一个场景
    */
-  static determineScenario(_parsedData: any): ScenarioType {
+  static determineScenario(): ScenarioType {
     return ScenarioType.CANDIDATE_CONSULTATION;
   }
 }
