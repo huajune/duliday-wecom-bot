@@ -97,16 +97,31 @@ fix: 修复 bug         # 修订号 +1
 docs: 更新文档        # 修订号 +1
 ```
 
-### 代码审查指南
+### 开发工具指南
 
-- **[Codex 审查指南](codex-review-guidelines.md)** (完整版)
-  - Cursor Codex 插件工作说明
-  - 代码审查流程和标准
-  - 常见问题与建议模板
-  - 沟通风格和最佳实践
+- **[开发指南](guides/development-guide.md)**
+  - 开发环境配置和工作流程
+  - Git hooks、Prettier、ESLint 配置
+  - 环境变量管理（.env / .env.local）
+  - 测试和构建流程
+  - **更新日期**：2025-11-05
+
+- **[Claude Code 安全使用指南](guides/claude-code-safety-guide.md)**
+  - 🛡️ 已启用的安全防护机制
+  - 危险命令黑名单（8个被禁止的命令）
+  - 需要确认的高风险命令（5个）
+  - 自动文件保护和提醒
+  - 安全操作指南和最佳实践
+  - 紧急情况处理方法
+  - **更新日期**：2025-11-05
+
+- **[花卷 Agent API 使用指南](guides/huajune-agent-api-guide.md)**
+  - 花卷智能体 API 完整使用指南
+  - 认证与安全、模型选择
+  - System Prompt 配置、工具系统
+  - 上下文管理、消息剪裁
+  - 错误处理、性能优化
   - **更新日期**：2025-11-04
-
-**快速参考**：项目根目录 [.codex.md](../.codex.md)（精简版）
 
 ---
 
