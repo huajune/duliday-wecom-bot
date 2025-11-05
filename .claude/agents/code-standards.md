@@ -24,7 +24,7 @@ priority: high
 > **FOR HUMAN DEVELOPERS**: Detailed examples and explanations
 > **FOR AI AGENTS**: See [code-quality-guardian.md](code-quality-guardian.md) for enforcement checklist
 
-**Last Updated**: 2024-10-15
+**Last Updated**: 2025-11-05 16:35:00
 **Applies To**: All TypeScript/NestJS code in this project
 **Project**: DuLiDay WeChat Service
 

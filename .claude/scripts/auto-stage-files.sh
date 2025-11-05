@@ -1,19 +1,19 @@
 #!/bin/bash
 
-# 自动将修改的文件添加到暂存区
-# 这个脚本会在Claude Code修改文件后自动执行
+# Auto-stage modified files to Git staging area
+# This script is automatically executed after Claude Code modifies files
 
-# 只添加已跟踪文件的修改，不添加新文件
+# Only stage tracked files, do not add new files
 git add -u
 
-# 检查是否成功
+# Check if successful
 if [ $? -eq 0 ]; then
-  # 获取暂存的文件数
+  # Get count of staged files
   staged_count=$(git diff --cached --name-only | wc -l | tr -d ' ')
   if [ "$staged_count" -gt 0 ]; then
-    echo "✅ 已自动将 ${staged_count} 个修改的文件添加到暂存区"
+    echo "✅ Auto-staged ${staged_count} modified file(s)"
   fi
 else
-  echo "❌ 自动暂存失败"
+  echo "❌ Auto-staging failed"
   exit 1
 fi

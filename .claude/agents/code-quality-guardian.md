@@ -22,7 +22,7 @@ priority: high
 >
 > **FOR HUMAN DEVELOPERS**: See [code-standards.md](code-standards.md) for detailed reference
 
-**Last Updated**: 2024-10-15
+**Last Updated**: 2025-11-05 16:35:00
 **Purpose**: Ensure all AI-generated code meets project quality standards
 **Target Audience**: Claude Code AI agents
 
