@@ -59,10 +59,27 @@
       "Bash(.git/hooks/post-merge)",
       "Bash(git ls-tree:*)",
       "Bash(git pull:*)",
-      "Bash(git fsck:*)"
+      "Bash(git fsck:*)",
+      "Bash(.claude/scripts/auto-stage-files.sh)",
+      "Bash(.claude/scripts/check-modified-files.sh)"
     ],
-    "deny": [],
-    "ask": []
+    "deny": [
+      "Bash(git restore:*)",
+      "Bash(git reset --hard:*)",
+      "Bash(git clean:*)",
+      "Bash(git checkout -- .:*)",
+      "Bash(git checkout HEAD:*)",
+      "Bash(git stash drop:*)",
+      "Bash(git reflog delete:*)",
+      "Bash(rm -rf:*)"
+    ],
+    "ask": [
+      "Bash(git reset:*)",
+      "Bash(git rebase:*)",
+      "Bash(git push --force:*)",
+      "Bash(git push -f:*)",
+      "Bash(git stash:*)"
+    ]
   },
   "hooks": {
     "PostToolUse": [
@@ -73,6 +90,11 @@
             "type": "command",
             "command": "npm run format",
             "timeout": 30
+          },
+          {
+            "type": "command",
+            "command": ".claude/scripts/auto-stage-files.sh",
+            "timeout": 10
           }
         ]
       },
@@ -83,6 +105,22 @@
             "type": "command",
             "command": "npm run format",
             "timeout": 30
+          },
+          {
+            "type": "command",
+            "command": ".claude/scripts/auto-stage-files.sh",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/scripts/check-modified-files.sh",
+            "timeout": 10
           }
         ]
       }
