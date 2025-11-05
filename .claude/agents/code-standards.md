@@ -17,286 +17,42 @@ tags:
 priority: high
 ---
 
-# Code Standards
+# Code Standards & Best Practices
 
-> TypeScript、NestJS 代码规范 - DuLiDay 企业微信服务
+> **Complete reference manual** for TypeScript, NestJS, and code style conventions
+>
+> **FOR HUMAN DEVELOPERS**: Detailed examples and explanations
+> **FOR AI AGENTS**: See [code-quality-guardian.md](code-quality-guardian.md) for enforcement checklist
 
-**Last Updated**: 2025-11-04
-**Target**: AI 代理和人类开发者
-
----
-
-## ES6+ 现代 JavaScript（强制要求）
-
-### 🚫 禁止使用 ES5 语法
-
-本项目**严格禁止使用 ES5 语法**，所有 JavaScript/TypeScript 代码必须使用 ES6+ 标准。
-
-#### 模块系统
-
-```javascript
-// ❌ 禁止使用 CommonJS (ES5)
-const express = require('express');
-const fs = require('fs');
-module.exports = MyClass;
-exports.helper = function() {};
-
-// ✅ 必须使用 ES6 Modules
-import express from 'express';
-import fs from 'fs';
-import { helper } from './utils';
-export default MyClass;
-export const helper = () => {};
-
-// ✅ Node.js 脚本使用 .mjs 扩展名（或配置 package.json "type": "module"）
-// 文件: scripts/my-script.mjs
-import { execSync } from 'child_process';
-import fs from 'fs';
-```
-
-#### 变量声明
-
-```javascript
-// ❌ 禁止使用 var (ES5)
-var count = 0;
-var name = 'test';
-
-// ✅ 使用 const/let (ES6)
-const count = 0;        // 常量
-let name = 'test';      // 可变变量
-
-// ✅ 优先使用 const
-const config = { api: 'url' };
-const users = ['user1', 'user2'];
-```
-
-#### 函数定义
-
-```javascript
-// ❌ 禁止使用 function 表达式 (ES5)
-function add(a, b) {
-  return a + b;
-}
-
-var multiply = function(a, b) {
-  return a * b;
-};
-
-// ✅ 使用箭头函数 (ES6)
-const add = (a, b) => a + b;
-
-const multiply = (a, b) => {
-  return a * b;
-};
-
-// ✅ 对象方法简写
-const obj = {
-  // ❌ ES5 方式
-  getName: function() {
-    return this.name;
-  },
-
-  // ✅ ES6 方式
-  getName() {
-    return this.name;
-  },
-};
-```
-
-#### 模板字符串
-
-```javascript
-// ❌ 禁止使用字符串拼接 (ES5)
-const message = 'Hello, ' + name + '!';
-const path = baseUrl + '/api/' + version;
-
-// ✅ 使用模板字符串 (ES6)
-const message = `Hello, ${name}!`;
-const path = `${baseUrl}/api/${version}`;
-```
-
-#### 解构赋值
-
-```javascript
-// ❌ 传统方式 (ES5)
-const name = user.name;
-const email = user.email;
-const first = array[0];
-const second = array[1];
-
-// ✅ 使用解构 (ES6)
-const { name, email } = user;
-const [first, second] = array;
-
-// ✅ 函数参数解构
-const getUserInfo = ({ name, email, age = 18 }) => {
-  return `${name} (${age}): ${email}`;
-};
-```
-
-#### 数组/对象操作
-
-```javascript
-// ❌ 传统方式 (ES5)
-var newArray = array.map(function(item) {
-  return item * 2;
-});
-
-// ✅ 使用箭头函数 (ES6)
-const newArray = array.map((item) => item * 2);
-
-// ✅ 展开运算符
-const merged = [...array1, ...array2];
-const copy = { ...original, newProp: 'value' };
-
-// ✅ 数组方法
-const filtered = users.filter((user) => user.age > 18);
-const found = users.find((user) => user.id === targetId);
-const names = users.map((user) => user.name);
-```
-
-#### 类定义
-
-```javascript
-// ❌ 构造函数方式 (ES5)
-function User(name, email) {
-  this.name = name;
-  this.email = email;
-}
-
-User.prototype.greet = function() {
-  return 'Hello, ' + this.name;
-};
-
-// ✅ 使用 class (ES6)
-class User {
-  constructor(name, email) {
-    this.name = name;
-    this.email = email;
-  }
-
-  greet() {
-    return `Hello, ${this.name}`;
-  }
-}
-
-// ✅ 继承
-class AdminUser extends User {
-  constructor(name, email, permissions) {
-    super(name, email);
-    this.permissions = permissions;
-  }
-}
-```
-
-#### Promise 和 Async/Await
-
-```javascript
-// ❌ 回调函数 (ES5)
-fs.readFile('file.txt', function(err, data) {
-  if (err) {
-    console.error(err);
-    return;
-  }
-  processData(data);
-});
-
-// ✅ 使用 Promise (ES6)
-const readFileAsync = (path) => {
-  return new Promise((resolve, reject) => {
-    fs.readFile(path, (err, data) => {
-      if (err) reject(err);
-      else resolve(data);
-    });
-  });
-};
-
-// ✅ 使用 async/await (ES7, 推荐)
-const processFile = async (path) => {
-  try {
-    const data = await readFileAsync(path);
-    return processData(data);
-  } catch (error) {
-    console.error('Failed to process file:', error);
-    throw error;
-  }
-};
-```
-
-#### 默认参数和剩余参数
-
-```javascript
-// ❌ ES5 方式
-function greet(name, greeting) {
-  greeting = greeting || 'Hello';
-  return greeting + ', ' + name;
-}
-
-function sum() {
-  var args = Array.prototype.slice.call(arguments);
-  return args.reduce(function(a, b) { return a + b; }, 0);
-}
-
-// ✅ ES6 方式
-const greet = (name, greeting = 'Hello') => {
-  return `${greeting}, ${name}`;
-};
-
-const sum = (...numbers) => {
-  return numbers.reduce((a, b) => a + b, 0);
-};
-```
-
-### Node.js 脚本 ES6 模块配置
-
-对于 Node.js 脚本（非 TypeScript），有两种方式使用 ES6 modules：
-
-#### 方式 1: 使用 .mjs 扩展名（推荐）
-
-```javascript
-// 文件: scripts/my-script.mjs
-import { execSync } from 'child_process';
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
-
-// ES6 模块中获取 __dirname
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-const main = () => {
-  console.log('Script running...');
-};
-
-main();
-```
-
-#### 方式 2: 配置 package.json
-
-```json
-{
-  "type": "module",
-  "scripts": {
-    "script": "node scripts/my-script.js"
-  }
-}
-```
-
-**注意**: NestJS 项目通常不使用 `"type": "module"`，建议脚本使用 `.mjs` 扩展名。
+**Last Updated**: 2024-10-15
+**Applies To**: All TypeScript/NestJS code in this project
+**Project**: DuLiDay WeChat Service
 
 ---
 
-## TypeScript 规范
+## 📋 Table of Contents
 
-### 类型安全（严格模式）
+- [TypeScript Standards](#typescript-standards)
+- [NestJS Best Practices](#nestjs-best-practices)
+- [Code Style & Formatting](#code-style--formatting)
+- [Naming Conventions](#naming-conventions)
+- [File Organization](#file-organization)
+- [Error Handling](#error-handling)
+- [Forbidden Practices](#forbidden-practices)
+
+---
+
+## TypeScript Standards
+
+### Type Safety
 
 ```typescript
-// ❌ 禁止使用 any
+// ❌ NEVER use 'any'
 function process(data: any): any {
   return data.value;
 }
 
-// ✅ 使用具体类型
+// ✅ Use specific types
 interface ProcessData {
   value: string;
   timestamp: number;
@@ -306,53 +62,49 @@ function process(data: ProcessData): string {
   return data.value;
 }
 
-// ✅ 不确定时使用 unknown
+// ✅ Use generics when needed
+function process<T>(data: T): T {
+  return data;
+}
+
+// ✅ Use 'unknown' if truly uncertain
 function process(data: unknown): string {
   if (typeof data === 'object' && data !== null && 'value' in data) {
     return (data as ProcessData).value;
   }
   throw new Error('Invalid data');
 }
-
-// ✅ 使用泛型
-function process<T>(data: T): T {
-  return data;
-}
 ```
 
-### Interface vs Type
+### Interfaces vs Type Aliases
 
 ```typescript
-// ✅ 对象结构用 interface
+// ✅ Use interface for object shapes
 interface User {
   id: string;
   name: string;
   email: string;
 }
 
-// ✅ 联合/交叉类型用 type
+// ✅ Use type for unions, intersections
 type Status = 'pending' | 'approved' | 'rejected';
 type Result = Success | Error;
 
-// ✅ 扩展 interface
+// ✅ Extend interfaces
 interface AdminUser extends User {
   permissions: string[];
 }
 ```
 
-### 函数类型注解
+### Function Types
 
 ```typescript
-// ✅ 明确参数和返回类型
-async function sendMessage(
-  token: string,
-  content: string,
-  toWxid: string,
-): Promise<SendResult> {
-  // 实现
+// ✅ Always specify parameter and return types
+async function sendMessage(token: string, content: string, toWxid: string): Promise<SendResult> {
+  // implementation
 }
 
-// ✅ 可选参数
+// ✅ Optional parameters
 function fetchData(
   id: string,
   options?: {
@@ -360,58 +112,57 @@ function fetchData(
     retry?: boolean;
   },
 ): Promise<Data> {
-  // 实现
+  // implementation
 }
 
-// ✅ 解构参数带类型
+// ✅ Destructured parameters with types
 async function process({
   token,
   content,
+  toWxid,
 }: {
   token: string;
   content: string;
+  toWxid: string;
 }): Promise<Result> {
-  // 实现
+  // implementation
 }
 ```
 
 ---
 
-## NestJS 最佳实践
+## NestJS Best Practices
 
-### Service 标准结构
+### Service Structure
 
 ```typescript
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
 /**
- * 消息处理服务
- * 负责处理企业微信消息回调
+ * Message handling service
+ * Responsible for processing incoming messages
  */
 @Injectable()
 export class MessageService {
-  // 1. Logger（必须第一个）
+  // 1. Logger always first
   private readonly logger = new Logger(MessageService.name);
 
-  // 2. 配置属性（readonly）
+  // 2. Configuration properties
   private readonly apiBaseUrl: string;
 
-  // 3. 构造函数（依赖注入）
+  // 3. Constructor with dependency injection
   constructor(
     private readonly configService: ConfigService,
     private readonly agentService: AgentService,
     private readonly senderService: MessageSenderService,
   ) {
-    // 4. 初始化配置
-    this.apiBaseUrl = this.configService.get<string>(
-      'API_BASE_URL',
-      'https://default.com',
-    );
+    // 4. Initialize configuration in constructor
+    this.apiBaseUrl = this.configService.get<string>('API_BASE_URL', 'https://api.example.com');
     this.logger.log('MessageService initialized');
   }
 
-  // 5. 公共方法
+  // 5. Public methods first
   async handleMessage(data: IncomingMessageData): Promise<Result> {
     this.logger.log(`Processing message from ${data.fromUser}`);
     try {
@@ -423,22 +174,22 @@ export class MessageService {
     }
   }
 
-  // 6. 私有方法
+  // 6. Private methods last
   private async processInternal(data: IncomingMessageData): Promise<any> {
-    // 实现
+    // implementation
   }
 }
 ```
 
-### Controller 标准结构
+### Controller Structure
 
 ```typescript
-import { Controller, Get, Post, Body, Query } from '@nestjs/common';
+import { Controller, Get, Post, Body, Query, Param } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 
 /**
- * 消息控制器
- * 处理消息相关的 HTTP 请求
+ * Message controller
+ * Handles HTTP requests for message operations
  */
 @Controller('messages')
 @ApiTags('消息管理')
@@ -446,7 +197,7 @@ export class MessageController {
   constructor(private readonly messageService: MessageService) {}
 
   /**
-   * 接收消息回调
+   * Receive incoming message webhook
    */
   @Post()
   @ApiOperation({ summary: '接收消息回调' })
@@ -457,7 +208,7 @@ export class MessageController {
   }
 
   /**
-   * 获取消息列表
+   * Get message list
    */
   @Get()
   @ApiOperation({ summary: '获取消息列表' })
@@ -467,7 +218,7 @@ export class MessageController {
 }
 ```
 
-### Module 定义
+### Module Structure
 
 ```typescript
 import { Module } from '@nestjs/common';
@@ -476,22 +227,22 @@ import { MessageService } from './message.service';
 import { AgentModule } from '../agent/agent.module';
 
 @Module({
-  imports: [AgentModule],           // 依赖的模块
-  controllers: [MessageController], // 控制器
-  providers: [MessageService],      // 服务提供者
-  exports: [MessageService],        // 导出服务
+  imports: [AgentModule], // Dependencies
+  controllers: [MessageController], // Controllers
+  providers: [MessageService], // Services
+  exports: [MessageService], // Exported services
 })
 export class MessageModule {}
 ```
 
-### DTO 定义（验证）
+### DTO Structure
 
 ```typescript
 import { IsString, IsNotEmpty, IsOptional, IsEnum } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 /**
- * 发送消息 DTO
+ * DTO for sending messages
  */
 export class SendMessageDto {
   @ApiProperty({ description: '小组Token', example: 'token_123' })
@@ -522,25 +273,25 @@ enum MessageType {
 }
 ```
 
-### Logger 使用
+### Logger Usage
 
 ```typescript
-// ✅ 正确使用
+// ✅ Correct logging
 this.logger.log('Normal operation');
 this.logger.log(`User action: ${userId}`);
+this.logger.log('Complex object:', JSON.stringify(data, null, 2));
 this.logger.warn('Warning message');
 this.logger.error('Error occurred:', error.stack || error);
 this.logger.debug('Debug info (dev only)');
 
-// ❌ 绝对禁止
-console.log('Do not use console.log');  // 禁止！
-console.error('Do not use console.error');  // 禁止！
+// ❌ NEVER use console
+console.log('Do not use console.log'); // FORBIDDEN
 ```
 
-### Async/Await
+### Async/Await Patterns
 
 ```typescript
-// ✅ 使用 async/await
+// ✅ Use async/await
 async fetchData(id: string): Promise<Data> {
   try {
     const result = await this.httpService.get(`/api/data/${id}`);
@@ -554,22 +305,22 @@ async fetchData(id: string): Promise<Data> {
   }
 }
 
-// ❌ 避免 .then/.catch
+// ❌ Avoid .then/.catch
 fetchData(id: string): Promise<Data> {
   return this.httpService
     .get(`/api/data/${id}`)
     .then((result) => result.data)
     .catch((error) => {
-      // 不推荐
+      // Not recommended
     });
 }
 ```
 
 ---
 
-## 代码风格
+## Code Style & Formatting
 
-### Prettier 配置
+### Prettier Configuration
 
 ```json
 {
@@ -582,46 +333,71 @@ fetchData(id: string): Promise<Data> {
 }
 ```
 
-### Import 组织
+### Formatting Examples
 
 ```typescript
-// 1. Node.js 内置模块
+// ✅ Correct formatting
+const data = {
+  name: 'test',
+  value: 123,
+  items: ['a', 'b', 'c'],
+};
+
+const result = await this.service.process({
+  param1: 'value1',
+  param2: 'value2',
+  param3: 'value3',
+});
+
+// ✅ Long function calls auto-wrap
+const response = await this.httpService.post('https://api.example.com/endpoint', {
+  token: 'xxx',
+  content: 'message',
+  type: 1,
+});
+```
+
+### Import Organization
+
+```typescript
+// 1. Node.js built-in modules
 import * as path from 'path';
 import * as fs from 'fs';
 
-// 2. 第三方依赖
+// 2. Third-party dependencies
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
 
-// 3. 项目内部模块（按层级）
+// 3. Project internal modules (by layer)
 import { ApiConfigService } from '../../core/config';
-import { HttpService } from '../../core/client-http';
+import { HttpService } from '../../core/http';
+import { ConversationService } from '../../common/conversation';
 
-// 4. 当前模块相对导入
+// 4. Current module relative imports
 import { CreateMessageDto } from './dto/create-message.dto';
 import { MessageType } from './message.types';
 
-// 5. 类型导入（可选，放最后）
+// 5. Type imports (optional: last)
 import type { AxiosInstance } from 'axios';
 ```
 
-### 类成员顺序
+### Class Member Order
 
 ```typescript
 @Injectable()
 export class ExampleService {
-  // 1. 静态属性
+  // 1. Static properties
   static readonly VERSION = '1.0.0';
 
-  // 2. 实例属性（private readonly）
+  // 2. Instance properties (private readonly first)
   private readonly logger = new Logger(ExampleService.name);
   private readonly config: Config;
 
-  // 3. 实例属性（private）
+  // 3. Instance properties (private)
   private cache = new Map<string, any>();
 
-  // 4. 构造函数
+  // 4. Constructor
   constructor(
     private readonly configService: ConfigService,
     private readonly httpService: HttpService,
@@ -629,152 +405,119 @@ export class ExampleService {
     this.config = this.loadConfig();
   }
 
-  // 5. 生命周期钩子
+  // 5. Lifecycle hooks (if any)
   onModuleInit() {
     this.logger.log('Module initialized');
   }
 
-  // 6. 公共方法
+  // 6. Public methods
   async publicMethod(): Promise<Result> {
-    // 实现
+    // implementation
   }
 
-  // 7. 私有方法
+  // 7. Protected methods
+  protected protectedMethod(): void {
+    // implementation
+  }
+
+  // 8. Private methods
   private privateMethod(): void {
-    // 实现
+    // implementation
   }
 }
 ```
 
 ---
 
-## 命名规范
+## Naming Conventions
 
-| 类型 | 规范 | 示例 |
-|-----|-----|-----|
-| **代码文件** | kebab-case | `agent-api.service.ts`, `message-sender.controller.ts` |
-| **文档文件** | kebab-case | `agent-service-architecture.md`, `product-definition.md` |
-| **配置文件** | kebab-case 或特殊名 | `.cursorrules`, `tsconfig.json`, `package.json` |
-| 类/接口 | PascalCase | `AgentService`, `IAgentProfile` |
-| 变量/函数 | camelCase | `sendMessage`, `apiKey` |
-| 常量 | UPPER_SNAKE_CASE | `API_TIMEOUT`, `MAX_RETRY_COUNT` |
-| 枚举值 | UPPER_SNAKE_CASE | `MessageType.TEXT` |
+### File Naming
 
-### 文件命名详细规范
+```bash
+# ✅ Use kebab-case
+agent.service.ts
+message-sender.service.ts
+create-message.dto.ts
+agent-profile.interface.ts
 
-#### 代码文件（TypeScript/JavaScript）
-
-**规则**：使用 kebab-case，全小写，单词用 `-` 连接
-
-```
-✅ 正确示例：
-agent.service.ts                    # 服务文件
-message-sender.controller.ts        # 控制器文件
-agent-profile.interface.ts          # 接口文件
-create-message.dto.ts               # DTO 文件
-message-parser.util.ts              # 工具文件
-agent.service.spec.ts               # 测试文件
-
-❌ 错误示例：
-AgentService.ts                     # 不要用 PascalCase
-agent_service.ts                    # 不要用 snake_case
-agentService.ts                     # 不要用 camelCase
-AGENT_SERVICE.ts                    # 不要用全大写
+# ❌ Wrong
+AgentService.ts          # Don't use PascalCase
+agent_service.ts         # Don't use snake_case
+agentService.ts          # Don't use camelCase
 ```
 
-#### 文档文件（Markdown）
-
-**规则**：使用 kebab-case，全小写，描述性名称
-
-```
-✅ 正确示例：
-agent-service-architecture.md       # 架构文档
-message-processing-architecture.md  # 流程文档
-chat-agent-best-practices.md        # 最佳实践
-product-definition.md               # 产品定义
-api-usage-guide.md                  # API 指南
-
-❌ 错误示例：
-ARCHITECTURE.md                     # 不要用全大写
-API_CONFIG.md                       # 不要用 SNAKE_CASE
-ChatAgentGuide.md                   # 不要用 PascalCase
-productDefinition.md                # 不要用 camelCase
-```
-
-#### 配置文件
-
-**规则**：遵循生态系统约定或使用 kebab-case
-
-```
-✅ 生态系统约定文件（保留原名）：
-package.json                        # npm 约定
-tsconfig.json                       # TypeScript 约定
-.eslintrc.js                        # ESLint 约定
-.prettierrc                         # Prettier 约定
-nest-cli.json                       # NestJS 约定
-
-✅ 自定义配置文件（kebab-case）：
-.cursorrules                        # 自定义配置
-api-config.service.ts               # 配置服务
-env.validation.ts                   # 环境验证
-```
-
-### 命名原则
-
-1. **一致性**：项目内保持统一的命名风格
-2. **可读性**：使用清晰、描述性的名称
-3. **简洁性**：避免过长的文件名（建议 < 50 字符）
-4. **避免缩写**：除非是广泛认可的缩写（api、http、dto、id）
-5. **语义化**：文件名应清楚表达其用途和内容
-
-### 代码示例
+### Class & Interface Naming
 
 ```typescript
-// ✅ 正确示例
-// 文件: agent-api.service.ts
-export class AgentApiService {
-  private readonly API_TIMEOUT = 30000;
-  private readonly maxRetryCount = 3;
+// ✅ PascalCase
+class AgentService {}
+class MessageSenderService {}
+interface IAgentProfile {}
+interface CreateMessageDto {}
+enum MessageType {}
 
-  async sendMessage(content: string): Promise<Result> {
-    // 实现
-  }
-}
+// ❌ Wrong
+class agentService {} // Don't use camelCase
+class agent_service {} // Don't use snake_case
+```
 
-// ❌ 错误示例
-// 文件: AgentService.ts (应为 agent.service.ts)
-export class agent_service {  // 应为 AgentService
-  private readonly api_timeout = 30000;  // 常量应为 API_TIMEOUT
+### Variable & Function Naming
 
-  async SendMessage(content: string) {  // 应为 sendMessage
-    // 实现
-  }
+```typescript
+// ✅ camelCase
+const apiKey = 'xxx';
+const maxRetryCount = 3;
+const isEnabled = true;
+
+function sendMessage() {}
+function getUserById() {}
+async function processData() {}
+
+// ❌ Wrong
+const api_key = 'xxx'; // Don't use snake_case
+const MaxRetryCount = 3; // Don't use PascalCase
+function SendMessage() {} // Don't use PascalCase
+```
+
+### Constant Naming
+
+```typescript
+// ✅ UPPER_SNAKE_CASE
+const API_TIMEOUT = 30000;
+const MAX_RETRY_COUNT = 3;
+const DEFAULT_PAGE_SIZE = 20;
+
+// ✅ Enum values
+enum MessageType {
+  TEXT = 1,
+  IMAGE = 3,
+  VOICE = 34,
 }
 ```
 
 ---
 
-## 文件组织
+## File Organization
 
-### 模块结构
+### Module Structure
 
 ```
 feature-module/
-├── feature.module.ts        # 模块定义（必须）
-├── feature.service.ts       # 业务逻辑（必须）
-├── feature.controller.ts    # API 端点（可选）
-├── dto/                     # 数据传输对象
+├── feature.module.ts        # Module definition (required)
+├── feature.service.ts       # Business logic (required)
+├── feature.controller.ts    # API endpoints (if exposing APIs)
+├── dto/                     # Data transfer objects
 │   ├── create-feature.dto.ts
 │   └── update-feature.dto.ts
-├── interfaces/              # 类型定义
+├── interfaces/              # Type definitions
 │   └── feature.interface.ts
-└── feature.types.ts         # 枚举和常量
+└── feature.types.ts         # Enums and constants
 ```
 
-### Barrel 导出
+### Barrel Exports
 
 ```typescript
-// index.ts - 导出公共 API
+// index.ts - Export public API
 export * from './feature.module';
 export * from './feature.service';
 export * from './dto';
@@ -783,20 +526,20 @@ export * from './interfaces';
 
 ---
 
-## 错误处理
+## Error Handling
 
-### 异常处理
+### Exception Handling
 
 ```typescript
 import { HttpException, HttpStatus } from '@nestjs/common';
 import { NotFoundException, BadRequestException } from '@nestjs/common';
 
-// ✅ 使用 NestJS 内置异常
+// ✅ Use NestJS built-in exceptions
 throw new HttpException('Resource not found', HttpStatus.NOT_FOUND);
 throw new NotFoundException('User does not exist');
 throw new BadRequestException('Invalid parameters');
 
-// ✅ Service 层错误处理模式
+// ✅ Service-level error handling pattern
 async processData(id: string): Promise<Result> {
   try {
     const data = await this.fetchData(id);
@@ -818,325 +561,152 @@ async processData(id: string): Promise<Result> {
 
 ---
 
-## 绝对禁止项
+## Forbidden Practices
 
-### 🚫 禁止使用 ES5 语法
-
-```javascript
-// ❌ 禁止使用 var
-var count = 0;  // 绝对禁止！
-
-// ✅ 使用 const/let
-const count = 0;
-let counter = 0;
-
-// ❌ 禁止使用 CommonJS
-const fs = require('fs');  // 绝对禁止！
-module.exports = MyClass;  // 绝对禁止！
-
-// ✅ 使用 ES6 Modules
-import fs from 'fs';
-export default MyClass;
-
-// ❌ 禁止使用 function 表达式
-function add(a, b) {  // 绝对禁止！
-  return a + b;
-}
-
-// ✅ 使用箭头函数或类方法
-const add = (a, b) => a + b;
-
-// ❌ 禁止字符串拼接
-const message = 'Hello, ' + name + '!';  // 绝对禁止！
-
-// ✅ 使用模板字符串
-const message = `Hello, ${name}!`;
-```
-
-### 其他绝对禁止项
+### Absolutely Forbidden
 
 ```typescript
-// ❌ 禁止硬编码敏感信息
-const apiKey = 'sk-1234567890abcdef';  // 绝对禁止！
-const password = 'admin123';            // 绝对禁止！
+// ❌ NEVER hardcode sensitive information
+const apiKey = 'sk-1234567890abcdef'; // FORBIDDEN
+const password = 'admin123'; // FORBIDDEN
 
-// ✅ 使用环境变量
+// ✅ Use environment variables
 const apiKey = this.configService.get<string>('API_KEY');
 
-// ❌ 禁止使用 console
-console.log('debug info');  // 绝对禁止！
+// ❌ NEVER use console.log
+console.log('debug info'); // FORBIDDEN
 
-// ✅ 使用 Logger
+// ✅ Use Logger
 this.logger.log('debug info');
 
-// ❌ 禁止手动实例化服务
+// ❌ NEVER instantiate dependencies directly
 class MyService {
-  private otherService = new OtherService();  // 绝对禁止！
+  private otherService = new OtherService(); // FORBIDDEN
 }
 
-// ✅ 使用依赖注入
+// ✅ Use dependency injection
 @Injectable()
 class MyService {
   constructor(private readonly otherService: OtherService) {}
 }
 
-// ❌ 禁止滥用 any
-function process(data: any): any {  // 绝对禁止！
+// ❌ NEVER abuse 'any' type
+function process(data: any): any {
+  // FORBIDDEN
   return data;
 }
 
-// ✅ 使用具体类型
+// ✅ Use specific types
 function process(data: ProcessData): Result {
   return { success: true, data };
 }
 ```
 
+### Strongly Discouraged
+
+```typescript
+// ⚠️ Avoid synchronous blocking operations
+const data = fs.readFileSync('file.txt'); // Discouraged
+
+// ✅ Use async operations
+const data = await fs.promises.readFile('file.txt');
+
+// ⚠️ Avoid overly long functions (>50 lines)
+async function processMessage(data) {
+  // 100 lines of code...  // Discouraged
+}
+
+// ✅ Split into smaller functions
+async function processMessage(data) {
+  const parsed = this.parseData(data);
+  const validated = this.validateData(parsed);
+  const result = await this.process(validated);
+  return this.formatResult(result);
+}
+```
+
 ---
 
-## 注释规范
+## Code Comments
 
-### JSDoc 文档注释
+### Documentation Comments
 
 ```typescript
 /**
- * 消息发送服务
- * 通过托管平台 API 发送消息
+ * Message sender service
+ * Handles sending messages via the hosting platform API
  */
 @Injectable()
 export class MessageSenderService {
   /**
-   * 发送单条消息
+   * Send a single message
    *
-   * @param dto - 消息数据
-   * @returns 发送结果
-   * @throws HttpException 发送失败时抛出
+   * @param dto - Message data
+   * @returns Send result
+   * @throws HttpException when send fails
    */
   async sendMessage(dto: SendMessageDto): Promise<SendResult> {
-    // 实现
+    // implementation
   }
 }
 ```
 
-### 行内注释
+### Inline Comments
 
 ```typescript
-// ✅ 解释复杂逻辑
-// 跳过来自机器人自己的消息，避免无限循环
+// ✅ Explain complex logic
+// Skip messages from the bot itself to avoid infinite loops
 if (isSelf) {
   return;
 }
 
-// 限制历史消息数量，防止内存溢出
+// Limit message history to prevent memory overflow
 if (messages.length > this.maxMessagesPerConversation) {
   messages = messages.slice(-this.maxMessagesPerConversation);
 }
 
-// ❌ 不要注释显而易见的代码
-// 创建变量
-const name = 'test';  // 多余
+// ❌ Don't comment obvious code
+// Create variable
+const name = 'test'; // Unnecessary
 
-// 调用函数
-this.service.process();  // 多余
+// Call function
+this.service.process(); // Unnecessary
 ```
 
-### TODO 注释
+### TODO Comments
 
 ```typescript
-// TODO: 迁移到 Redis 存储
-// TODO: 添加重试机制
-// FIXME: 修复并发场景下的竞态条件
-// NOTE: 此逻辑依赖特定的 API 行为
+// TODO: Migrate to Redis storage
+// TODO: Add retry mechanism
+// FIXME: Fix race condition in concurrent scenarios
+// NOTE: This logic depends on specific API behavior
 ```
 
 ---
 
-## 质量检查清单
+## Quality Checklist
 
-提交代码前检查：
+Before committing code, verify:
 
-### ES6+ 现代语法检查
-- [ ] 无 ES5 语法（无 `var`、`require`、`function` 表达式）
-- [ ] 使用 ES6 Modules (`import`/`export`)
-- [ ] 使用箭头函数和模板字符串
-- [ ] Node.js 脚本使用 `.mjs` 扩展名
-
-### TypeScript 类型检查
-- [ ] 代码编译无错误
-- [ ] 无 TypeScript `any` 类型（除非有充分理由）
-- [ ] 所有函数有类型注解
-- [ ] 使用具体类型或泛型
-
-### 代码质量检查
-- [ ] 正确的错误处理（try-catch）
-- [ ] 使用 Logger（无 console.log）
-- [ ] Prettier 格式化通过
-- [ ] ESLint 检查通过
-- [ ] 有意义的变量/函数名
-- [ ] 注释解释"为什么"而非"是什么"
-- [ ] 无敏感信息泄露
+- [ ] Code compiles without errors
+- [ ] No TypeScript 'any' types (unless justified)
+- [ ] All functions have type annotations
+- [ ] Proper error handling with try-catch
+- [ ] Logger used (no console.log)
+- [ ] Code formatted with Prettier
+- [ ] ESLint passes with no warnings
+- [ ] Meaningful variable/function names
+- [ ] Comments explain WHY, not WHAT
+- [ ] No sensitive information in code
 
 ---
 
-## 文档编写标准
+## 🔗 Related Documents
 
-### 文档类型与长度限制
-
-| 文档类型 | 最大行数 | 推荐行数 | 说明 |
-|---------|---------|---------|------|
-| **架构文档** | 500 行 | 300-400 行 | 系统/模块架构设计 |
-| **API 使用指南** | 600 行 | 300-500 行 | 外部 API 使用说明 |
-| **开发规范** | 400 行 | 200-300 行 | 代码规范、最佳实践 |
-
-### 核心原则
-
-✅ **精简至上**：
-- 只保留**核心实现思想**和**设计决策**
-- 删除详细示例、重复说明、过度解释
-- 突出核心算法、关键流程、重要配置
-- 不写 step-by-step 教程，只记录核心模式
-- 使用简洁的文字流程代替复杂图表
-- 每个概念最多 1 个简洁示例
-- 面向已理解业务的开发者，非新手教程
-
-❌ **严格禁止**：
-- 超过推荐行数限制
-- 重复解释相同概念
-- 冗长的故障排查章节
-- 详尽的 FAQ 列表
-- 过多的配置示例
-- 教程式的分步指南
-- 监控/调试章节（除非核心）
-- 扩展指南（除非核心）
-- 最佳实践章节（应融入正文）
-
-### 标准结构模板
-
-```markdown
-# [文档标题]
-
-## 目录
-- 核心章节（4-6个）
-
-## 1. 架构概述
-- 简化的架构图（文字即可）
-- 文件结构
-
-## 2. 核心组件
-- 每个组件的核心职责（3-5条）
-- 关键方法签名
-- 关键配置参数
-
-## 3. 核心流程
-- 简化的流程图（文字即可）
-- 关键决策点
-
-## 4. 配置管理
-- 必需配置项
-- 关键配置示例
-
-## 5. 总结
-- 核心要点
-- 关键指标
+- **[code-quality-guardian.md](code-quality-guardian.md)** - AI agent quality enforcement checklist
+- **[architecture-principles.md](architecture-principles.md)** - System design patterns and SOLID principles
+- **[development-workflow.md](development-workflow.md)** - Git workflow and testing practices
 
 ---
 
-**最后更新**: YYYY-MM-DD
-```
-
-### 精简示例
-
-#### ❌ 冗长示例（不推荐）
-
-```markdown
-## 消息去重机制
-
-### 5.1 去重策略
-
-消息去重是消息处理流程中的关键环节...（200字说明）
-
-#### LRU 缓存 + TTL
-
-我们使用了 LRU 缓存结合 TTL 的方式来实现去重...（150字说明）
-
-```typescript
-// 数据结构
-private readonly messageCache = new Map<string, number>();
-// messageId → timestamp
-
-// 容量限制
-private readonly maxSize = 10000;
-private readonly ttl = 300000; // 5 分钟
-```
-
-#### 去重逻辑
-
-下面是详细的去重逻辑实现...（100字说明）
-
-```typescript
-// 完整实现代码（30行）
-```
-
-#### 去重流程图
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│ 收到消息 (messageId: msg-123)                                │
-└─────────────────────────────────────────────────────────────┘
-  （详细流程图 20行）
-```
-
-### 5.2 内存管理
-
-#### LRU 淘汰策略
-
-...（200字说明）
-
-#### 定期清理
-
-...（150字说明）
-```
-
-#### ✅ 精简示例（推荐）
-
-```markdown
-## 2.3 MessageDeduplicationService (去重)
-
-**位置**: [src/wecom/message/services/message-deduplication.service.ts](...)
-
-#### 去重策略
-- **数据结构**: `Map<messageId, timestamp>`
-- **TTL**: 5 分钟内重复视为去重
-- **容量管理**: LRU 策略，最大 10,000 条
-- **性能**: O(1) 查询，定期清理过期记录
-
-```typescript
-isDuplicate(messageId: string): boolean {
-  const existingTimestamp = this.messageCache.get(messageId);
-  if (existingTimestamp && (Date.now() - existingTimestamp) < this.ttl) {
-    return true; // 重复消息
-  }
-  this.messageCache.set(messageId, Date.now());
-  return false;
-}
-```
-```
-
-### 文档检查清单
-
-提交文档前检查：
-
-- [ ] 总行数是否在推荐范围内？
-- [ ] 每个示例是否必不可少？
-- [ ] 是否删除了所有冗余说明？
-- [ ] 是否移除了故障排查/FAQ/监控/扩展章节？
-- [ ] 是否避免了教程式写法？
-- [ ] 目录章节是否精简（不超过 8 个）？
-- [ ] 是否使用简洁的文字流程代替复杂图表？
-- [ ] 每个概念是否只有 1 个简洁示例？
-
----
-
-## 相关文档
-
-- [architecture-principles.md](architecture-principles.md) - 架构设计原则
-- [code-quality-guardian.md](code-quality-guardian.md) - AI 代理质量检查
+**Document Purpose**: This is the **authoritative reference** for all coding standards. For quick enforcement checklists, see [code-quality-guardian.md](code-quality-guardian.md).

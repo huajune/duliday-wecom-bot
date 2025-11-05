@@ -2,25 +2,34 @@
 
 > DuLiDay 企业微信服务 - 技术文档导航
 
-**最后更新**：2025-11-04
+**最后更新**：2025-11-05
 
 ---
 
-## 📚 技术文档
+## 📁 目录结构
 
-### Agent 相关文档
+```
+docs/
+├── README.md              # 本文档（文档索引）
+├── architecture/          # 架构设计文档
+│   ├── agent-service-architecture.md
+│   └── message-service-architecture.md
+├── guides/                # 开发指南和教程
+│   ├── development-guide.md
+│   └── huajune-agent-api-guide.md
+├── workflows/             # 工作流程文档
+│   └── auto-version-changelog.md
+└── product/               # 产品相关文档
+    ├── business-flows.md
+    ├── product-definition.md
+    └── product-roadmap.md
+```
 
-💡 **阅读建议**: 先理解花卷 API（使用指南），再学习服务封装（服务架构）
+---
 
-- **[花卷 Agent API 使用指南](huajune-agent-api-guide.md)** (569 行)
-  - 花卷智能体 API 完整使用指南
-  - 认证与安全、模型选择
-  - System Prompt 配置、工具系统
-  - 上下文管理、消息剪裁
-  - 错误处理、性能优化
-  - **更新日期**：2025-11-04
+## 🏗️ 架构设计 (architecture/)
 
-- **[Agent 服务架构](agent-service-architecture.md)** (426 行)
+- **[Agent 服务架构](architecture/agent-service-architecture.md)**
   - Agent 服务封装实现
   - 4 个核心服务：AgentService、AgentConfigService、AgentRegistryService、AgentCacheService
   - 17 个 HTTP API 端点
@@ -74,12 +83,14 @@
   - **更新日期**：2025-11-04
 
 **系统特性**：
+
 - ✅ 推送到 develop/main/master 自动触发
 - ✅ 根据 commits 智能判断版本类型
 - ✅ 自动更新 package.json 和 CHANGELOG.md
 - ✅ 支持 Conventional Commits 规范
 
 **提交规范示例**：
+
 ```bash
 feat: 添加新功能        # 次版本 +1
 fix: 修复 bug         # 修订号 +1
@@ -104,6 +115,7 @@ docs: 更新文档        # 修订号 +1
 所有文档文件必须遵循 **kebab-case** 命名规范：
 
 ### ✅ 正确示例
+
 ```
 agent-service-architecture.md
 huajune-agent-api-guide.md
@@ -113,6 +125,7 @@ business-flows.md
 ```
 
 ### ❌ 错误示例
+
 ```
 ARCHITECTURE.md          # 全大写
 API_CONFIG.md            # SNAKE_CASE

@@ -58,7 +58,8 @@
       "Bash(node scripts/update-changelog.mjs:*)",
       "Bash(.git/hooks/post-merge)",
       "Bash(git ls-tree:*)",
-      "Bash(git pull:*)"
+      "Bash(git pull:*)",
+      "Bash(git fsck:*)"
     ],
     "deny": [],
     "ask": []

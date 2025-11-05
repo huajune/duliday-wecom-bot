@@ -11,73 +11,122 @@ priority: high
 
 > Central navigation for all agent guidelines and best practices
 
-**Last Updated**: 2025-11-04
+**Last Updated**: 2024-10-15
 **Project**: DuLiDay 企业微信服务
 
 ---
 
-## 📚 Agent 文档导航
+## 📚 Documentation Structure
 
-本目录包含 Claude Code Agent 的模块化指南，每个文件专注于开发的特定方面：
+This directory contains modular guidelines for Claude Code agents. Each file focuses on a specific aspect of development:
 
-### 🎯 核心文档
+### 🎯 Quick Navigation
 
-| 文档 | 用途 | 何时使用 |
-|----------|---------|-------------|
-| **[code-standards.md](code-standards.md)** | TypeScript、NestJS 代码规范 | 编写或修改代码时 |
-| **[architecture-principles.md](architecture-principles.md)** | DDD、SOLID、设计模式 | 设计功能或重构时 |
-| **[code-quality-guardian.md](code-quality-guardian.md)** | AI 代理质量检查清单 | 生成代码前自动应用 |
-
----
-
-## 🎓 快速开始
-
-### 新手开发者
-
-按顺序阅读：
-1. [code-standards.md](code-standards.md) - 学习代码规范
-2. [architecture-principles.md](architecture-principles.md) - 理解系统设计
-
-### 经验丰富的开发者
-
-按任务快速参考：
-- **添加新功能** → [architecture-principles.md](architecture-principles.md)
-- **修复 Bug** → [code-standards.md](code-standards.md)
-- **代码重构** → [architecture-principles.md](architecture-principles.md)
+| Document                                                       | Purpose                                | When to Use                       |
+| -------------------------------------------------------------- | -------------------------------------- | --------------------------------- |
+| **[code-standards.md](code-standards.md)**                     | TypeScript, NestJS, coding conventions | Writing or modifying code         |
+| **[architecture-principles.md](architecture-principles.md)**   | SOLID, design patterns, layering       | Designing features or refactoring |
+| **[development-workflow.md](development-workflow.md)**         | Git workflow, testing, deployment      | Daily development tasks           |
+| **[performance-optimization.md](performance-optimization.md)** | Performance tuning, monitoring         | Optimizing system performance     |
+| **[code-quality-guardian.md](code-quality-guardian.md)**       | Automated quality checks               | Before committing code            |
 
 ---
 
-## 📖 文档原则
+## 🎓 For New Developers
 
-每个指南文档遵循以下原则：
+**Start with these documents in order:**
 
-1. **专注** - 每个文件一个清晰主题
-2. **实用** - 来自真实项目的案例
-3. **可执行** - 清晰的"做"与"不做"
-4. **维护** - 随项目演进更新
-
----
-
-## 🔗 相关文档
-
-- **项目根配置**：[../../.cursorrules](../../.cursorrules) - Cursor AI 指南
-- **API 文档**：运行时访问 `/api/docs`
-- **托管平台 API**：https://s.apifox.cn/34adc635-40ac-4161-8abb-8cd1eea9f445
-- **花卷 Agent API**：https://docs.wolian.cc/
-- **NestJS 官方文档**：https://docs.nestjs.com/
+1. **[code-standards.md](code-standards.md)** - Learn the coding conventions
+2. **[architecture-principles.md](architecture-principles.md)** - Understand the system design
+3. **[development-workflow.md](development-workflow.md)** - Master the workflow
 
 ---
 
-## 📝 维护指南
+## 🔧 For Experienced Developers
 
-更新这些文档时：
+**Quick reference by task:**
 
-1. 保持文件在 500 行以内
-2. 使用真实项目案例
-3. 更新 "Last Updated" 日期
-4. 遵循 Markdown 最佳实践
-5. 添加有用的交叉引用
+- **Adding a new feature** → [development-workflow.md](development-workflow.md) + [architecture-principles.md](architecture-principles.md)
+- **Fixing a bug** → [code-standards.md](code-standards.md) + [development-workflow.md](development-workflow.md)
+- **Performance issue** → [performance-optimization.md](performance-optimization.md)
+- **Code review** → [code-quality-guardian.md](code-quality-guardian.md)
+- **Refactoring** → [architecture-principles.md](architecture-principles.md)
 
 ---
 
-**Questions?** 查看具体的指南文档或联系团队。
+## 🏗️ System Architecture Overview
+
+```
+src/
+├── core/           # Infrastructure layer (config, http, logging)
+├── common/         # Shared utilities (conversation management)
+├── agent/          # AI integration layer
+└── modules/        # Business modules (message, chat, contact, etc.)
+```
+
+**Key Principles:**
+
+- Clean layered architecture
+- Dependency injection (NestJS)
+- Single responsibility per module
+- Interface-based abstractions
+
+---
+
+## 📖 Documentation Principles
+
+Each guideline document follows these principles:
+
+1. **Focused** - One clear topic per file
+2. **Practical** - Real examples from this project
+3. **Actionable** - Clear dos and don'ts
+4. **Maintained** - Updated with project evolution
+
+---
+
+## 🚀 Quick Reference
+
+### Technology Stack
+
+- **Framework**: NestJS 10.3.0
+- **Language**: TypeScript 5.3.3
+- **Runtime**: Node.js 20.x+
+- **HTTP Client**: Axios
+- **Logging**: Winston
+- **Validation**: class-validator
+- **API Docs**: Swagger
+
+### Key Commands
+
+```bash
+npm run start:dev     # Development mode
+npm run build         # Production build
+npm run format        # Format code
+npm run lint          # Lint code
+npm run test          # Run tests
+```
+
+---
+
+## 📝 Contributing to Documentation
+
+When updating these guidelines:
+
+1. Keep files under 500 lines
+2. Use real project examples
+3. Update the "Last Updated" date
+4. Follow markdown best practices
+5. Add cross-references where helpful
+
+---
+
+## 🔗 Related Documentation
+
+- **Project README**: [../README.md](../../README.md)
+- **API Documentation**: Available at `/api/docs` when running
+- **Enterprise WeChat API**: https://s.apifox.cn/34adc635-40ac-4161-8abb-8cd1eea9f445
+- **AI Agent API**: https://docs.wolian.cc/
+
+---
+
+**Questions?** Check the specific guideline document or reach out to the team.

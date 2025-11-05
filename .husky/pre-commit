@@ -1,0 +1,12 @@
+#!/bin/sh
+. "$(dirname "$0")/_/husky.sh"
+
+# 对暂存区文件运行 lint 和 format
+echo "🔍 Running lint-staged..."
+pnpm exec lint-staged || exit 1
+
+# 运行测试
+echo "🧪 Running tests..."
+pnpm run test || exit 1
+
+echo "✅ All checks passed!"
