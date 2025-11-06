@@ -13,6 +13,12 @@
 import fs from 'fs';
 import path from 'path';
 import { execSync } from 'child_process';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
+
+// ES module 中获取 __dirname
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 // 配置
 const CONFIG = {
