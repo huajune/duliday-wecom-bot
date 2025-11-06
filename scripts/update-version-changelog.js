@@ -179,88 +179,61 @@ function updatePackageVersion(newVersion) {
 }
 
 /**
- * 格式化 commit 为 markdown
+ * 格式化 commit 为 changelog 条目
  */
 function formatCommitForChangelog(commit) {
   const shortHash = commit.hash.substring(0, 7);
   let message = commit.subject;
 
-  // 移除类型前缀
-  message = message.replace(/^(\w+)(\(.+\))?:\s*/, '');
+  // 移除类型前缀，但保留作用域
+  // feat(scope): message → scope: message
+  // feat: message → message
+  const match = message.match(/^(\w+)(?:\((.+?)\))?:\s*(.*)$/);
+  if (match) {
+    const [, , scope, description] = match;
+    message = scope ? `${scope}: ${description}` : description;
+  }
 
-  return `- ${message} ([${shortHash}](../../commit/${commit.hash}))`;
+  return `${message} (${shortHash})`;
 }
 
 /**
  * 生成 CHANGELOG 内容
  */
-function generateChangelog(version, types, commits) {
+function generateChangelog(version, types) {
   const date = new Date().toISOString().split('T')[0];
   const branch = execGit('git rev-parse --abbrev-ref HEAD') || 'unknown';
 
   let changelog = `## [${version}] - ${date}\n\n`;
   changelog += `**分支**: \`${branch}\`\n\n`;
 
-  if (types.breaking.length > 0) {
-    changelog += `### 💥 BREAKING CHANGES\n\n`;
-    types.breaking.forEach((commit) => {
-      changelog += formatCommitForChangelog(commit) + '\n';
-    });
-    changelog += '\n';
-  }
+  // 合并所有功能相关的提交到 Feature 更新
+  const featureCommits = [
+    ...types.breaking,
+    ...types.feat,
+    ...types.perf,
+    ...types.refactor,
+    ...types.docs,
+    ...types.test,
+    ...types.chore,
+    ...types.style,
+    ...types.other,
+  ];
 
-  if (types.feat.length > 0) {
-    changelog += `### ✨ 新功能\n\n`;
-    types.feat.forEach((commit) => {
-      changelog += formatCommitForChangelog(commit) + '\n';
-    });
-    changelog += '\n';
-  }
-
+  // Bug 修复
   if (types.fix.length > 0) {
-    changelog += `### 🐛 Bug 修复\n\n`;
+    changelog += `Bug 修复：\n`;
     types.fix.forEach((commit) => {
-      changelog += formatCommitForChangelog(commit) + '\n';
+      changelog += `- ${formatCommitForChangelog(commit)}\n`;
     });
     changelog += '\n';
   }
 
-  if (types.perf.length > 0) {
-    changelog += `### ⚡ 性能优化\n\n`;
-    types.perf.forEach((commit) => {
-      changelog += formatCommitForChangelog(commit) + '\n';
-    });
-    changelog += '\n';
-  }
-
-  if (types.refactor.length > 0) {
-    changelog += `### 🔧 重构\n\n`;
-    types.refactor.forEach((commit) => {
-      changelog += formatCommitForChangelog(commit) + '\n';
-    });
-    changelog += '\n';
-  }
-
-  if (types.docs.length > 0) {
-    changelog += `### 📝 文档\n\n`;
-    types.docs.forEach((commit) => {
-      changelog += formatCommitForChangelog(commit) + '\n';
-    });
-    changelog += '\n';
-  }
-
-  if (types.test.length > 0) {
-    changelog += `### ✅ 测试\n\n`;
-    types.test.forEach((commit) => {
-      changelog += formatCommitForChangelog(commit) + '\n';
-    });
-    changelog += '\n';
-  }
-
-  if (types.chore.length > 0 || types.style.length > 0 || types.other.length > 0) {
-    changelog += `### 🔨 其他更新\n\n`;
-    [...types.chore, ...types.style, ...types.other].forEach((commit) => {
-      changelog += formatCommitForChangelog(commit) + '\n';
+  // Feature 更新（包含所有非 bug 修复的提交）
+  if (featureCommits.length > 0) {
+    changelog += `Feature 更新：\n`;
+    featureCommits.forEach((commit) => {
+      changelog += `- ${formatCommitForChangelog(commit)}\n`;
     });
     changelog += '\n';
   }
@@ -271,8 +244,8 @@ function generateChangelog(version, types, commits) {
 /**
  * 更新 CHANGELOG.md
  */
-function updateChangelog(version, types, commits) {
-  const newEntry = generateChangelog(version, types, commits);
+function updateChangelog(version, types) {
+  const newEntry = generateChangelog(version, types);
 
   let existingChangelog = '';
   if (fs.existsSync(CONFIG.changelogPath)) {
@@ -330,7 +303,7 @@ function main() {
   updatePackageVersion(newVersion);
 
   // 6. 更新 CHANGELOG.md
-  updateChangelog(newVersion, types, commits);
+  updateChangelog(newVersion, types);
 
   console.log('\n✨ 完成！');
 }
