@@ -22,7 +22,7 @@ priority: high
 >
 > **FOR HUMAN DEVELOPERS**: See [code-standards.md](code-standards.md) for detailed reference
 
-**Last Updated**: 2024-10-15
+**Last Updated**: 2025-11-05 16:35:00
 **Purpose**: Ensure all AI-generated code meets project quality standards
 **Target Audience**: Claude Code AI agents
 
@@ -58,23 +58,27 @@ When generating code, you MUST follow:
 ### Critical Requirements
 
 **TypeScript:**
+
 - ❌ No `any` types (use `unknown` if truly uncertain)
 - ✅ Explicit return types for all exported functions
 - ✅ Proper type inference for internal functions
 
 **NestJS:**
+
 - ✅ Use dependency injection (never `new Service()`)
 - ✅ Logger instead of `console.log`
 - ✅ Proper error handling with try-catch
 - ✅ Service structure: Logger → Properties → Constructor → Public → Private
 
 **Formatting:**
+
 - ✅ Single quotes, trailing commas, 100 char width
 - ✅ Import order: Built-ins → External → Internal → Relative
 - ✅ No unused imports/variables
 - ✅ Functions under 50 lines
 
 **Security:**
+
 - ❌ Never hardcode secrets (use ConfigService)
 - ✅ Validate all user inputs (use class-validator)
 - ✅ Handle all errors explicitly
@@ -84,12 +88,15 @@ When generating code, you MUST follow:
 ## 🔄 Code Generation Workflow
 
 ### Step 1: Understand Requirements
+
 - Read existing code context
 - Identify patterns in the codebase
 - Check [code-standards.md](code-standards.md) for specific conventions
 
 ### Step 2: Generate Code
+
 Apply all quality rules automatically:
+
 1. ✅ Use strict TypeScript types (no `any`)
 2. ✅ Format with Prettier (single quotes, trailing commas, 100 width)
 3. ✅ Order imports correctly (Built-ins → External → Internal → Relative)
@@ -100,7 +107,9 @@ Apply all quality rules automatically:
 8. ✅ Keep functions focused and under 50 lines
 
 ### Step 3: Self-Validate
+
 Before presenting code, verify:
+
 - [ ] TypeScript compiles (no errors)
 - [ ] No `any` types (or justified with comments)
 - [ ] All exported functions have type annotations
@@ -112,6 +121,7 @@ Before presenting code, verify:
 - [ ] Meaningful names (no `data1`, `temp`, `x`)
 
 ### Step 4: Present Clean Code
+
 **Never require users to fix quality issues - deliver production-ready code immediately.**
 
 ---
@@ -122,15 +132,15 @@ Refer to [code-standards.md#forbidden-practices](code-standards.md#forbidden-pra
 
 **Quick Reference:**
 
-| ❌ NEVER | ✅ ALWAYS USE |
-|---------|---------------|
-| `any` type | Specific types or `unknown` |
-| `console.log()` | `this.logger.log()` |
-| Hardcoded secrets | `this.configService.get()` |
-| `new Service()` | Dependency injection |
-| Unhandled promises | `try-catch` blocks |
-| `@ts-ignore` | Fix the type issue |
-| Sync file operations | Async alternatives |
+| ❌ NEVER             | ✅ ALWAYS USE               |
+| -------------------- | --------------------------- |
+| `any` type           | Specific types or `unknown` |
+| `console.log()`      | `this.logger.log()`         |
+| Hardcoded secrets    | `this.configService.get()`  |
+| `new Service()`      | Dependency injection        |
+| Unhandled promises   | `try-catch` blocks          |
+| `@ts-ignore`         | Fix the type issue          |
+| Sync file operations | Async alternatives          |
 
 ---
 
@@ -157,14 +167,14 @@ npm run format
 
 For all AI-generated code:
 
-| Metric | Target | Critical? |
-|--------|--------|-----------|
-| Type Coverage | 100% (no `any`) | ✅ Yes |
-| ESLint Warnings | 0 | ✅ Yes |
-| Prettier Issues | 0 | ✅ Yes |
-| Function Length | < 50 lines avg | ⚠️ Recommended |
-| Error Handling | 100% for async | ✅ Yes |
-| Import Order | Correct | ✅ Yes |
+| Metric          | Target          | Critical?      |
+| --------------- | --------------- | -------------- |
+| Type Coverage   | 100% (no `any`) | ✅ Yes         |
+| ESLint Warnings | 0               | ✅ Yes         |
+| Prettier Issues | 0               | ✅ Yes         |
+| Function Length | < 50 lines avg  | ⚠️ Recommended |
+| Error Handling  | 100% for async  | ✅ Yes         |
+| Import Order    | Correct         | ✅ Yes         |
 
 ---
 

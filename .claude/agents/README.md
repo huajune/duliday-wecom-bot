@@ -11,7 +11,7 @@ priority: high
 
 > Central navigation for all agent guidelines and best practices
 
-**Last Updated**: 2024-10-15
+**Last Updated**: 2025-11-05 16:35:00
 **Project**: DuLiDay 企业微信服务
 
 ---
@@ -22,13 +22,13 @@ This directory contains modular guidelines for Claude Code agents. Each file foc
 
 ### 🎯 Quick Navigation
 
-| Document | Purpose | When to Use |
-|----------|---------|-------------|
-| **[code-standards.md](code-standards.md)** | TypeScript, NestJS, coding conventions | Writing or modifying code |
-| **[architecture-principles.md](architecture-principles.md)** | SOLID, design patterns, layering | Designing features or refactoring |
-| **[development-workflow.md](development-workflow.md)** | Git workflow, testing, deployment | Daily development tasks |
-| **[performance-optimization.md](performance-optimization.md)** | Performance tuning, monitoring | Optimizing system performance |
-| **[code-quality-guardian.md](code-quality-guardian.md)** | Automated quality checks | Before committing code |
+| Document                                                       | Purpose                                | When to Use                       |
+| -------------------------------------------------------------- | -------------------------------------- | --------------------------------- |
+| **[code-standards.md](code-standards.md)**                     | TypeScript, NestJS, coding conventions | Writing or modifying code         |
+| **[architecture-principles.md](architecture-principles.md)**   | SOLID, design patterns, layering       | Designing features or refactoring |
+| **[development-workflow.md](development-workflow.md)**         | Git workflow, testing, deployment      | Daily development tasks           |
+| **[performance-optimization.md](performance-optimization.md)** | Performance tuning, monitoring         | Optimizing system performance     |
+| **[code-quality-guardian.md](code-quality-guardian.md)**       | Automated quality checks               | Before committing code            |
 
 ---
 
@@ -65,6 +65,7 @@ src/
 ```
 
 **Key Principles:**
+
 - Clean layered architecture
 - Dependency injection (NestJS)
 - Single responsibility per module
@@ -86,6 +87,7 @@ Each guideline document follows these principles:
 ## 🚀 Quick Reference
 
 ### Technology Stack
+
 - **Framework**: NestJS 10.3.0
 - **Language**: TypeScript 5.3.3
 - **Runtime**: Node.js 20.x+
@@ -95,6 +97,7 @@ Each guideline document follows these principles:
 - **API Docs**: Swagger
 
 ### Key Commands
+
 ```bash
 npm run start:dev     # Development mode
 npm run build         # Production build

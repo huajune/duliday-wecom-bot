@@ -19,10 +19,70 @@
       "Bash(unset AGENT_API_KEY)",
       "Bash(pnpm --version)",
       "Bash(git init:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git remote add:*)",
+      "Bash(git branch:*)",
+      "Bash(git config:*)",
+      "Bash(git remote remove:*)",
+      "Bash(pnpm install:*)",
+      "Bash(pnpm run build:*)",
+      "Bash(pnpm run format:*)",
+      "Bash(pnpm add:*)",
+      "Bash(test:*)",
+      "Bash(cloc:*)",
+      "Bash(npx tsc:*)",
+      "Bash(git checkout:*)",
+      "Bash(node -e:*)",
+      "Bash(mkdir:*)",
+      "Bash(lsof:*)",
+      "Bash(xargs kill -9)",
+      "Bash(npm test:*)",
+      "Bash(kill:*)",
+      "Bash(awk:*)",
+      "Bash(pkill:*)",
+      "Bash(echo:*)",
+      "Bash(printenv:*)",
+      "Bash(unset:*)",
+      "Bash(env)",
+      "Bash(MAX_HISTORY_PER_CHAT=30 npm run start:dev:*)",
+      "Read(//Users/jiezhu/workSpace/DuLiDay/**)",
+      "Bash(chmod:*)",
+      "Bash(./switch-agent-env.sh:*)",
+      "Read(//private/tmp/**)",
+      "Bash(npm install:*)",
+      "Bash(git log:*)",
+      "Bash(git mv:*)",
+      "Bash(node scripts/update-changelog.js:*)",
+      "Bash(node scripts/update-changelog.mjs:*)",
+      "Bash(.git/hooks/post-merge)",
+      "Bash(git ls-tree:*)",
+      "Bash(git pull:*)",
+      "Bash(git fsck:*)",
+      "Bash(.claude/scripts/auto-stage-files.sh)",
+      "Bash(.claude/scripts/check-modified-files.sh)",
+      "Bash(git rm:*)",
+      "Bash(code --list-extensions:*)",
+      "Bash(cursor --list-extensions)"
     ],
-    "deny": [],
-    "ask": []
+    "deny": [
+      "Bash(git restore:*)",
+      "Bash(git reset --hard:*)",
+      "Bash(git clean:*)",
+      "Bash(git checkout -- .:*)",
+      "Bash(git checkout HEAD:*)",
+      "Bash(git stash drop:*)",
+      "Bash(git reflog delete:*)",
+      "Bash(rm -rf:*)"
+    ],
+    "ask": [
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(git reset:*)",
+      "Bash(git rebase:*)",
+      "Bash(git push --force:*)",
+      "Bash(git push -f:*)",
+      "Bash(git stash:*)"
+    ]
   },
   "hooks": {
     "PostToolUse": [
@@ -33,6 +93,11 @@
             "type": "command",
             "command": "npm run format",
             "timeout": 30
+          },
+          {
+            "type": "command",
+            "command": ".claude/scripts/auto-stage-files.sh",
+            "timeout": 10
           }
         ]
       },
@@ -43,6 +108,22 @@
             "type": "command",
             "command": "npm run format",
             "timeout": 30
+          },
+          {
+            "type": "command",
+            "command": ".claude/scripts/auto-stage-files.sh",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/scripts/check-modified-files.sh",
+            "timeout": 10
           }
         ]
       }

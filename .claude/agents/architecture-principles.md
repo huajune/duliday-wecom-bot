@@ -20,7 +20,7 @@ priority: high
 
 > System architecture guidelines and design patterns for the DuLiDay WeChat Service
 
-**Last Updated**: 2024-10-15
+**Last Updated**: 2025-11-05 16:35:00
 **Scope**: System design, module structure, and architectural decisions
 
 ---
@@ -49,6 +49,7 @@ a simple system that worked." — John Gall
 ```
 
 **Guidelines:**
+
 - Start simple, add complexity only when needed
 - Don't build for imaginary future requirements (YAGNI)
 - Prefer proven solutions over new experiments
@@ -61,9 +62,15 @@ a simple system that worked." — John Gall
 interface IMessageProcessor {
   process(message: Message): Promise<void>;
 }
-interface IMessageValidator { validate(message: Message): boolean; }
-interface IMessageRouter { route(message: Message): Destination; }
-interface IMessageTransformer { transform(message: Message): Message; }
+interface IMessageValidator {
+  validate(message: Message): boolean;
+}
+interface IMessageRouter {
+  route(message: Message): Destination;
+}
+interface IMessageTransformer {
+  transform(message: Message): Message;
+}
 // ... 10+ interfaces for simple message handling
 
 // ✅ Simple and practical for current needs
@@ -162,6 +169,7 @@ export class MessageService {
 ### Layer Rules
 
 **Dependency Direction:**
+
 - ✅ Higher layers can depend on lower layers
 - ✅ Business layer can skip Common and use Infrastructure directly
 - ❌ Lower layers NEVER depend on higher layers
@@ -360,7 +368,7 @@ export class MessageService {
 @Injectable()
 export class MessageService {
   constructor(
-    private readonly agentService: AgentService,  // Abstraction
+    private readonly agentService: AgentService, // Abstraction
   ) {}
 
   async handleMessage(data: IncomingMessageData) {
@@ -451,11 +459,7 @@ const conversationId = this.conversationFactory.create('user', 'wxid_123');
 ```typescript
 // Custom decorator for performance monitoring
 export function Monitor(metricName: string) {
-  return function (
-    target: any,
-    propertyKey: string,
-    descriptor: PropertyDescriptor,
-  ) {
+  return function (target: any, propertyKey: string, descriptor: PropertyDescriptor) {
     const originalMethod = descriptor.value;
 
     descriptor.value = async function (...args: any[]) {
@@ -516,10 +520,10 @@ import { FeatureService } from './feature.service';
 import { DependencyModule } from '../dependency/dependency.module';
 
 @Module({
-  imports: [DependencyModule],      // Import other modules
+  imports: [DependencyModule], // Import other modules
   controllers: [FeatureController], // Register controllers
-  providers: [FeatureService],      // Register services
-  exports: [FeatureService],        // Export for other modules
+  providers: [FeatureService], // Register services
+  exports: [FeatureService], // Export for other modules
 })
 export class FeatureModule {}
 ```
@@ -576,7 +580,7 @@ export class MessageService {
 // ❌ NEVER instantiate dependencies manually
 @Injectable()
 export class MessageService {
-  private agentService = new AgentService();  // WRONG!
+  private agentService = new AgentService(); // WRONG!
 }
 ```
 
@@ -593,7 +597,7 @@ export class MessageService {
 // agent.service.ts
 @Injectable()
 export class AgentService {
-  constructor(private readonly messageService: MessageService) {}  // Circular!
+  constructor(private readonly messageService: MessageService) {} // Circular!
 }
 
 // ✅ Solution: Introduce intermediate layer
@@ -615,9 +619,7 @@ export class MessageService {
 // agent.service.ts
 @Injectable()
 export class AgentService {
-  constructor(
-    private readonly conversationService: ConversationService,
-  ) {}
+  constructor(private readonly conversationService: ConversationService) {}
 }
 ```
 
@@ -663,7 +665,7 @@ export class MessageService {
 ```typescript
 // ❌ Abstraction leaks implementation details
 interface IConversationStorage {
-  redis: RedisClient;  // Leaks Redis implementation!
+  redis: RedisClient; // Leaks Redis implementation!
   get(key: string): Promise<string>;
 }
 
@@ -708,7 +710,8 @@ export class MessageService {
 
 ```typescript
 // ❌ Magic numbers
-if (messageType === 7) {  // What is 7?
+if (messageType === 7) {
+  // What is 7?
   // Handle text message
 }
 
@@ -734,12 +737,15 @@ if (messageType === MessageType.TEXT) {
 # ADR-001: Choose NestJS as Backend Framework
 
 ## Context
+
 Need to build an enterprise WeChat intelligent reply service that is modular, scalable, and maintainable.
 
 ## Decision
+
 Use NestJS instead of Express/Koa/Fastify.
 
 ## Rationale
+
 - ✅ Built-in dependency injection (IoC container)
 - ✅ Native TypeScript support
 - ✅ Modular architecture (like Spring Boot)
@@ -747,10 +753,12 @@ Use NestJS instead of Express/Koa/Fastify.
 - ✅ Best choice for enterprise projects
 
 ## Consequences
+
 - Learning curve (decorators, DI concepts)
 - Heavier framework (acceptable for enterprise use)
 
 ## Status
+
 Accepted
 ```
 
@@ -780,6 +788,7 @@ Scalable Application
 ### Migration Approach
 
 **Gradual Evolution:**
+
 1. Keep interfaces stable
 2. Implement new features behind feature flags
 3. Dual-write during migration
@@ -791,6 +800,7 @@ Scalable Application
 ## Best Practices Summary
 
 ✅ **DO:**
+
 - Keep services focused (single responsibility)
 - Use dependency injection
 - Depend on abstractions, not concretions
@@ -799,6 +809,7 @@ Scalable Application
 - Document architectural decisions (ADRs)
 
 ❌ **DON'T:**
+
 - Create god objects
 - Hard-code dependencies
 - Create circular dependencies
@@ -809,6 +820,7 @@ Scalable Application
 ---
 
 **Next Steps:**
+
 - Review [code-standards.md](code-standards.md) for coding conventions
 - Check [development-workflow.md](development-workflow.md) for development practices
 - See [performance-optimization.md](performance-optimization.md) for performance tuning

@@ -2,7 +2,7 @@
 @baseUrl = http://localhost:8080
 
 ### Token 配置
-@tokenGroup = 68e8c25f32dfc54d1f846184
+@tokenGroup = 68f88a31d53018ed04950739
 @tokenEnterprise = 9eaebbf614104879b81c2da7c41819bd
 
 ### ChatId 配置
@@ -99,6 +99,73 @@ Content-Type: application/json
     "roomId": "{{GroupChatId}}",
     "roomName": "测试群聊"
   }
+}
+
+### ========================================
+### 5.3 测试接口：模拟消息回调（简化版）- 触发 AI 自动回复 ⭐ 新增
+POST {{baseUrl}}/message/test
+Content-Type: application/json
+
+{
+  "text": "我住在杨浦",
+  "chatId": "test_chat_001",
+  "contactName": "张三",
+  "token": "{{tokenGroup}}"
+}
+
+### ========================================
+### 5.4 测试接口：询问具体岗位
+POST {{baseUrl}}/message/test
+Content-Type: application/json
+
+{
+  "text": "我在五角场附近，有什么兼职吗？",
+  "chatId": "test_chat_001",
+  "contactName": "张三"
+}
+
+### ========================================
+### 5.5 测试接口：询问薪资
+POST {{baseUrl}}/message/test
+Content-Type: application/json
+
+{
+  "text": "时薪多少？",
+  "chatId": "test_chat_001",
+  "contactName": "张三"
+}
+
+### ========================================
+### 5.6 测试接口：询问工作时间
+POST {{baseUrl}}/message/test
+Content-Type: application/json
+
+{
+  "text": "一周要上几天班？",
+  "chatId": "test_chat_001",
+  "contactName": "张三"
+}
+
+### ========================================
+### 5.7 测试接口：预约面试
+POST {{baseUrl}}/message/test
+Content-Type: application/json
+
+{
+  "text": "我想预约面试",
+  "chatId": "test_chat_001",
+  "contactName": "张三"
+}
+
+### ========================================
+### 5.8 测试接口：新的会话
+POST {{baseUrl}}/message/test
+Content-Type: application/json
+
+{
+  "text": "你好，我想找兼职",
+  "chatId": "test_chat_002",
+  "contactName": "李四"
 }
 
 ### ========================================
@@ -278,3 +345,178 @@ GET {{baseUrl}}/user/list
   ?token={{tokenGroup}}
   &current=0
   &pageSize=20
+
+### ========================================
+### 16. 测试获取指定会话信息接口 ⭐ 新增 chat/get
+GET {{baseUrl}}/chat/get
+  ?token={{tokenGroup}}
+  &chatId={{GroupChatId}}
+
+### ========================================
+### Agent API 测试
+### ========================================
+
+### 17. 获取可用模型列表
+GET {{baseUrl}}/agent/models
+
+### ========================================
+### 18. 获取可用工具列表
+GET {{baseUrl}}/agent/tools
+
+### ========================================
+### 19. 获取可用 Prompt 类型列表
+GET {{baseUrl}}/agent/prompt-types
+
+### ========================================
+### 20. Agent 健康检查
+GET {{baseUrl}}/agent/health
+
+### ========================================
+### 20.1 获取缓存统计信息
+GET {{baseUrl}}/agent/health/cache
+
+### ========================================
+### 20.2 清空会话缓存数据
+POST {{baseUrl}}/agent/cache/clear
+
+### ========================================
+### 21. 测试 Agent 聊天（简单测试）
+POST {{baseUrl}}/agent/test-chat
+Content-Type: application/json
+
+{
+  "message": "你好，请介绍一下你自己",
+  "conversationId": "test-user-001",
+  "model": "claude-3-5-sonnet-20241022"
+}
+
+### ========================================
+### 22. 获取所有配置档案列表
+GET {{baseUrl}}/agent/profiles
+
+### ========================================
+### 23. 使用配置档案进行聊天（企微群客服场景）
+POST {{baseUrl}}/agent/chat-with-profile
+Content-Type: application/json
+
+{
+  "scenario": "wechat-group-customer-service",
+  "message": "我想了解一下招募信息",
+  "roomId": "{{GroupChatId}}",
+  "fromUser": "test_user_123"
+}
+
+### ========================================
+### 24. 获取默认允许的工具列表
+GET {{baseUrl}}/agent/allowed-tools
+
+### ========================================
+### 25. 测试工具安全校验 - 仅允许的工具（应该成功）
+POST {{baseUrl}}/agent/test-tool-validation
+Content-Type: application/json
+
+{
+  "message": "帮我查询一下职位列表",
+  "allowedTools": [
+    "duliday_job_list",
+    "duliday_job_details",
+    "duliday_interview_booking"
+  ],
+  "conversationId": "test-allowed-tools-001"
+}
+
+### ========================================
+### 26. 测试工具安全校验 - 包含不允许的工具（会被过滤）
+POST {{baseUrl}}/agent/test-tool-validation
+Content-Type: application/json
+
+{
+  "message": "帮我执行一些操作",
+  "allowedTools": [
+    "duliday_job_list",
+    "unsafe_tool_1",
+    "zhipin_reply_generator",
+    "duliday_job_details",
+    "malicious_tool"
+  ],
+  "conversationId": "test-filtered-tools-001"
+}
+
+### ========================================
+### 27. 测试工具安全校验 - 全部为不允许的工具（全部被过滤）
+POST {{baseUrl}}/agent/test-tool-validation
+Content-Type: application/json
+
+{
+  "message": "测试所有工具都不被允许的情况",
+  "allowedTools": [
+    "unsafe_tool_1",
+    "malicious_tool",
+    "dangerous_operation"
+  ],
+  "conversationId": "test-all-blocked-001"
+}
+
+### ========================================
+### 28. 获取允许使用的模型列表
+GET {{baseUrl}}/agent/allowed-models
+
+### ========================================
+### 29. 测试模型安全校验 - 使用允许的模型（应该成功）
+POST {{baseUrl}}/agent/test-model-validation
+Content-Type: application/json
+
+{
+  "message": "你好，请介绍一下你自己",
+  "model": "anthropic/claude-3-5-haiku-latest",
+  "conversationId": "test-allowed-model-001"
+}
+
+### ========================================
+### 30. 测试模型安全校验 - 使用不允许的模型（会回退到默认模型）
+POST {{baseUrl}}/agent/test-model-validation
+Content-Type: application/json
+
+{
+  "message": "你好，这是一个测试",
+  "model": "gpt-4",
+  "conversationId": "test-disallowed-model-001"
+}
+
+### ========================================
+### 31. 测试模型安全校验 - 使用完全未知的模型（会回退到默认模型）
+POST {{baseUrl}}/agent/test-model-validation
+Content-Type: application/json
+
+{
+  "message": "测试未知模型",
+  "model": "unknown-model-xyz",
+  "conversationId": "test-unknown-model-001"
+}
+
+### ========================================
+### 32. 测试模型安全校验 - 使用其他允许的 Claude 模型
+POST {{baseUrl}}/agent/test-model-validation
+Content-Type: application/json
+
+{
+  "message": "使用 Sonnet 模型进行测试",
+  "model": "anthropic/claude-3-5-sonnet-latest",
+  "conversationId": "test-sonnet-model-001"
+}
+
+### ========================================
+### 33. 获取所有会话的聊天记录（内存中的历史）
+GET {{baseUrl}}/message/history/all
+
+### ========================================
+### 34. 获取指定会话的聊天记录
+GET {{baseUrl}}/message/history/all?chatId=test_chat_123
+
+### ========================================
+### 35. 获取消息缓存统计信息
+GET {{baseUrl}}/message/cache/stats
+
+### ========================================
+### 36. 获取消息服务状态
+GET {{baseUrl}}/message/service/status

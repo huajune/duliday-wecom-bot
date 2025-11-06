@@ -3,6 +3,10 @@
 /node_modules
 /build
 
+# Lock files (using pnpm)
+package-lock.json
+yarn.lock
+
 # Logs
 logs
 *.log
@@ -27,19 +31,26 @@ lerna-debug.log*
 *.launch
 .settings/
 *.sublime-workspace
-.vscode/*
-!.vscode/settings.json
-!.vscode/tasks.json
-!.vscode/launch.json
-!.vscode/extensions.json
+.vscode/
+.cursor/
 
 # Environment
+# 忽略所有 .env 文件，除了 .env.example
 .env
-.env.local
-.env.production
+.env.*
+!.env.example
 
 # Temp
 *.tmp
 *.temp
 .cache
+
+# VSCode History Extension
+.history/
+.history
+*.history
+
+# Codex (if not needed in repo)
+.codex.md
+codex.config.yml
 

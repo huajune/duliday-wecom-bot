@@ -1,0 +1,6 @@
+# 对暂存区文件运行 lint 和 format
+echo "🔍 Running lint and format on staged files..."
+npm run lint || exit 1
+npm run format || exit 1
+
+echo "✅ Pre-commit checks passed!"

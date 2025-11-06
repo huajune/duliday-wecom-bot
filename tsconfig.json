@@ -19,11 +19,18 @@
     "noFallthroughCasesInSwitch": false,
     "paths": {
       "@/*": ["src/*"],
+      "@core": ["src/core"],
       "@core/*": ["src/core/*"],
-      "@common/*": ["src/common/*"],
-      "@modules/*": ["src/modules/*"],
+      "@core/http": ["src/core/client-http"],
+      "@core/response": ["src/core/response"],
       "@agent": ["src/agent"],
-      "@agent/*": ["src/agent/*"]
+      "@agent/*": ["src/agent/*"],
+      "@wecom": ["src/wecom"],
+      "@wecom/*": ["src/wecom/*"],
+      "@sponge": ["src/sponge"],
+      "@sponge/*": ["src/sponge/*"],
+      "@analytics": ["src/analytics"],
+      "@analytics/*": ["src/analytics/*"]
     }
   }
 }

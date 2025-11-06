@@ -24,7 +24,7 @@ priority: high
 > **FOR HUMAN DEVELOPERS**: Detailed examples and explanations
 > **FOR AI AGENTS**: See [code-quality-guardian.md](code-quality-guardian.md) for enforcement checklist
 
-**Last Updated**: 2024-10-15
+**Last Updated**: 2025-11-05 16:35:00
 **Applies To**: All TypeScript/NestJS code in this project
 **Project**: DuLiDay WeChat Service
 
@@ -100,11 +100,7 @@ interface AdminUser extends User {
 
 ```typescript
 // ✅ Always specify parameter and return types
-async function sendMessage(
-  token: string,
-  content: string,
-  toWxid: string,
-): Promise<SendResult> {
+async function sendMessage(token: string, content: string, toWxid: string): Promise<SendResult> {
   // implementation
 }
 
@@ -162,10 +158,7 @@ export class MessageService {
     private readonly senderService: MessageSenderService,
   ) {
     // 4. Initialize configuration in constructor
-    this.apiBaseUrl = this.configService.get<string>(
-      'API_BASE_URL',
-      'https://api.example.com',
-    );
+    this.apiBaseUrl = this.configService.get<string>('API_BASE_URL', 'https://api.example.com');
     this.logger.log('MessageService initialized');
   }
 
@@ -234,10 +227,10 @@ import { MessageService } from './message.service';
 import { AgentModule } from '../agent/agent.module';
 
 @Module({
-  imports: [AgentModule],           // Dependencies
+  imports: [AgentModule], // Dependencies
   controllers: [MessageController], // Controllers
-  providers: [MessageService],      // Services
-  exports: [MessageService],        // Exported services
+  providers: [MessageService], // Services
+  exports: [MessageService], // Exported services
 })
 export class MessageModule {}
 ```
@@ -292,7 +285,7 @@ this.logger.error('Error occurred:', error.stack || error);
 this.logger.debug('Debug info (dev only)');
 
 // ❌ NEVER use console
-console.log('Do not use console.log');  // FORBIDDEN
+console.log('Do not use console.log'); // FORBIDDEN
 ```
 
 ### Async/Await Patterns
@@ -357,14 +350,11 @@ const result = await this.service.process({
 });
 
 // ✅ Long function calls auto-wrap
-const response = await this.httpService.post(
-  'https://api.example.com/endpoint',
-  {
-    token: 'xxx',
-    content: 'message',
-    type: 1,
-  },
-);
+const response = await this.httpService.post('https://api.example.com/endpoint', {
+  token: 'xxx',
+  content: 'message',
+  type: 1,
+});
 ```
 
 ### Import Organization
@@ -467,8 +457,8 @@ interface CreateMessageDto {}
 enum MessageType {}
 
 // ❌ Wrong
-class agentService {}     // Don't use camelCase
-class agent_service {}    // Don't use snake_case
+class agentService {} // Don't use camelCase
+class agent_service {} // Don't use snake_case
 ```
 
 ### Variable & Function Naming
@@ -484,9 +474,9 @@ function getUserById() {}
 async function processData() {}
 
 // ❌ Wrong
-const api_key = 'xxx';         // Don't use snake_case
-const MaxRetryCount = 3;       // Don't use PascalCase
-function SendMessage() {}      // Don't use PascalCase
+const api_key = 'xxx'; // Don't use snake_case
+const MaxRetryCount = 3; // Don't use PascalCase
+function SendMessage() {} // Don't use PascalCase
 ```
 
 ### Constant Naming
@@ -577,21 +567,21 @@ async processData(id: string): Promise<Result> {
 
 ```typescript
 // ❌ NEVER hardcode sensitive information
-const apiKey = 'sk-1234567890abcdef';  // FORBIDDEN
-const password = 'admin123';            // FORBIDDEN
+const apiKey = 'sk-1234567890abcdef'; // FORBIDDEN
+const password = 'admin123'; // FORBIDDEN
 
 // ✅ Use environment variables
 const apiKey = this.configService.get<string>('API_KEY');
 
 // ❌ NEVER use console.log
-console.log('debug info');  // FORBIDDEN
+console.log('debug info'); // FORBIDDEN
 
 // ✅ Use Logger
 this.logger.log('debug info');
 
 // ❌ NEVER instantiate dependencies directly
 class MyService {
-  private otherService = new OtherService();  // FORBIDDEN
+  private otherService = new OtherService(); // FORBIDDEN
 }
 
 // ✅ Use dependency injection
@@ -601,7 +591,8 @@ class MyService {
 }
 
 // ❌ NEVER abuse 'any' type
-function process(data: any): any {  // FORBIDDEN
+function process(data: any): any {
+  // FORBIDDEN
   return data;
 }
 
@@ -615,7 +606,7 @@ function process(data: ProcessData): Result {
 
 ```typescript
 // ⚠️ Avoid synchronous blocking operations
-const data = fs.readFileSync('file.txt');  // Discouraged
+const data = fs.readFileSync('file.txt'); // Discouraged
 
 // ✅ Use async operations
 const data = await fs.promises.readFile('file.txt');
@@ -676,10 +667,10 @@ if (messages.length > this.maxMessagesPerConversation) {
 
 // ❌ Don't comment obvious code
 // Create variable
-const name = 'test';  // Unnecessary
+const name = 'test'; // Unnecessary
 
 // Call function
-this.service.process();  // Unnecessary
+this.service.process(); // Unnecessary
 ```
 
 ### TODO Comments

@@ -82,21 +82,9 @@ export interface AgentProfile {
 
 /**
  * 场景类型枚举
- * 针对微信群运营的不同场景
+ * 当前只有候选人咨询服务这一个场景
  */
 export enum ScenarioType {
-  /** 微信群通用助手（纯文本对话） */
-  WECHAT_GROUP_ASSISTANT = 'wechat-group-assistant',
-
-  /** 微信群活动运营助手 */
-  WECHAT_GROUP_EVENT = 'wechat-group-event',
-
-  /** 微信群客户服务助手 */
-  WECHAT_GROUP_CUSTOMER_SERVICE = 'wechat-group-customer-service',
-
-  /** BOSS直聘招聘助手 */
-  BOSS_ZHIPIN_RECRUITER = 'boss-zhipin-recruiter',
-
-  /** 通用助手（兼容旧代码） */
-  GENERAL_ASSISTANT = 'general-assistant',
+  /** 候选人私聊咨询服务 - 通过企微私聊为候选人提供招聘咨询 */
+  CANDIDATE_CONSULTATION = 'candidate-consultation',
 }
