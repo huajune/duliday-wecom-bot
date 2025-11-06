@@ -62,7 +62,8 @@
       "Bash(.claude/scripts/check-modified-files.sh)",
       "Bash(git rm:*)",
       "Bash(code --list-extensions:*)",
-      "Bash(cursor --list-extensions)"
+      "Bash(cursor --list-extensions)",
+      "Bash(git fetch:*)"
     ],
     "deny": [
       "Bash(git restore:*)",
