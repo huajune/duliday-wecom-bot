@@ -65,3 +65,27 @@ jobs:
           VERSION="${{ steps.check_changes.outputs.version }}"
           git tag "v$VERSION"
           git push origin "v$VERSION"
+
+      - name: Sync to develop branch
+        if: steps.check_changes.outputs.has_changes == 'true'
+        run: |
+          echo "同步版本更新到 develop 分支..."
+
+          # 获取当前分支名称
+          CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+          echo "当前分支: $CURRENT_BRANCH"
+
+          # 切换到 develop 分支
+          git fetch origin develop
+          git checkout develop
+
+          # 合并 master 分支的更改
+          if git merge $CURRENT_BRANCH --no-ff -m "chore: sync version ${{ steps.check_changes.outputs.version }} from $CURRENT_BRANCH [skip ci]"; then
+            echo "✅ 成功合并 $CURRENT_BRANCH 到 develop"
+            git push origin develop
+            echo "✅ 已推送到 develop 分支"
+          else
+            echo "⚠️  合并冲突，需要手动解决"
+            git merge --abort
+            exit 1
+          fi
