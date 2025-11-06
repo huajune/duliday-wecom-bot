@@ -59,7 +59,8 @@
       "Bash(git pull:*)",
       "Bash(git fsck:*)",
       "Bash(.claude/scripts/auto-stage-files.sh)",
-      "Bash(.claude/scripts/check-modified-files.sh)"
+      "Bash(.claude/scripts/check-modified-files.sh)",
+      "Bash(git rm:*)"
     ],
     "deny": [
       "Bash(git restore:*)",
