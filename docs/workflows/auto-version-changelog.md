@@ -1,418 +1,563 @@
-# 自动化版本管理和 CHANGELOG 系统
+# 自动化版本管理文档
 
-**最后更新**: 2025-11-05 16:40:00
+## 概述
 
-本文档说明项目的自动化版本管理和 CHANGELOG 更新系统。
+本项目使用 GitHub Actions 自动管理版本号和 CHANGELOG，基于 [语义化版本](https://semver.org/lang/zh-CN/) 和 [Conventional Commits](https://www.conventionalcommits.org/) 规范。
 
-## 📋 目录
-
-- [工作原理](#工作原理)
-- [触发机制](#触发机制)
-- [版本号规则](#版本号规则)
-- [提交信息规范](#提交信息规范)
-- [使用示例](#使用示例)
-- [本地测试](#本地测试)
-- [注意事项](#注意事项)
+**核心优势**：
+- 自动分析 Git 提交历史
+- 自动计算版本号（主版本.次版本.补丁版本）
+- 自动生成结构化的 CHANGELOG
+- 自动创建 Git Tag
+- 自动同步版本更新到 develop 分支
 
 ---
 
-## 🔄 工作原理
+## 工作流程
 
-当 `develop` 分支合并到 `main`/`master` 分支时，GitHub Actions 会自动：
+### 完整流程图
 
-1. **分析提交历史** - 检查从上次版本 tag 以来的所有 commits
-2. **判断版本类型** - 根据 Conventional Commits 规范确定版本更新级别
-3. **更新版本号** - 自动修改 [package.json](../package.json) 中的 `version` 字段
-4. **生成 CHANGELOG** - 在 [CHANGELOG.md](../CHANGELOG.md) 中添加新版本记录
-5. **自动提交** - 将更新提交并推送回远程仓库
-6. **创建 Git Tag** - 自动创建版本 tag（如 v1.2.3）并推送
-
-**文件结构：**
 ```
-.github/
-└── workflows/
-    └── version-changelog.yml    # GitHub Actions 工作流配置
-
-scripts/
-└── update-version-changelog.js  # 版本和 CHANGELOG 更新脚本
+开发者在 develop 分支工作
+         ↓
+    遵循 Conventional Commits 提交代码
+    例如: feat: 新功能, fix: 修复 bug
+         ↓
+    创建 Pull Request: develop → master
+         ↓
+    代码审核，PR 合并到 master
+         ↓
+   【GitHub Actions 自动触发】
+         ↓
+1️⃣ 检出 master 分支代码
+2️⃣ 分析从上次 tag 到 HEAD 的所有 commits
+3️⃣ 根据提交类型计算新版本号
+    - BREAKING CHANGE → 主版本 +1 (1.0.0 → 2.0.0)
+    - feat: → 次版本 +1 (1.0.0 → 1.1.0)
+    - fix: → 补丁版本 +1 (1.0.0 → 1.0.1)
+4️⃣ 更新 package.json 版本号
+5️⃣ 生成 CHANGELOG.md 条目
+6️⃣ 提交更改到 master 分支
+7️⃣ 创建 Git Tag (例如 v1.2.3)
+8️⃣ 自动合并到 develop 分支
 ```
 
----
+### 关键配置
 
-## 🎯 触发机制
-
-### 自动触发条件
-
-GitHub Actions 只在 **`main`/`master` 分支**接收到推送时自动运行：
-
+**触发条件** ([.github/workflows/version-changelog.yml](../.github/workflows/version-changelog.yml)):
 ```yaml
 on:
   push:
     branches:
-      - main        # 推送到 main 分支
-      - master      # 推送到 master 分支
+      - main
+      - master
 ```
 
-### 典型场景
-
-**推荐流程**：develop → master
-
-1. **在 develop 分支开发**
-   ```bash
-   git checkout develop
-   git add .
-   git commit -m "feat: 添加新功能"
-   git push origin develop
-   ```
-
-2. **合并到 master 触发版本更新**
-   ```bash
-   # 方式 1: 通过 Pull Request（推荐）
-   # 在 GitHub 上创建 develop → master 的 PR 并合并
-   # → 自动触发版本更新、生成 CHANGELOG、创建 Tag
-
-   # 方式 2: 本地合并
-   git checkout master
-   git pull origin master
-   git merge develop
-   git push origin master
-   # → 自动触发版本更新、生成 CHANGELOG、创建 Tag
-   ```
+**脚本位置**: [scripts/update-version-changelog.js](../scripts/update-version-changelog.js)
 
 ---
 
-## 📦 版本号规则
+## 版本号规则
 
-项目遵循 **[语义化版本](https://semver.org/lang/zh-CN/)** (Semantic Versioning)：
+遵循 [语义化版本 2.0.0](https://semver.org/lang/zh-CN/)：
 
 ### 版本格式
 
 ```
-主版本号.次版本号.修订号
-  MAJOR . MINOR . PATCH
+主版本号.次版本号.补丁版本号
+  │       │       │
+  │       │       └─ 修复 bug (fix)
+  │       └───────── 新增功能 (feat)
+  └───────────────── 破坏性变更 (BREAKING CHANGE)
 ```
 
-### 更新规则
+### 版本升级规则
 
-| 提交类型 | 版本影响 | 示例 | 说明 |
-|---------|---------|------|------|
-| `BREAKING CHANGE` | 主版本 +1 | `1.2.3` → `2.0.0` | 不兼容的 API 变更 |
-| `feat:` | 次版本 +1 | `1.2.3` → `1.3.0` | 新增功能（向下兼容） |
-| `fix:` | 修订号 +1 | `1.2.3` → `1.2.4` | Bug 修复 |
-| 其他类型 | 修订号 +1 | `1.2.3` → `1.2.4` | 其他更新 |
+| 提交类型 | 示例 | 版本变化 | 说明 |
+|----------|------|----------|------|
+| **BREAKING CHANGE** | `feat!: 重构 API 接口` | `1.0.0` → `2.0.0` | 不兼容的 API 修改 |
+| **feat** | `feat: 添加用户登录功能` | `1.0.0` → `1.1.0` | 向下兼容的新功能 |
+| **fix** | `fix: 修复登录按钮点击无效` | `1.0.0` → `1.0.1` | 向下兼容的 bug 修复 |
+| **其他** | `docs: 更新 README` | `1.0.0` → `1.0.1` | 其他更新也增加补丁版本 |
 
-### 版本示例
+### 示例
 
-**场景 1：新增功能**
 ```bash
-# 提交信息
-feat: 添加消息批量发送功能
+# 场景 1：修复 bug
+git commit -m "fix: 修复用户名验证错误"
+# 结果：1.0.0 → 1.0.1
 
-# 当前版本: 1.2.3
-# 新版本: 1.3.0
-```
+# 场景 2：新增功能
+git commit -m "feat: 添加消息推送功能"
+# 结果：1.0.0 → 1.1.0
 
-**场景 2：修复 Bug**
-```bash
-# 提交信息
-fix: 修复消息发送失败的问题
+# 场景 3：破坏性变更
+git commit -m "feat!: 重构 API，移除旧的认证方式
 
-# 当前版本: 1.2.3
-# 新版本: 1.2.4
-```
-
-**场景 3：破坏性变更**
-```bash
-# 提交信息
-feat: 重构 API 接口
-
-BREAKING CHANGE: 移除了旧的 /api/v1 接口
-
-# 当前版本: 1.2.3
-# 新版本: 2.0.0
+BREAKING CHANGE: 移除了基于 session 的认证，改用 JWT"
+# 结果：1.0.0 → 2.0.0
 ```
 
 ---
 
-## 📝 提交信息规范
+## Conventional Commits 规范
 
-### Conventional Commits 格式
+### 提交消息格式
 
 ```
-<类型>[可选范围]: <描述>
+<类型>[可选的作用域]: <描述>
 
-[可选正文]
+[可选的正文]
 
-[可选脚注]
+[可选的脚注]
 ```
 
 ### 提交类型
 
-| 类型 | 说明 | CHANGELOG 分组 | 图标 |
-|------|------|---------------|------|
-| `feat` | 新功能 | ✨ 新功能 | ✨ |
-| `fix` | Bug 修复 | 🐛 Bug 修复 | 🐛 |
-| `perf` | 性能优化 | ⚡ 性能优化 | ⚡ |
-| `refactor` | 代码重构 | 🔧 重构 | 🔧 |
-| `docs` | 文档更新 | 📝 文档 | 📝 |
-| `style` | 代码格式 | 🔨 其他更新 | 🎨 |
-| `test` | 测试相关 | ✅ 测试 | ✅ |
-| `chore` | 构建/工具 | 🔨 其他更新 | 🔨 |
+| 类型 | 说明 | CHANGELOG 分类 | 影响版本 |
+|------|------|----------------|----------|
+| `feat` | 新功能 | ✨ 新功能 | 次版本 +1 |
+| `fix` | Bug 修复 | 🐛 Bug 修复 | 补丁版本 +1 |
+| `docs` | 文档更新 | 📝 文档 | 补丁版本 +1 |
+| `style` | 代码格式调整（不影响功能） | 🔨 其他更新 | 补丁版本 +1 |
+| `refactor` | 代码重构（既不是新功能也不是修复） | 🔧 重构 | 补丁版本 +1 |
+| `perf` | 性能优化 | ⚡ 性能优化 | 补丁版本 +1 |
+| `test` | 添加或修改测试 | ✅ 测试 | 补丁版本 +1 |
+| `chore` | 构建过程或辅助工具的变动 | 🔨 其他更新 | 补丁版本 +1 |
+| `BREAKING CHANGE` | 破坏性变更（可以在任何类型后添加 `!`） | 💥 BREAKING CHANGES | 主版本 +1 |
 
 ### 提交示例
 
-#### ✅ 好的提交
+#### 1. 基本提交
 
 ```bash
-# 新功能
-git commit -m "feat: 添加用户认证功能"
-git commit -m "feat(auth): 支持 OAuth2 登录"
+# 新增功能
+git commit -m "feat: 添加用户头像上传功能"
 
-# Bug 修复
-git commit -m "fix: 修复消息发送失败问题"
-git commit -m "fix(agent): 解决 Agent 超时错误"
+# 修复 bug
+git commit -m "fix: 修复文件上传失败的问题"
 
-# 破坏性变更
-git commit -m "feat: 重构 API 接口
-
-BREAKING CHANGE: 移除了 /api/v1 端点，请使用 /api/v2"
+# 文档更新
+git commit -m "docs: 更新 API 文档"
 ```
 
-#### ❌ 不好的提交
+#### 2. 带作用域的提交
 
 ```bash
-# 太简略
-git commit -m "update"
-git commit -m "fix bug"
-git commit -m "改了一些东西"
+git commit -m "feat(auth): 添加 OAuth 登录支持"
+git commit -m "fix(message): 修复消息发送失败"
+git commit -m "refactor(agent): 重构 Agent 配置加载逻辑"
+```
 
-# 没有遵循规范
-git commit -m "添加新功能"     # 应该是 "feat: 添加新功能"
-git commit -m "修复问题"       # 应该是 "fix: 修复XXX问题"
+#### 3. 多行提交（包含详细描述）
+
+```bash
+git commit -m "feat: 添加消息批量发送功能
+
+支持一次性向多个用户发送消息，提升发送效率。
+
+- 添加批量发送 API 接口
+- 实现消息队列处理
+- 添加发送进度跟踪"
+```
+
+#### 4. 破坏性变更
+
+```bash
+# 方式 1：使用 ! 标记
+git commit -m "feat!: 重构 API 接口路径"
+
+# 方式 2：使用 BREAKING CHANGE 脚注
+git commit -m "feat: 升级认证机制
+
+BREAKING CHANGE: 移除了旧的 session 认证方式，
+现在必须使用 JWT token 进行认证。"
 ```
 
 ---
 
-## 💡 使用示例
+## CHANGELOG 格式
 
-### 完整开发流程
+### 生成的 CHANGELOG 结构
 
-#### 1. 创建功能分支
+```markdown
+## [1.2.0] - 2025-11-06
 
-```bash
-git checkout -b feature/new-feature
+**分支**: `master`
+
+### 💥 BREAKING CHANGES
+
+- 移除旧的 session 认证方式 ([abc1234](../../commit/abc1234))
+
+### ✨ 新功能
+
+- 添加用户头像上传功能 ([def5678](../../commit/def5678))
+- 支持批量消息发送 ([ghi9012](../../commit/ghi9012))
+
+### 🐛 Bug 修复
+
+- 修复文件上传失败的问题 ([jkl3456](../../commit/jkl3456))
+
+### 📝 文档
+
+- 更新 API 文档 ([mno7890](../../commit/mno7890))
 ```
 
-#### 2. 开发并提交（遵循规范）
+### CHANGELOG 特性
+
+- **自动分类**：根据提交类型自动归类
+- **链接到提交**：每个条目链接到具体的 commit
+- **版本信息**：显示版本号、日期、分支
+- **保留历史**：新版本插入到顶部，保留所有历史记录
+
+---
+
+## 使用指南
+
+### 日常开发流程
+
+**1. 在 develop 分支开发**
 
 ```bash
-# 添加新功能
-git add .
-git commit -m "feat: 添加消息去重功能"
-
-# 修复 Bug
-git add .
-git commit -m "fix: 修复消息重复发送问题"
-```
-
-#### 3. 推送并创建 PR
-
-```bash
-git push origin feature/new-feature
-# 在 GitHub 上创建 Pull Request
-```
-
-#### 4. 合并到 develop
-
-```bash
-# 在 GitHub 上合并 PR
-# 或者本地合并：
 git checkout develop
 git pull origin develop
-git merge feature/new-feature
+
+# 开发新功能...
+
+# 遵循 Conventional Commits 提交
+git add .
+git commit -m "feat: 添加新功能"
 git push origin develop
 ```
 
-#### 5. 合并到 master 发布版本
+**2. 创建 Pull Request**
 
 ```bash
-# 方式 1: GitHub PR（推荐）
-# 在 GitHub 创建 develop → master 的 PR 并合并
-
-# 方式 2: 本地合并
-git checkout master
-git pull origin master
-git merge develop
-git push origin master
+# 在 GitHub 上创建 PR: develop → master
+# 标题和描述也建议遵循 Conventional Commits
 ```
 
-#### 6. 自动化流程开始 🚀
-
-一旦代码推送到 `master` 分支：
-
-1. GitHub Actions 自动触发
-2. 分析所有新的 commits
-3. 更新版本号（如 `1.2.3` → `1.3.0`）
-4. 更新 CHANGELOG.md
-5. 自动提交：`chore: update version and changelog [skip ci]`
-6. 推送回 master 分支
-7. 创建并推送 Git Tag：`v1.3.0`
-
----
-
-## 🧪 本地测试
-
-在推送到远程之前，可以在本地测试脚本：
-
-### 安装依赖
+**3. 合并 PR**
 
 ```bash
-pnpm install
+# 合并 PR 后，GitHub Actions 自动：
+# - 分析提交历史
+# - 更新版本号
+# - 生成 CHANGELOG
+# - 创建 Git Tag
+# - 同步到 develop
 ```
 
-### 运行脚本
+**4. 查看结果**
 
 ```bash
-node scripts/update-version-changelog.js
-```
-
-### 查看生成的内容
-
-```bash
-# 查看版本号
-cat package.json | grep version
+# 拉取最新的 develop 分支（包含版本更新）
+git checkout develop
+git pull origin develop
 
 # 查看 CHANGELOG
 cat CHANGELOG.md
+
+# 查看版本号
+cat package.json | grep version
+
+# 查看 Tags
+git tag -l
 ```
 
-### 还原更改（如果需要）
+### 手动触发版本更新（可选）
+
+如果需要在本地测试脚本：
 
 ```bash
-git restore package.json CHANGELOG.md
+# 运行脚本
+node scripts/update-version-changelog.js
+
+# 查看更改
+git diff package.json CHANGELOG.md
+
+# 如果满意，提交更改
+git add package.json CHANGELOG.md
+git commit -m "chore: update version and changelog"
+git push
 ```
 
 ---
 
-## ⚠️ 注意事项
-
-### 1. 提交信息格式
-
-**必须遵循 Conventional Commits 规范**，否则版本判断可能不准确。
-
-```bash
-# ✅ 正确
-git commit -m "feat: 添加新功能"
-
-# ❌ 错误（不会被识别为 feat）
-git commit -m "添加新功能"
-```
-
-### 2. 避免无限循环
-
-GitHub Actions 自动提交时会添加 `[skip ci]` 标记：
-
-```bash
-chore: update version and changelog [skip ci]
-```
-
-这样可以防止再次触发 Actions，避免无限循环。
-
-### 3. 分支保护
-
-如果启用了分支保护规则，需要确保：
-
-- GitHub Actions 有 `contents: write` 权限
-- 或者在分支保护设置中允许 bot 直接推送
-
-### 4. 版本发布
-
-对于正式版本发布，**必须合并到 master 分支**：
-
-```bash
-# 合并 develop 到 master
-git checkout master
-git merge develop
-git push origin master
-
-# GitHub Actions 会自动：
-# 1. 更新版本号
-# 2. 生成 CHANGELOG
-# 3. 创建 Git Tag（如 v1.3.0）
-```
-
-### 5. Git Tags
-
-系统会**自动创建 Git Tag**：
-
-- ✅ 每次版本更新时自动创建 Tag
-- ✅ Tag 格式：`v{version}`（如 `v1.3.0`）
-- ✅ Tag 会自动推送到远程仓库
-- ✅ 可在 GitHub Releases 页面查看所有版本
-
-**查看 Tags**：
-```bash
-# 查看所有 tags
-git tag
-
-# 查看最新 tag
-git describe --tags --abbrev=0
-
-# 拉取远程 tags
-git fetch --tags
-```
-
----
-
-## 📁 相关文件
-
-- [.github/workflows/version-changelog.yml](../.github/workflows/version-changelog.yml) - GitHub Actions 工作流
-- [scripts/update-version-changelog.js](../scripts/update-version-changelog.js) - 更新脚本
-- [package.json](../package.json) - 版本号存储
-- [CHANGELOG.md](../CHANGELOG.md) - 版本更新记录
-
----
-
-## 🔧 故障排查
+## 故障排查
 
 ### 问题 1: Actions 没有触发
 
-**检查：**
-- 确认推送到了 `main` 或 `master` 分支（不是 develop）
-- 检查 `.github/workflows/version-changelog.yml` 文件是否存在
-- 查看 GitHub Actions 页面是否有错误日志
-- 确认是从 develop 合并到 master，而不是直接推送
+**症状**：合并 PR 后，没有看到版本更新
 
-### 问题 2: 版本号没有更新
+**排查步骤**：
 
-**检查：**
-- 确认提交信息遵循 Conventional Commits 规范
-- 查看 Actions 日志中的脚本输出
-- 确认是否有新的 commits（不包括 bot 提交）
+1. 检查分支是否是 `master` 或 `main`：
+   ```bash
+   git branch --show-current
+   ```
 
-### 问题 3: 权限错误
+2. 检查提交消息是否包含 `[skip ci]`：
+   ```bash
+   git log -1 --pretty=format:"%s"
+   ```
 
-**错误信息：**
+3. 查看 Actions 运行记录：
+   - 访问 GitHub 仓库
+   - 点击 "Actions" 标签
+   - 查看 "Update Version and Changelog" 工作流
+
+### 问题 2: 版本号没有按预期增加
+
+**症状**：预期升级次版本，但只升级了补丁版本
+
+**原因**：提交消息不符合 Conventional Commits 规范
+
+**解决方法**：
+
+```bash
+# ❌ 错误：没有类型前缀
+git commit -m "添加新功能"
+
+# ✅ 正确：使用 feat: 前缀
+git commit -m "feat: 添加新功能"
+
+# ❌ 错误：类型拼写错误
+git commit -m "feature: 添加新功能"
+
+# ✅ 正确：类型必须是规范中定义的
+git commit -m "feat: 添加新功能"
 ```
-Permission denied (publickey)
-或
-refusing to allow a GitHub App to create or update workflow
+
+### 问题 3: CHANGELOG 内容不完整
+
+**症状**：某些提交没有出现在 CHANGELOG 中
+
+**原因**：
+
+1. 提交在上次 tag 之前
+2. 提交消息格式不规范
+3. 脚本只分析最近 50 个提交
+
+**解决方法**：
+
+```bash
+# 查看最后一个 tag
+git tag -l | tail -1
+
+# 查看从上次 tag 到现在的提交
+git log <last-tag>..HEAD --oneline
+
+# 如果需要调整分析的提交数量，修改脚本配置
+# scripts/update-version-changelog.js
+# commitLimit: 50 → commitLimit: 100
 ```
 
-**解决方案：**
-- 确认 `permissions.contents: write` 已设置
-- 检查仓库的 Actions 权限设置（Settings → Actions → General）
+### 问题 4: 同步到 develop 失败
+
+**症状**：Actions 日志显示合并冲突
+
+**原因**：develop 分支有新的提交，与 master 冲突
+
+**解决方法**：
+
+```bash
+# 手动同步
+git checkout develop
+git pull origin develop
+git merge origin/master --no-ff
+# 解决冲突...
+git add .
+git commit -m "chore: sync version from master"
+git push origin develop
+```
+
+### 问题 5: 脚本运行错误
+
+**症状**：Actions 失败，错误信息：`__dirname is not defined`
+
+**原因**：脚本使用 ES modules，但 `__dirname` 不可用
+
+**解决方法**：已在最新版本修复，确保使用最新代码：
+
+```bash
+git pull origin develop
+```
 
 ---
 
-## 📚 扩展阅读
+## 配置自定义
 
-- [Conventional Commits](https://www.conventionalcommits.org/)
-- [Semantic Versioning](https://semver.org/lang/zh-CN/)
+### 修改版本计算规则
+
+编辑 [scripts/update-version-changelog.js](../scripts/update-version-changelog.js)：
+
+```javascript
+function calculateNewVersion(currentVersion, hasBreaking, hasFeat, hasFix) {
+  const [major, minor, patch] = currentVersion.split('.').map(Number);
+
+  if (hasBreaking) {
+    return `${major + 1}.0.0`; // 主版本 +1
+  } else if (hasFeat) {
+    return `${major}.${minor + 1}.0`; // 次版本 +1
+  } else if (hasFix) {
+    return `${major}.${minor}.${patch + 1}`; // 补丁版本 +1
+  } else {
+    // 自定义：其他提交也增加补丁版本
+    return `${major}.${minor}.${patch + 1}`;
+  }
+}
+```
+
+### 修改 CHANGELOG 格式
+
+编辑 [scripts/update-version-changelog.js](../scripts/update-version-changelog.js) 中的 `generateChangelog` 函数：
+
+```javascript
+function generateChangelog(version, types, commits) {
+  const date = new Date().toISOString().split('T')[0];
+
+  let changelog = `## [${version}] - ${date}\n\n`;
+
+  // 自定义分类顺序和图标
+  if (types.breaking.length > 0) {
+    changelog += `### 💥 BREAKING CHANGES\n\n`;
+    // ...
+  }
+
+  // 添加自定义分类
+  if (types.security?.length > 0) {
+    changelog += `### 🔒 安全更新\n\n`;
+    // ...
+  }
+
+  return changelog;
+}
+```
+
+### 跳过自动版本更新
+
+如果某次 PR 不想触发自动版本更新，在合并提交消息中添加 `[skip ci]`：
+
+```bash
+# 合并 PR 时，编辑合并提交消息
+chore: merge develop into master [skip ci]
+```
+
+---
+
+## 最佳实践
+
+### 1. 保持提交原子性
+
+每个提交只做一件事，方便生成清晰的 CHANGELOG：
+
+```bash
+# ✅ 好的做法
+git commit -m "feat: 添加用户登录功能"
+git commit -m "feat: 添加用户注册功能"
+
+# ❌ 不好的做法
+git commit -m "feat: 添加用户登录和注册功能，修复了几个 bug，更新了文档"
+```
+
+### 2. 使用描述性的提交消息
+
+```bash
+# ✅ 好的描述
+git commit -m "fix: 修复用户头像上传时文件大小限制错误"
+
+# ❌ 模糊的描述
+git commit -m "fix: 修复 bug"
+```
+
+### 3. 适时使用作用域
+
+当项目较大时，使用作用域帮助分类：
+
+```bash
+git commit -m "feat(auth): 添加 OAuth 登录"
+git commit -m "fix(message): 修复消息发送失败"
+git commit -m "refactor(agent): 优化配置加载"
+```
+
+### 4. 破坏性变更要慎重
+
+破坏性变更会升级主版本号，影响重大：
+
+```bash
+# 确保在提交消息中清楚说明变更内容和迁移方法
+git commit -m "feat!: 重构 API 接口
+
+BREAKING CHANGE: 所有 API 路径从 /api/v1 改为 /api/v2
+
+迁移指南：
+1. 更新客户端请求路径
+2. 更新认证 token 格式
+3. 参考新版 API 文档：docs/api-v2.md"
+```
+
+### 5. 定期合并到 master
+
+建议每个迭代结束时合并一次 `develop → master`，避免一次性积累太多提交。
+
+---
+
+## 相关资源
+
+- [语义化版本规范](https://semver.org/lang/zh-CN/)
+- [Conventional Commits 规范](https://www.conventionalcommits.org/)
 - [GitHub Actions 文档](https://docs.github.com/en/actions)
+- [项目 CHANGELOG](../CHANGELOG.md)
+- [版本更新脚本](../scripts/update-version-changelog.js)
+- [GitHub Actions 工作流配置](../.github/workflows/version-changelog.yml)
 
 ---
 
-**配置日期**: 2025-11-04
-**维护者**: DuLiDay 开发团队
-**状态**: ✅ 生产就绪
+## 常见问题 FAQ
+
+**Q: 为什么要使用自动化版本管理？**
+
+A: 自动化版本管理有以下优势：
+- 避免手动管理版本号的错误
+- 自动生成规范化的 CHANGELOG
+- 统一团队的提交规范
+- 提高开发效率
+
+**Q: 如果我不想遵循 Conventional Commits 会怎样？**
+
+A: 不遵循规范的提交仍会被记录，但：
+- 版本号只会增加补丁版本
+- CHANGELOG 中会归类到"其他更新"
+- 建议团队统一遵循规范，以获得最佳效果
+
+**Q: 可以手动修改 CHANGELOG 吗？**
+
+A: 可以，但不建议：
+- 手动修改的内容会在下次自动更新时保留
+- 建议通过规范的提交消息让系统自动生成
+
+**Q: 如何回退版本？**
+
+A: 使用 Git Tag 回退：
+```bash
+# 查看所有版本
+git tag -l
+
+# 回退到指定版本
+git checkout v1.2.3
+
+# 或者创建新分支
+git checkout -b hotfix-1.2.3 v1.2.3
+```
+
+**Q: develop 和 master 的版本号会不一致吗？**
+
+A: 不会，因为：
+- master 更新版本后会自动同步到 develop
+- 两个分支的版本号始终保持一致
+
+---
+
+**最后更新**: 2025-11-06
+**维护者**: 开发团队
