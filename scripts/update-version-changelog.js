@@ -54,7 +54,7 @@ function getCurrentVersion() {
 function getLastTag() {
   const tags = execGit('git tag --sort=-version:refname');
   if (!tags) return null;
-  const tagList = tags.split('\n').filter(tag => tag.match(/^v?\d+\.\d+\.\d+$/));
+  const tagList = tags.split('\n').filter((tag) => tag.match(/^v?\d+\.\d+\.\d+$/));
   return tagList[0] || null;
 }
 
@@ -65,21 +65,33 @@ function getCommits() {
   const lastTag = getLastTag();
   let command;
 
+  // 使用 %x1e (Record Separator) 分隔不同的提交
+  // 使用 %x1f (Unit Separator) 分隔不同的字段
+  // 这样可以正确处理多行提交消息
+  const format = '%H%x1f%s%x1f%b%x1f%an%x1f%ae%x1f%ad%x1e';
+
   if (lastTag) {
-    command = `git log ${lastTag}..HEAD --format=%H||%s||%b||%an||%ae||%ad --date=short`;
+    command = `git log ${lastTag}..HEAD --format="${format}" --date=short`;
   } else {
-    command = `git log -${CONFIG.commitLimit} --format=%H||%s||%b||%an||%ae||%ad --date=short`;
+    command = `git log -${CONFIG.commitLimit} --format="${format}" --date=short`;
   }
 
   const output = execGit(command);
   if (!output) return [];
 
   return output
-    .split('\n')
-    .filter(line => line.trim()) // 过滤空行
-    .map(line => {
-      const [hash, subject, body, author, email, date] = line.split('||');
-      return { hash, subject, body, author, email, date };
+    .split('\x1e') // 使用 Record Separator 分隔提交
+    .filter((record) => record.trim()) // 过滤空记录
+    .map((record) => {
+      const [hash, subject, body, author, email, date] = record.split('\x1f'); // 使用 Unit Separator 分隔字段
+      return {
+        hash: hash?.trim() || '',
+        subject: subject?.trim() || '',
+        body: body?.trim() || '',
+        author: author?.trim() || '',
+        email: email?.trim() || '',
+        date: date?.trim() || '',
+      };
     });
 }
 
@@ -97,14 +109,14 @@ function analyzeCommits(commits) {
     style: [],
     test: [],
     chore: [],
-    other: []
+    other: [],
   };
 
   let hasBreaking = false;
   let hasFeat = false;
   let hasFix = false;
 
-  commits.forEach(commit => {
+  commits.forEach((commit) => {
     const { subject, body } = commit;
 
     // 跳过无效的 commit
@@ -191,7 +203,7 @@ function generateChangelog(version, types, commits) {
 
   if (types.breaking.length > 0) {
     changelog += `### 💥 BREAKING CHANGES\n\n`;
-    types.breaking.forEach(commit => {
+    types.breaking.forEach((commit) => {
       changelog += formatCommitForChangelog(commit) + '\n';
     });
     changelog += '\n';
@@ -199,7 +211,7 @@ function generateChangelog(version, types, commits) {
 
   if (types.feat.length > 0) {
     changelog += `### ✨ 新功能\n\n`;
-    types.feat.forEach(commit => {
+    types.feat.forEach((commit) => {
       changelog += formatCommitForChangelog(commit) + '\n';
     });
     changelog += '\n';
@@ -207,7 +219,7 @@ function generateChangelog(version, types, commits) {
 
   if (types.fix.length > 0) {
     changelog += `### 🐛 Bug 修复\n\n`;
-    types.fix.forEach(commit => {
+    types.fix.forEach((commit) => {
       changelog += formatCommitForChangelog(commit) + '\n';
     });
     changelog += '\n';
@@ -215,7 +227,7 @@ function generateChangelog(version, types, commits) {
 
   if (types.perf.length > 0) {
     changelog += `### ⚡ 性能优化\n\n`;
-    types.perf.forEach(commit => {
+    types.perf.forEach((commit) => {
       changelog += formatCommitForChangelog(commit) + '\n';
     });
     changelog += '\n';
@@ -223,7 +235,7 @@ function generateChangelog(version, types, commits) {
 
   if (types.refactor.length > 0) {
     changelog += `### 🔧 重构\n\n`;
-    types.refactor.forEach(commit => {
+    types.refactor.forEach((commit) => {
       changelog += formatCommitForChangelog(commit) + '\n';
     });
     changelog += '\n';
@@ -231,7 +243,7 @@ function generateChangelog(version, types, commits) {
 
   if (types.docs.length > 0) {
     changelog += `### 📝 文档\n\n`;
-    types.docs.forEach(commit => {
+    types.docs.forEach((commit) => {
       changelog += formatCommitForChangelog(commit) + '\n';
     });
     changelog += '\n';
@@ -239,7 +251,7 @@ function generateChangelog(version, types, commits) {
 
   if (types.test.length > 0) {
     changelog += `### ✅ 测试\n\n`;
-    types.test.forEach(commit => {
+    types.test.forEach((commit) => {
       changelog += formatCommitForChangelog(commit) + '\n';
     });
     changelog += '\n';
@@ -247,7 +259,7 @@ function generateChangelog(version, types, commits) {
 
   if (types.chore.length > 0 || types.style.length > 0 || types.other.length > 0) {
     changelog += `### 🔨 其他更新\n\n`;
-    [...types.chore, ...types.style, ...types.other].forEach(commit => {
+    [...types.chore, ...types.style, ...types.other].forEach((commit) => {
       changelog += formatCommitForChangelog(commit) + '\n';
     });
     changelog += '\n';

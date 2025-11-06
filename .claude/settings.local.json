@@ -63,7 +63,13 @@
       "Bash(git rm:*)",
       "Bash(code --list-extensions:*)",
       "Bash(cursor --list-extensions)",
-      "Bash(git fetch:*)"
+      "Bash(git fetch:*)",
+      "Bash(%s)",
+      "Bash(%b)",
+      "Bash(%an)",
+      "Bash(%ae)",
+      "Bash(%ad --date=short)",
+      "Bash(git show:*)"
     ],
     "deny": [
       "Bash(git restore:*)",
