@@ -207,66 +207,33 @@ function generateChangelog(version, types) {
   let changelog = `## [${version}] - ${date}\n\n`;
   changelog += `**分支**: \`${branch}\`\n\n`;
 
-  if (types.breaking.length > 0) {
-    changelog += `### 💥 BREAKING CHANGES\n\n`;
-    types.breaking.forEach((commit) => {
-      changelog += formatCommitForChangelog(commit) + '\n';
-    });
-    changelog += '\n';
-  }
+  // 合并所有功能相关的提交到 Feature 更新
+  const featureCommits = [
+    ...types.breaking,
+    ...types.feat,
+    ...types.perf,
+    ...types.refactor,
+    ...types.docs,
+    ...types.test,
+    ...types.chore,
+    ...types.style,
+    ...types.other,
+  ];
 
-  if (types.feat.length > 0) {
-    changelog += `### ✨ 新功能\n\n`;
-    types.feat.forEach((commit) => {
-      changelog += formatCommitForChangelog(commit) + '\n';
-    });
-    changelog += '\n';
-  }
-
+  // Bug 修复
   if (types.fix.length > 0) {
-    changelog += `### 🐛 Bug 修复\n\n`;
+    changelog += `Bug 修复：\n`;
     types.fix.forEach((commit) => {
-      changelog += formatCommitForChangelog(commit) + '\n';
+      changelog += `- ${formatCommitForChangelog(commit)}\n`;
     });
     changelog += '\n';
   }
 
-  if (types.perf.length > 0) {
-    changelog += `### ⚡ 性能优化\n\n`;
-    types.perf.forEach((commit) => {
-      changelog += formatCommitForChangelog(commit) + '\n';
-    });
-    changelog += '\n';
-  }
-
-  if (types.refactor.length > 0) {
-    changelog += `### 🔧 重构\n\n`;
-    types.refactor.forEach((commit) => {
-      changelog += formatCommitForChangelog(commit) + '\n';
-    });
-    changelog += '\n';
-  }
-
-  if (types.docs.length > 0) {
-    changelog += `### 📝 文档\n\n`;
-    types.docs.forEach((commit) => {
-      changelog += formatCommitForChangelog(commit) + '\n';
-    });
-    changelog += '\n';
-  }
-
-  if (types.test.length > 0) {
-    changelog += `### ✅ 测试\n\n`;
-    types.test.forEach((commit) => {
-      changelog += formatCommitForChangelog(commit) + '\n';
-    });
-    changelog += '\n';
-  }
-
-  if (types.chore.length > 0 || types.style.length > 0 || types.other.length > 0) {
-    changelog += `### 🔨 其他更新\n\n`;
-    [...types.chore, ...types.style, ...types.other].forEach((commit) => {
-      changelog += formatCommitForChangelog(commit) + '\n';
+  // Feature 更新（包含所有非 bug 修复的提交）
+  if (featureCommits.length > 0) {
+    changelog += `Feature 更新：\n`;
+    featureCommits.forEach((commit) => {
+      changelog += `- ${formatCommitForChangelog(commit)}\n`;
     });
     changelog += '\n';
   }
