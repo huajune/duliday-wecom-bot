@@ -1,22 +1,21 @@
 {
+  // 禁用 Local History 扩展
+  "local-history.enabled": false,
+  "local-history.saveDelay": 0,
+  
+  // 禁用 Cursor 的历史记录功能
+  "workbench.localHistory.enabled": false,
+  "workbench.localHistory.maxFileSize": 0,
+  
+  // 排除 .history 文件夹
+  "files.watcherExclude": {
+    "**/.history/**": true
+  },
   "files.exclude": {
-    "**/.git": true,
-    "**/.DS_Store": true,
-    "**/node_modules": true,
-    "**/dist": true,
-    "**/.env": true
+    "**/.history": true
   },
   "search.exclude": {
-    "**/node_modules": true,
-    "**/dist": true,
-    "**/.git": true
-  },
-  "editor.defaultFormatter": "esbenp.prettier-vscode",
-  "editor.formatOnSave": true,
-  "[typescript]": {
-    "editor.defaultFormatter": "esbenp.prettier-vscode"
-  },
-  "typescript.tsdk": "node_modules/typescript/lib",
-  "typescript.enablePromptUseWorkspaceTsdk": true,
-  "cSpell.words": ["huajuan"]
+    "**/.history": true
+  }
 }
+

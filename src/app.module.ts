@@ -31,7 +31,11 @@ import { AnalyticsModule } from './analytics/analytics.module';
     // ==================== 全局配置 ====================
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: [`.env.${process.env.NODE_ENV || 'development'}`, '.env'],
+      envFilePath: [
+        '.env.local', // 优先加载本地配置
+        `.env.${process.env.NODE_ENV || 'development'}`,
+        '.env',
+      ],
       expandVariables: true,
     }),
 

@@ -50,6 +50,8 @@ lerna-debug.log*
 
 # VSCode History Extension
 .history/
+.history
+*.history
 
 # Codex (if not needed in repo)
 .codex.md

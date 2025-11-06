@@ -174,7 +174,7 @@ export class MessageService {
       );
 
       // 1. 根据场景选择合适的 Agent 配置
-      const scenario = MessageParser.determineScenario(parsedData);
+      const scenario = MessageParser.determineScenario();
       const agentProfile = this.agentConfigService.getProfile(scenario);
 
       if (!agentProfile) {
@@ -457,7 +457,7 @@ export class MessageService {
     const { content } = parsedData;
 
     // 获取 Agent 配置
-    const scenario = MessageParser.determineScenario(parsedData);
+    const scenario = MessageParser.determineScenario();
     const agentProfile = this.agentConfigService.getProfile(scenario);
 
     if (!agentProfile) {

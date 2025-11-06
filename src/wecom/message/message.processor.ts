@@ -104,7 +104,7 @@ export class MessageProcessor {
 
     try {
       // 判断消息场景（复用 MessageParser）
-      const scenario = MessageParser.determineScenario(parsedData);
+      const scenario = MessageParser.determineScenario();
       const agentProfile = this.agentConfigService.getProfile(scenario);
 
       if (!agentProfile) {
