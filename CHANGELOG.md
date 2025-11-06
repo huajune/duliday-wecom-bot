@@ -8,3 +8,16 @@
 
 ---
 
+
+## [1.0.6] - 2025-11-06
+
+**分支**: `master`
+
+Feature 更新：
+- 简化 CHANGELOG 格式为两个主要分类 (575e716)
+- 改进 CHANGELOG 格式以保留提交作用域信息 (0ae7877)
+- 更新自动化版本管理文档说明 (e7fdc1c)
+- 重置 CHANGELOG.md 等待自动生成 (c61d0ed)
+- sync version 1.0.5 from master [skip ci] (27f129c)
+- Merge pull request #6 from huajune/develop (e96d822)
+
