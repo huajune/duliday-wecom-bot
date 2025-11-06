@@ -122,6 +122,10 @@ function analyzeCommits(commits) {
     // 跳过无效的 commit
     if (!subject) return;
 
+    // 跳过自动化相关的提交
+    if (subject.includes('[skip ci]')) return;
+    if (subject.startsWith('Merge pull request')) return;
+
     const fullMessage = `${subject}\n${body || ''}`;
 
     // 检查是否有 BREAKING CHANGE
