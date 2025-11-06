@@ -69,7 +69,8 @@
       "Bash(%an)",
       "Bash(%ae)",
       "Bash(%ad --date=short)",
-      "Bash(git show:*)"
+      "Bash(git show:*)",
+      "Bash(npx prettier:*)"
     ],
     "deny": [
       "Bash(git restore:*)",

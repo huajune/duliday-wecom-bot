@@ -179,22 +179,28 @@ function updatePackageVersion(newVersion) {
 }
 
 /**
- * 格式化 commit 为 markdown
+ * 格式化 commit 为 changelog 条目
  */
 function formatCommitForChangelog(commit) {
   const shortHash = commit.hash.substring(0, 7);
   let message = commit.subject;
 
-  // 移除类型前缀
-  message = message.replace(/^(\w+)(\(.+\))?:\s*/, '');
+  // 移除类型前缀，但保留作用域
+  // feat(scope): message → scope: message
+  // feat: message → message
+  const match = message.match(/^(\w+)(?:\((.+?)\))?:\s*(.*)$/);
+  if (match) {
+    const [, , scope, description] = match;
+    message = scope ? `${scope}: ${description}` : description;
+  }
 
-  return `- ${message} ([${shortHash}](../../commit/${commit.hash}))`;
+  return `${message} (${shortHash})`;
 }
 
 /**
  * 生成 CHANGELOG 内容
  */
-function generateChangelog(version, types, commits) {
+function generateChangelog(version, types) {
   const date = new Date().toISOString().split('T')[0];
   const branch = execGit('git rev-parse --abbrev-ref HEAD') || 'unknown';
 
@@ -271,8 +277,8 @@ function generateChangelog(version, types, commits) {
 /**
  * 更新 CHANGELOG.md
  */
-function updateChangelog(version, types, commits) {
-  const newEntry = generateChangelog(version, types, commits);
+function updateChangelog(version, types) {
+  const newEntry = generateChangelog(version, types);
 
   let existingChangelog = '';
   if (fs.existsSync(CONFIG.changelogPath)) {
@@ -330,7 +336,7 @@ function main() {
   updatePackageVersion(newVersion);
 
   // 6. 更新 CHANGELOG.md
-  updateChangelog(newVersion, types, commits);
+  updateChangelog(newVersion, types);
 
   console.log('\n✨ 完成！');
 }
