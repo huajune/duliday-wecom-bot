@@ -60,7 +60,9 @@
       "Bash(git fsck:*)",
       "Bash(.claude/scripts/auto-stage-files.sh)",
       "Bash(.claude/scripts/check-modified-files.sh)",
-      "Bash(git rm:*)"
+      "Bash(git rm:*)",
+      "Bash(code --list-extensions:*)",
+      "Bash(cursor --list-extensions)"
     ],
     "deny": [
       "Bash(git restore:*)",
