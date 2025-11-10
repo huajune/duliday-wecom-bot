@@ -6,9 +6,6 @@ on:
       - develop
       - main
       - master
-  push:
-    branches:
-      - develop
 
 permissions:
   contents: read
