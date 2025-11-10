@@ -1,33 +1,33 @@
 # Git Commit Message Guidelines
 
-## 格式要求
+## Format Requirements
 
-### 标题行（必需）
+### Title Line (Required)
 ```
-<type>: <简洁描述>
+<type>: <concise description in 10-15 characters>
 ```
 
-- **类型**: feat, fix, refactor, docs, chore, test, style
-- **描述**: 10-15字简洁说明
+- **Type**: feat, fix, refactor, docs, chore, test, style
+- **Description**: Brief explanation in 10-15 Chinese characters
 
-### 正文（可选）
+### Body (Optional)
 ```
 变更内容：
-- 第一项修改（10-15字）
-- 第二项修改（10-15字）
-- 第三项修改（10-15字）
+- First change (10-15 characters)
+- Second change (10-15 characters)
+- Third change (10-15 characters)
 ```
 
-### 尾注（固定）
+### Footer (Fixed)
 ```
 🤖 Generated with [Claude Code](https://claude.com/claude-code)
 
 Co-Authored-By: Claude <noreply@anthropic.com>
 ```
 
-## 示例
+## Examples
 
-### ✅ 好的commit
+### ✅ Good Commit
 ```
 fix: 修复版本更新工作流分支保护冲突
 
@@ -42,7 +42,7 @@ fix: 修复版本更新工作流分支保护冲突
 Co-Authored-By: Claude <noreply@anthropic.com>
 ```
 
-### ✅ 简单commit（无需正文）
+### ✅ Simple Commit (No Body Needed)
 ```
 feat: 新增用户登录功能
 
@@ -51,7 +51,7 @@ feat: 新增用户登录功能
 Co-Authored-By: Claude <noreply@anthropic.com>
 ```
 
-### ❌ 不好的commit
+### ❌ Bad Commit (Too Verbose)
 ```
 fix: 升级 CI 中的 pnpm 版本到 10
 
@@ -61,32 +61,41 @@ CI 安装依赖失败：ERR_PNPM_NO_LOCKFILE - Cannot install with "frozen-lockf
 ## 原因
 - 本地使用 pnpm 10.16.1 生成 lockfileVersion 9.0
 - CI 使用 pnpm 8，只支持到 lockfileVersion 6.x
-...（太长了！）
+...（TOO LONG!）
 ```
 
-## 类型说明
+## Commit Types
 
-| 类型 | 说明 | 示例 |
-|------|------|------|
-| `feat` | 新功能 | feat: 添加消息合并功能 |
-| `fix` | 修复bug | fix: 修复依赖安装失败问题 |
-| `refactor` | 代码重构 | refactor: 优化消息处理服务 |
-| `docs` | 文档更新 | docs: 更新API文档 |
-| `chore` | 杂项 | chore: 更新依赖版本 |
-| `test` | 测试 | test: 添加消息服务单元测试 |
-| `style` | 格式化 | style: 格式化代码 |
+| Type | Purpose | Example |
+|------|---------|---------|
+| `feat` | New feature | feat: 添加消息合并功能 |
+| `fix` | Bug fix | fix: 修复依赖安装失败问题 |
+| `refactor` | Code refactoring | refactor: 优化消息处理服务 |
+| `docs` | Documentation | docs: 更新API文档 |
+| `chore` | Maintenance | chore: 更新依赖版本 |
+| `test` | Testing | test: 添加消息服务单元测试 |
+| `style` | Formatting | style: 格式化代码 |
 
-## 原则
+## Principles
 
-1. **简洁明了** - 每句10-15字
-2. **直击要点** - 说明做了什么，不解释为什么
-3. **列表清晰** - 多项修改用列表
-4. **避免长篇** - 详细说明放在PR描述
+1. **Keep it concise** - Each line 10-15 characters
+2. **State what was done** - Don't explain why
+3. **Use bullet lists** - For multiple changes
+4. **Avoid lengthy explanations** - Put details in PR description
 
-## 何时需要正文
+## When to Include Body
 
-- ✅ 修改超过3个文件
-- ✅ 涉及多个功能点
-- ✅ 需要列举具体变更
-- ❌ 单一简单修改
-- ❌ 自解释的标题
+- ✅ Changes affect 3+ files
+- ✅ Multiple functional changes
+- ✅ Need to list specific modifications
+- ❌ Single simple change
+- ❌ Self-explanatory title
+
+## Critical Rules
+
+1. **ALWAYS** keep title under 15 Chinese characters
+2. **ALWAYS** use bullet points for body items (10-15 chars each)
+3. **NEVER** write long paragraphs explaining reasons
+4. **NEVER** include detailed technical explanations in commit
+5. **DO** fix problems instead of disabling features
+6. **DO** try multiple solutions before giving up
