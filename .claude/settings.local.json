@@ -84,7 +84,8 @@
       "Bash(git rev-parse:*)",
       "Bash(xargs:*)",
       "Bash(/tmp/ai-code-review.yml.backup)",
-      "Bash(/tmp/original-ai-review.yml)"
+      "Bash(/tmp/original-ai-review.yml)",
+      "Bash(.github/workflows/version-changelog.yml)"
     ],
     "deny": [
       "Bash(git restore:*)",

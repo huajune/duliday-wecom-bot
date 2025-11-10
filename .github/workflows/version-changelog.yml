@@ -15,6 +15,7 @@ jobs:
 
     permissions:
       contents: write
+      pull-requests: write
 
     steps:
       - name: Checkout code
@@ -52,40 +53,62 @@ jobs:
             echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
           fi
 
-      - name: Commit and push changes
+      - name: Create update branch and push
         if: steps.check_changes.outputs.has_changes == 'true'
-        run: |
-          git add package.json CHANGELOG.md
-          git commit -m "chore: update version and changelog [skip ci]"
-          git push
-
-      - name: Create Git Tag
-        if: steps.check_changes.outputs.has_changes == 'true'
+        id: create_branch
         run: |
           VERSION="${{ steps.check_changes.outputs.version }}"
-          git tag "v$VERSION"
-          git push origin "v$VERSION"
+          BRANCH_NAME="chore/update-version-$VERSION"
 
-      - name: Sync to develop branch
+          echo "branch_name=$BRANCH_NAME" >> $GITHUB_OUTPUT
+
+          # 创建新分支
+          git checkout -b "$BRANCH_NAME"
+
+          # 提交变更
+          git add package.json CHANGELOG.md
+          git commit -m "chore: update version to $VERSION and changelog [skip ci]"
+
+          # 推送到远程
+          git push origin "$BRANCH_NAME"
+
+          echo "✅ 已创建分支: $BRANCH_NAME"
+
+      - name: Create Pull Request
         if: steps.check_changes.outputs.has_changes == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          echo "同步版本更新到 develop 分支..."
+          VERSION="${{ steps.check_changes.outputs.version }}"
+          BRANCH_NAME="${{ steps.create_branch.outputs.branch_name }}"
+          CURRENT_BRANCH="${{ github.ref_name }}"
 
-          # 获取当前分支名称
-          CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
-          echo "当前分支: $CURRENT_BRANCH"
+          # 创建PR描述
+          PR_BODY="## 📦 自动版本更新
 
-          # 切换到 develop 分支
-          git fetch origin develop
-          git checkout develop
+**新版本**: v$VERSION
 
-          # 合并 master 分支的更改
-          if git merge $CURRENT_BRANCH --no-ff -m "chore: sync version ${{ steps.check_changes.outputs.version }} from $CURRENT_BRANCH [skip ci]"; then
-            echo "✅ 成功合并 $CURRENT_BRANCH 到 develop"
-            git push origin develop
-            echo "✅ 已推送到 develop 分支"
-          else
-            echo "⚠️  合并冲突，需要手动解决"
-            git merge --abort
-            exit 1
-          fi
+此PR由GitHub Actions自动创建，包含：
+- ✅ 更新 package.json 版本号
+- ✅ 更新 CHANGELOG.md
+
+### 变更来源
+基于 \`$CURRENT_BRANCH\` 分支的commit历史自动生成。
+
+### 合并后操作
+合并此PR后，建议：
+1. 创建git tag: \`v$VERSION\`
+2. 发布GitHub Release
+
+---
+🤖 由 GitHub Actions 自动生成"
+
+          # 使用gh CLI创建PR
+          gh pr create \
+            --base "$CURRENT_BRANCH" \
+            --head "$BRANCH_NAME" \
+            --title "chore: update version to $VERSION" \
+            --body "$PR_BODY" \
+            --label "automated,version-update"
+
+          echo "✅ 已创建PR: $BRANCH_NAME -> $CURRENT_BRANCH"
