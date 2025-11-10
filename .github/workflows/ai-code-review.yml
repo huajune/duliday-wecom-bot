@@ -1,0 +1,219 @@
+name: AI Code Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches:
+      - develop
+      - main
+      - master
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  ai-code-review:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Get changed files
+        id: changed-files
+        run: |
+          # 获取 PR 中修改的文件列表
+          git fetch origin ${{ github.event.pull_request.base.ref }}
+          CHANGED_FILES=$(git diff --name-only origin/${{ github.event.pull_request.base.ref }}...HEAD | grep -E '\.(ts|js|tsx|jsx)$' || echo "")
+
+          if [ -z "$CHANGED_FILES" ]; then
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+            echo "No TypeScript/JavaScript files changed"
+          else
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+            echo "changed_files<<EOF" >> $GITHUB_OUTPUT
+            echo "$CHANGED_FILES" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+
+            # 统计文件数量
+            FILE_COUNT=$(echo "$CHANGED_FILES" | wc -l)
+            echo "file_count=$FILE_COUNT" >> $GITHUB_OUTPUT
+
+            echo "Found $FILE_COUNT changed TypeScript/JavaScript files"
+          fi
+
+      - name: Get file diffs
+        id: get-diffs
+        if: steps.changed-files.outputs.has_changes == 'true'
+        run: |
+          git fetch origin ${{ github.event.pull_request.base.ref }}
+
+          # 获取所有变更的详细 diff（限制大小以避免超出 API 限制）
+          DIFF_OUTPUT=$(git diff origin/${{ github.event.pull_request.base.ref }}...HEAD -- '*.ts' '*.js' '*.tsx' '*.jsx' | head -c 50000)
+
+          # 保存到文件
+          echo "$DIFF_OUTPUT" > /tmp/pr-diff.txt
+
+          # 统计变更行数
+          ADDED_LINES=$(echo "$DIFF_OUTPUT" | grep -c "^+" || echo "0")
+          REMOVED_LINES=$(echo "$DIFF_OUTPUT" | grep -c "^-" || echo "0")
+
+          echo "added_lines=$ADDED_LINES" >> $GITHUB_OUTPUT
+          echo "removed_lines=$REMOVED_LINES" >> $GITHUB_OUTPUT
+
+          echo "Changes: +$ADDED_LINES -$REMOVED_LINES lines"
+
+      - name: AI Code Review with Anthropic Claude
+        id: ai-review
+        if: steps.changed-files.outputs.has_changes == 'true'
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          # 如果没有配置 API Key，跳过 AI 审查
+          if [ -z "$ANTHROPIC_API_KEY" ]; then
+            echo "⚠️  ANTHROPIC_API_KEY not configured, skipping AI review"
+            echo "review_result=API key not configured" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          # 读取 diff 内容
+          DIFF_CONTENT=$(cat /tmp/pr-diff.txt)
+
+          # 读取项目规范（如果存在）
+          PROJECT_RULES=""
+          if [ -f ".cursorrules" ]; then
+            PROJECT_RULES=$(cat .cursorrules | head -c 10000)
+          fi
+
+          # 构建审查提示词
+          REVIEW_PROMPT="You are an expert code reviewer for a NestJS TypeScript project.
+
+Project Context:
+- Tech Stack: NestJS 10.3, TypeScript 5.3, Node.js 20+
+- Architecture: DDD layered architecture with 4 business domains
+- This is an enterprise WeChat intelligent service middleware
+
+Project Coding Standards:
+$PROJECT_RULES
+
+Please review the following code changes and provide:
+1. **Critical Issues** (bugs, security, performance problems)
+2. **Code Quality** (TypeScript best practices, NestJS patterns)
+3. **Architecture Concerns** (violations of DDD principles, wrong layer usage)
+4. **Suggestions** (improvements, optimizations)
+
+Focus on:
+- TypeScript strict typing (no 'any' abuse)
+- NestJS dependency injection patterns
+- Proper error handling
+- Security issues (hardcoded secrets, SQL injection, XSS)
+- Performance issues
+- Code maintainability
+
+Code Changes:
+\`\`\`diff
+$DIFF_CONTENT
+\`\`\`
+
+Provide your review in markdown format with clear sections."
+
+          # 调用 Anthropic API（使用最新的 Claude Sonnet 4.5 模型）
+          RESPONSE=$(curl -s -X POST https://api.anthropic.com/v1/messages \
+            -H "content-type: application/json" \
+            -H "x-api-key: $ANTHROPIC_API_KEY" \
+            -H "anthropic-version: 2023-06-01" \
+            -d "{
+              \"model\": \"claude-sonnet-4-20250514\",
+              \"max_tokens\": 8192,
+              \"messages\": [
+                {
+                  \"role\": \"user\",
+                  \"content\": $(echo "$REVIEW_PROMPT" | jq -Rs .)
+                }
+              ]
+            }")
+
+          # 提取审查结果
+          REVIEW_TEXT=$(echo "$RESPONSE" | jq -r '.content[0].text // "AI review failed"')
+
+          # 保存审查结果到文件（用于后续步骤）
+          echo "$REVIEW_TEXT" > /tmp/review-result.md
+
+          echo "AI review completed"
+
+      - name: Post review comment
+        if: steps.changed-files.outputs.has_changes == 'true'
+        uses: actions/github-script@v7
+        env:
+          FILE_COUNT: ${{ steps.changed-files.outputs.file_count }}
+          ADDED_LINES: ${{ steps.get-diffs.outputs.added_lines }}
+          REMOVED_LINES: ${{ steps.get-diffs.outputs.removed_lines }}
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+
+            // 读取 AI 审查结果
+            let reviewContent;
+            try {
+              reviewContent = fs.readFileSync('/tmp/review-result.md', 'utf8');
+            } catch (error) {
+              reviewContent = '⚠️ AI review was skipped (ANTHROPIC_API_KEY not configured)\n\nTo enable AI code review, please add your Anthropic API key as a repository secret named `ANTHROPIC_API_KEY`.';
+            }
+
+            // 构建评论内容
+            const comment = `## 🤖 AI Code Review
+
+**Changes Summary:**
+- 📝 Files changed: ${process.env.FILE_COUNT}
+- ➕ Lines added: ${process.env.ADDED_LINES}
+- ➖ Lines removed: ${process.env.REMOVED_LINES}
+
+---
+
+${reviewContent}
+
+---
+
+<sub>Powered by Claude Sonnet 4.5 🚀 | [View Workflow](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})</sub>`;
+
+            // 检查是否已有 AI review 评论
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            const botComment = comments.find(comment =>
+              comment.user.type === 'Bot' &&
+              comment.body.includes('🤖 AI Code Review')
+            );
+
+            // 更新或创建评论
+            if (botComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body: comment
+              });
+              console.log('Updated existing AI review comment');
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: comment
+              });
+              console.log('Created new AI review comment');
+            }
+
+      - name: Summary
+        if: steps.changed-files.outputs.has_changes == 'false'
+        run: |
+          echo "✅ No TypeScript/JavaScript files changed, skipping AI review"

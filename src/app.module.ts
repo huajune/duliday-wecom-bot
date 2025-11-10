@@ -2,6 +2,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { HttpModule, RedisModule } from './core';
+import { MonitoringModule } from './core/monitoring/monitoring.module';
 import { AgentModule } from './agent';
 import { WecomModule } from './wecom/wecom.module';
 import { SpongeModule } from './sponge/sponge.module';
@@ -42,6 +43,7 @@ import { AnalyticsModule } from './analytics/analytics.module';
     // ==================== 核心层 (Core Layer) ====================
     HttpModule, // HTTP 客户端服务
     RedisModule, // Redis 缓存服务（全局）
+    MonitoringModule, // 监控服务（全局）
 
     // ==================== 业务域 (Business Domains) ====================
     AgentModule, // AI Agent 业务域
