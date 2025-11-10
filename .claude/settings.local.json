@@ -78,7 +78,10 @@
       "Bash(gh run:*)",
       "Bash(pnpm exec tsc:*)",
       "Bash(pnpm run test:*)",
-      "Bash(gh pr create:*)"
+      "Bash(gh pr create:*)",
+      "Bash(pnpm run lint:*)",
+      "Bash(pnpm exec prettier:*)",
+      "Bash(git rev-parse:*)"
     ],
     "deny": [
       "Bash(git restore:*)",
