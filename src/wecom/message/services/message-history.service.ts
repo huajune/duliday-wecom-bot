@@ -27,15 +27,15 @@ export class MessageHistoryService implements OnModuleDestroy {
   private cleanupIntervalHandle: NodeJS.Timeout | null = null;
 
   constructor(private readonly configService: ConfigService) {
-    // 从环境变量读取历史消息配置
+    // 从环境变量读取历史消息配置（提高默认值以支持更长对话）
     this.maxHistoryPerChat = parseInt(
-      this.configService.get<string>('MAX_HISTORY_PER_CHAT', '20'),
+      this.configService.get<string>('MAX_HISTORY_PER_CHAT', '60'),
       10,
     );
     this.historyTTL = parseInt(this.configService.get<string>('HISTORY_TTL_MS', '7200000'), 10); // 默认2小时
 
     this.logger.log(
-      `消息历史服务已初始化: 每个会话最多保留 ${this.maxHistoryPerChat} 条消息，过期时间 ${this.historyTTL / 1000 / 60} 分钟`,
+      `消息历史服务已初始化: 每个会话最多保留 ${this.maxHistoryPerChat} 条消息（约 ${Math.floor(this.maxHistoryPerChat / 2)} 轮对话），过期时间 ${this.historyTTL / 1000 / 60} 分钟`,
     );
 
     // 启动定期清理任务

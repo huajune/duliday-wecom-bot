@@ -14,6 +14,7 @@ import { MessageHistoryService } from './services/message-history.service';
 import { MessageFilterService } from './services/message-filter.service';
 import { MessageMergeService } from './services/message-merge.service';
 import { MessageStatisticsService } from './services/message-statistics.service';
+import { TypingDelayService } from './services/typing-delay.service';
 
 // 导入工具类
 import { MessageParser } from './utils/message-parser.util';
@@ -21,6 +22,8 @@ import { MessageSplitter } from './utils/message-splitter.util';
 
 // 导入监控服务
 import { MonitoringService } from '@/core/monitoring/monitoring.service';
+// 导入告警服务
+import { FeiShuAlertService } from '@/core/alert/feishu-alert.service';
 
 /**
  * 消息处理服务（重构版）
@@ -54,8 +57,10 @@ export class MessageService {
     private readonly filterService: MessageFilterService,
     private readonly mergeService: MessageMergeService,
     private readonly statisticsService: MessageStatisticsService,
-    // 监控服务
+    private readonly typingDelayService: TypingDelayService,
+    // 监控和告警服务
     private readonly monitoringService: MonitoringService,
+    private readonly feiShuAlertService: FeiShuAlertService,
   ) {
     // 从环境变量读取配置
     this.enableAiReply = this.configService.get<string>('ENABLE_AI_REPLY', 'true') === 'true';
@@ -68,7 +73,7 @@ export class MessageService {
     this.logger.log(`AI 自动回复功能: ${this.enableAiReply ? '已启用' : '已禁用'}`);
     this.logger.log(`消息聚合功能: ${this.enableMessageMerge ? '已启用' : '已禁用'}`);
     this.logger.log(`消息分段发送功能: ${this.enableMessageSplitSend ? '已启用' : '已禁用'}`);
-    this.logger.log(`消息发送延迟: ${this.messageSendDelay}ms`);
+    this.logger.log(`消息发送延迟: ${this.messageSendDelay}ms (固定延迟，已被智能延迟策略替代)`);
   }
 
   /**
@@ -153,12 +158,22 @@ export class MessageService {
     let contactName = '未知用户';
     let messageId = 'unknown';
     let chatId = 'unknown';
+    let content = '';
+    let token = '';
+    let imBotId = '';
+    let imContactId = '';
+    let imRoomId = '';
+    let conversationId = '';
 
     try {
       // 解析消息数据
       const parsedData = MessageParser.parse(messageData);
-      const { content, imBotId, imContactId, imRoomId, token } = parsedData;
-      chatId = parsedData.chatId; // 更新 chatId 以便在 catch 块中使用
+      content = parsedData.content;
+      imBotId = parsedData.imBotId;
+      imContactId = parsedData.imContactId;
+      imRoomId = parsedData.imRoomId;
+      token = parsedData.token;
+      chatId = parsedData.chatId;
 
       // 打印解析后的数据
       this.logger.log('=== [解析后的消息数据] ===');
@@ -182,7 +197,7 @@ export class MessageService {
       messageId = parsedData.messageId;
 
       // 直接使用 chatId 作为会话标识
-      const conversationId = chatId;
+      conversationId = chatId;
 
       this.logger.log(
         `[${scenarioType}][${contactName}] 收到: "${content.substring(0, 50)}${content.length > 50 ? '...' : ''}"`,
@@ -212,6 +227,7 @@ export class MessageService {
 
       // 5. 【监控埋点】AI 处理开始
       this.monitoringService.recordAiStart(messageId);
+      const agentStartTime = Date.now(); // 记录 Agent 开始处理时间
 
       // 6. 调用 Agent API 生成回复
       const aiResponse = await this.agentService.chat({
@@ -231,6 +247,8 @@ export class MessageService {
 
       // 7. 【监控埋点】AI 处理完成
       this.monitoringService.recordAiEnd(messageId);
+      const agentProcessTime = Date.now() - agentStartTime; // 计算 Agent 处理耗时
+      this.logger.log(`[${scenarioType}][${contactName}] Agent 处理耗时: ${agentProcessTime}ms`);
 
       // 8. 提取回复内容
       const replyContent = this.extractReplyContent(aiResponse);
@@ -265,6 +283,34 @@ export class MessageService {
         // 依次发送每个片段
         for (let i = 0; i < segments.length; i++) {
           const segment = segments[i];
+          const isFirstSegment = i === 0;
+
+          // 在发送之前计算延迟
+          if (isFirstSegment) {
+            // 第一个片段：根据 Agent 处理时间决定是否延迟
+            const delayMs = this.typingDelayService.calculateDelay(segment, true, agentProcessTime);
+
+            if (delayMs > 0) {
+              this.logger.debug(
+                `[${scenarioType}][${contactName}] 等待 ${delayMs}ms 后发送第一条消息（Agent 耗时: ${agentProcessTime}ms）`,
+              );
+              await this.typingDelayService.delay(delayMs);
+            } else {
+              this.logger.debug(
+                `[${scenarioType}][${contactName}] 立即发送第一条消息（Agent 已处理 ${agentProcessTime}ms）`,
+              );
+            }
+          } else {
+            // 后续片段：使用正常的打字延迟
+            const delayMs = this.typingDelayService.calculateDelay(segment, false);
+
+            this.logger.debug(
+              `[${scenarioType}][${contactName}] 等待 ${delayMs}ms 后发送第 ${i + 1} 条消息（文本长度: ${segment.length}）`,
+            );
+
+            await this.typingDelayService.delay(delayMs);
+          }
+
           this.logger.log(
             `[${scenarioType}][${contactName}] 发送第 ${i + 1}/${segments.length} 条消息: "${segment.substring(0, 30)}${segment.length > 30 ? '...' : ''}"`,
           );
@@ -284,11 +330,6 @@ export class MessageService {
             this.logger.debug(
               `[${scenarioType}][${contactName}] 第 ${i + 1}/${segments.length} 条消息发送成功`,
             );
-
-            // 添加延迟，确保消息按顺序到达
-            if (i < segments.length - 1) {
-              await new Promise((resolve) => setTimeout(resolve, this.messageSendDelay));
-            }
           } catch (error) {
             this.logger.error(
               `[${scenarioType}][${contactName}] 第 ${i + 1}/${segments.length} 条消息发送失败: ${error.message}`,
@@ -339,6 +380,36 @@ export class MessageService {
 
       // 【监控埋点】记录处理失败
       this.monitoringService.recordFailure(messageId, error.message);
+
+      // 【飞书告警】发送告警通知
+      await this.feiShuAlertService.sendAgentApiFailureAlert(
+        error,
+        conversationId || chatId,
+        content,
+        '/api/v1/chat',
+      );
+
+      // 【用户降级回复】发送友好提示，避免用户没有收到任何回复
+      try {
+        const fallbackMessage = this.getFallbackMessage();
+        await this.messageSenderService.sendMessage({
+          token,
+          imBotId,
+          imContactId,
+          imRoomId,
+          messageType: SendMessageType.TEXT,
+          payload: {
+            text: fallbackMessage,
+          },
+        });
+        this.logger.log(
+          `[${scenarioType}][${contactName}] 已发送降级回复给用户: "${fallbackMessage}"`,
+        );
+      } catch (sendError) {
+        this.logger.error(
+          `[${scenarioType}][${contactName}] 发送降级回复失败: ${sendError.message}`,
+        );
+      }
 
       // 不抛出错误，避免影响其他消息处理
     }
@@ -701,5 +772,32 @@ export class MessageService {
     chatId?: string;
   }) {
     return this.statisticsService.clearCache(options);
+  }
+
+  /**
+   * 获取降级回复消息
+   * 当 Agent API 调用失败时，返回友好的降级话术
+   * @returns 降级回复消息
+   */
+  private getFallbackMessage(): string {
+    // 从环境变量读取自定义降级消息，否则使用默认消息
+    const customMessage = this.configService.get<string>('AGENT_FALLBACK_MESSAGE', '');
+
+    if (customMessage) {
+      return customMessage;
+    }
+
+    // 默认降级消息列表（随机选择一条，更自然）
+    const fallbackMessages = [
+      '不好意思，我这边网络有点问题，稍等我去问一下我同事～',
+      '抱歉稍等，我需要跟同事确认一下这个问题～',
+      '您稍等一下，我这边去核实一下信息～',
+      '不好意思，让我去找一下资料再回复您～',
+      '稍等片刻，我去跟负责的同事确认一下～',
+    ];
+
+    // 随机选择一条降级消息
+    const randomIndex = Math.floor(Math.random() * fallbackMessages.length);
+    return fallbackMessages[randomIndex];
   }
 }

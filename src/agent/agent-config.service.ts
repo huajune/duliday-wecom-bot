@@ -161,8 +161,9 @@ export class AgentConfigService implements OnModuleInit {
       contextStrategy: 'skip',
       prune: true,
       pruneOptions: {
-        targetTokens: 8000,
-        preserveRecentMessages: 5,
+        targetTokens: 32000, // 提高 token 预算，支持更长的对话历史
+        preserveRecentMessages: 50, // 保留最近 50 条消息（约 25 轮对话）
+        maxOutputTokens: 4000, // 预留给模型生成回复的 token 数量
       },
     });
 
