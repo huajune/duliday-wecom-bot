@@ -77,7 +77,8 @@
       "Bash(open http://localhost:8080/monitoring.html)",
       "Bash(gh run:*)",
       "Bash(pnpm exec tsc:*)",
-      "Bash(pnpm run test:*)"
+      "Bash(pnpm run test:*)",
+      "Bash(gh pr create:*)"
     ],
     "deny": [
       "Bash(git restore:*)",
