@@ -13,6 +13,7 @@ import { MessageHistoryService } from './services/message-history.service';
 import { MessageFilterService } from './services/message-filter.service';
 import { MessageMergeService } from './services/message-merge.service';
 import { MessageStatisticsService } from './services/message-statistics.service';
+import { TypingDelayService } from './services/typing-delay.service';
 
 /**
  * 消息处理模块
@@ -109,6 +110,7 @@ import { MessageStatisticsService } from './services/message-statistics.service'
     MessageFilterService, // 消息过滤
     MessageMergeService, // 消息聚合
     MessageStatisticsService, // 统计监控
+    TypingDelayService, // 智能打字延迟
   ],
   exports: [MessageService],
 })

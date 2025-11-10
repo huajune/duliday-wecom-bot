@@ -73,6 +73,22 @@
       "**/*.(t|j)s"
     ],
     "coverageDirectory": "../coverage",
-    "testEnvironment": "node"
+    "testEnvironment": "node",
+    "moduleNameMapper": {
+      "^@/(.*)$": "<rootDir>/$1",
+      "^@core/http$": "<rootDir>/core/client-http",
+      "^@core/response$": "<rootDir>/core/response",
+      "^@core/config$": "<rootDir>/core/config",
+      "^@core$": "<rootDir>/core",
+      "^@core/(.*)$": "<rootDir>/core/$1",
+      "^@agent$": "<rootDir>/agent",
+      "^@agent/(.*)$": "<rootDir>/agent/$1",
+      "^@wecom/(.*)$": "<rootDir>/wecom/$1",
+      "^@wecom$": "<rootDir>/wecom",
+      "^@sponge$": "<rootDir>/sponge",
+      "^@sponge/(.*)$": "<rootDir>/sponge/$1",
+      "^@analytics$": "<rootDir>/analytics",
+      "^@analytics/(.*)$": "<rootDir>/analytics/$1"
+    }
   }
 }

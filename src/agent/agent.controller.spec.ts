@@ -15,6 +15,7 @@ describe('AgentController', () => {
     getTools: jest.fn(),
     getModels: jest.fn(),
     chat: jest.fn(),
+    chatWithProfile: jest.fn(),
   };
 
   const mockRegistryService = {
@@ -172,7 +173,15 @@ describe('AgentController', () => {
   });
 
   describe('testChat', () => {
-    it('should call agentService.chat with all parameters', async () => {
+    const mockProfile = {
+      name: 'candidate-consultation',
+      description: '测试配置',
+      model: 'test-model',
+      context: [],
+      toolContext: {},
+    };
+
+    it('should call agentService.chatWithProfile with all parameters', async () => {
       const mockBody = {
         message: '你好',
         conversationId: 'conv123',
@@ -180,14 +189,15 @@ describe('AgentController', () => {
       };
       const mockResult = { reply: '你好！', conversationId: 'conv123' };
 
-      mockAgentService.chat.mockResolvedValue(mockResult);
+      mockAgentConfigService.getProfile.mockReturnValue(mockProfile);
+      mockAgentService.chatWithProfile.mockResolvedValue(mockResult);
 
       const result = await controller.testChat(mockBody);
 
-      expect(service.chat).toHaveBeenCalledWith({
-        conversationId: 'conv123',
-        userMessage: '你好',
+      expect(mockAgentConfigService.getProfile).toHaveBeenCalledWith('candidate-consultation');
+      expect(service.chatWithProfile).toHaveBeenCalledWith('conv123', '你好', mockProfile, {
         model: 'gpt-4',
+        allowedTools: undefined,
       });
       expect(result).toEqual(mockResult);
     });
@@ -196,42 +206,45 @@ describe('AgentController', () => {
       const mockBody = { message: '测试消息' };
       const mockResult = { reply: '收到测试消息', conversationId: 'test-user' };
 
-      mockAgentService.chat.mockResolvedValue(mockResult);
+      mockAgentConfigService.getProfile.mockReturnValue(mockProfile);
+      mockAgentService.chatWithProfile.mockResolvedValue(mockResult);
 
       const result = await controller.testChat(mockBody);
 
-      expect(service.chat).toHaveBeenCalledWith({
-        conversationId: 'test-user',
-        userMessage: '测试消息',
+      expect(mockAgentConfigService.getProfile).toHaveBeenCalledWith('candidate-consultation');
+      expect(service.chatWithProfile).toHaveBeenCalledWith('test-user', '测试消息', mockProfile, {
         model: undefined,
+        allowedTools: undefined,
       });
       expect(result).toEqual(mockResult);
     });
 
-    it('should call agentService.chat without model parameter', async () => {
+    it('should call agentService.chatWithProfile without model parameter', async () => {
       const mockBody = {
         message: '你好',
         conversationId: 'conv456',
       };
       const mockResult = { reply: '你好！', conversationId: 'conv456' };
 
-      mockAgentService.chat.mockResolvedValue(mockResult);
+      mockAgentConfigService.getProfile.mockReturnValue(mockProfile);
+      mockAgentService.chatWithProfile.mockResolvedValue(mockResult);
 
       const result = await controller.testChat(mockBody);
 
-      expect(service.chat).toHaveBeenCalledWith({
-        conversationId: 'conv456',
-        userMessage: '你好',
+      expect(mockAgentConfigService.getProfile).toHaveBeenCalledWith('candidate-consultation');
+      expect(service.chatWithProfile).toHaveBeenCalledWith('conv456', '你好', mockProfile, {
         model: undefined,
+        allowedTools: undefined,
       });
       expect(result).toEqual(mockResult);
     });
 
-    it('should handle errors from agentService.chat', async () => {
+    it('should handle errors from agentService.chatWithProfile', async () => {
       const mockBody = { message: '测试' };
       const error = new Error('Chat failed');
 
-      mockAgentService.chat.mockRejectedValue(error);
+      mockAgentConfigService.getProfile.mockReturnValue(mockProfile);
+      mockAgentService.chatWithProfile.mockRejectedValue(error);
 
       await expect(controller.testChat(mockBody)).rejects.toThrow('Chat failed');
     });

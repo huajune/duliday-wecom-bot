@@ -1,0 +1,28 @@
+# AI Code Review Workflow - TEMPORARILY DISABLED
+#
+# This workflow has been disabled due to YAML syntax issues.
+# The multi-line string handling in bash script conflicts with YAML parsing.
+#
+# To re-enable:
+# 1. Fix the YAML syntax issues in the REVIEW_PROMPT section
+# 2. Configure ANTHROPIC_API_KEY in repository secrets
+# 3. Rename this file back to ai-code-review.yml
+#
+# Original workflow attempted to:
+# - Detect TypeScript/JavaScript file changes in PRs
+# - Call Anthropic Claude API for code review
+# - Post review comments on the PR
+#
+# For now, CI checks (linting, tests, build) are sufficient for merge approval.
+
+name: AI Code Review (Disabled)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  placeholder:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Disabled
+        run: echo "AI Code Review workflow is currently disabled"

@@ -168,4 +168,68 @@ export class MessageController {
 
     return this.messageService.clearCache(options);
   }
+
+  /**
+   * 测试接口：模拟 Agent API 失败
+   * @description 用于测试错误处理流程，包括飞书告警和降级回复
+   * @example POST /message/test-error
+   * @body { "text": "测试消息", "chatId": "test_chat_123", "errorType": "timeout" }
+   */
+  @Post('test-error')
+  async testError(
+    @Body()
+    body: {
+      text?: string;
+      chatId?: string;
+      orgId?: string;
+      token?: string;
+      errorType?: 'timeout' | 'network' | 'unauthorized' | 'server_error';
+    },
+  ) {
+    this.logger.log('收到错误测试请求:', body);
+
+    // 构造模拟的消息数据
+    const mockMessageData: EnterpriseMessageCallbackDto = {
+      orgId: body.orgId || 'test_org_123',
+      token: body.token || 'test_token_for_development',
+      botId: 'test_bot_123',
+      imBotId: 'test_bot_wxid',
+      chatId: body.chatId || `test_chat_${Date.now()}`,
+      messageType: MessageType.TEXT,
+      messageId: `test_msg_${Date.now()}`,
+      timestamp: Date.now().toString(),
+      isSelf: false,
+      source: MessageSource.NEW_CUSTOMER_ANSWER_SOP, // 触发 AI 回复
+      contactType: ContactType.PERSONAL_WECHAT,
+      payload: {
+        text: body.text || '测试 Agent API 失败',
+        pureText: body.text || '测试 Agent API 失败',
+      },
+    };
+
+    this.logger.log('构造的模拟消息:', JSON.stringify(mockMessageData, null, 2));
+
+    try {
+      // 调用消息处理服务，由于我们会在测试环境中模拟失败，
+      // 这里应该会触发错误处理流程
+      const result = await this.messageService.handleMessage(mockMessageData);
+
+      return {
+        success: true,
+        message: '测试消息已发送（预期会触发 Agent API 失败处理）',
+        mockData: mockMessageData,
+        result,
+        note: '如果 Agent API 配置不正确或不可用，应该会收到飞书告警和降级回复',
+      };
+    } catch (error) {
+      // 如果这里捕获到错误，说明错误处理可能有问题
+      this.logger.error('测试过程中发生未预期的错误:', error);
+      return {
+        success: false,
+        message: '测试失败（消息服务抛出了异常）',
+        error: error.message,
+        note: '消息服务应该内部处理错误，不应该向外抛出',
+      };
+    }
+  }
 }

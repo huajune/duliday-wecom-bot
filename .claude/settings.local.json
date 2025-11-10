@@ -74,7 +74,16 @@
       "Bash(pnpm run start:dev:*)",
       "Bash(API_KEY=\"c4de6f.7NkraOJra-X7fgVqdf7H3A.awFbsH2CdPt5vSsr\")",
       "Bash(gh auth:*)",
-      "Bash(open http://localhost:8080/monitoring.html)"
+      "Bash(open http://localhost:8080/monitoring.html)",
+      "Bash(gh run:*)",
+      "Bash(pnpm exec tsc:*)",
+      "Bash(pnpm run test:*)",
+      "Bash(gh pr create:*)",
+      "Bash(pnpm run lint:*)",
+      "Bash(pnpm exec prettier:*)",
+      "Bash(git rev-parse:*)",
+      "Bash(xargs:*)",
+      "Bash(/tmp/ai-code-review.yml.backup)"
     ],
     "deny": [
       "Bash(git restore:*)",
