@@ -83,7 +83,8 @@
       "Bash(pnpm exec prettier:*)",
       "Bash(git rev-parse:*)",
       "Bash(xargs:*)",
-      "Bash(/tmp/ai-code-review.yml.backup)"
+      "Bash(/tmp/ai-code-review.yml.backup)",
+      "Bash(/tmp/original-ai-review.yml)"
     ],
     "deny": [
       "Bash(git restore:*)",
