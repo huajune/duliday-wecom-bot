@@ -21,6 +21,7 @@ docs/
 ├── workflows/             # 工作流程文档
 │   ├── ai-code-review-guide.md
 │   ├── auto-version-changelog.md
+│   ├── branch-protection-guide.md
 │   └── version-release-guide.md
 └── product/               # 产品相关文档
     ├── business-flows.md
@@ -114,6 +115,22 @@ docs: 更新文档        # 修订号 +1
 - ✅ 检查安全漏洞、性能问题、代码质量
 - ✅ 验证架构合规性和项目规范
 - ✅ 使用 Claude 3.5 Sonnet 提供专业建议
+
+- **[分支保护规则配置指南](workflows/branch-protection-guide.md)** (新增)
+  - 🔒 GitHub 分支保护规则配置步骤
+  - CI 检查项配置和必需状态检查
+  - 常见阻塞场景和解决方案
+  - 本地预检查最佳实践
+  - 故障排查和安全建议
+  - **更新日期**：2025-11-10
+
+**必需检查项**：
+
+- ✅ 代码质量检查 (ESLint + Prettier)
+- ✅ TypeScript 类型检查
+- ✅ 构建验证
+- ✅ 单元测试通过
+- ✅ PR 审批（至少 1 人）
 
 ### 开发工具指南
 
