@@ -358,6 +358,24 @@ rm -rf node_modules
 pnpm install
 ```
 
+## Advanced Documentation
+
+For detailed guidelines on specific topics, see the **Claude Code Agents Documentation System**:
+
+📚 **[.claude/agents/README.md](./.claude/agents/README.md)** - Modular documentation hub
+
+**Specialized guides:**
+- **[Code Standards](./.claude/agents/code-standards.md)** - In-depth TypeScript & NestJS conventions
+- **[Architecture Principles](./.claude/agents/architecture-principles.md)** - SOLID, design patterns, DDD
+- **[Development Workflow](./.claude/agents/development-workflow.md)** - Git flow, testing, CI/CD
+- **[Performance Optimization](./.claude/agents/performance-optimization.md)** - Caching, monitoring, tuning
+- **[Code Quality Guardian](./.claude/agents/code-quality-guardian.md)** - Automated quality checks
+
+**When to use:**
+- This file (CLAUDE.md) provides quick overview and essential information
+- Agents docs provide deep dives into specific areas
+- Use agents docs for complex tasks requiring detailed guidance
+
 ## Important References
 
 - **NestJS Docs**: https://docs.nestjs.com/
