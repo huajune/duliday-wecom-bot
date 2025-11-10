@@ -81,7 +81,9 @@
       "Bash(gh pr create:*)",
       "Bash(pnpm run lint:*)",
       "Bash(pnpm exec prettier:*)",
-      "Bash(git rev-parse:*)"
+      "Bash(git rev-parse:*)",
+      "Bash(xargs:*)",
+      "Bash(/tmp/ai-code-review.yml.backup)"
     ],
     "deny": [
       "Bash(git restore:*)",
