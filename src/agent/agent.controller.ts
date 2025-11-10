@@ -157,7 +157,9 @@ export class AgentController {
   /**
    * 测试聊天接口
    * POST /agent/test-chat
-   * Body: { "message": "你好", "conversationId": "test-user", "model"?: "...", "allowedTools"?: [...] }
+   * Body: { "message": "你好", "conversationId": "test-user", "model"?: "...", "allowedTools"?: [...], "scenario"?: "..." }
+   *
+   * 改进：使用配置档案自动传递 context 和 toolContext，避免缺少必需参数的错误
    */
   @Post('test-chat')
   async testChat(
@@ -167,13 +169,28 @@ export class AgentController {
       conversationId?: string;
       model?: string;
       allowedTools?: string[];
+      scenario?: string; // 新增：指定使用的场景配置
     },
   ) {
     this.logger.log('测试聊天:', body.message);
     const conversationId = body.conversationId || 'test-user';
-    return await this.agentService.chat({
-      conversationId,
-      userMessage: body.message,
+
+    // 默认使用 candidate-consultation 场景配置（包含所有必需的 context）
+    const scenario = body.scenario || 'candidate-consultation';
+    const profile = this.agentConfigService.getProfile(scenario);
+
+    if (!profile) {
+      throw new HttpException(
+        `未找到场景 ${scenario} 的配置，请检查配置文件`,
+        HttpStatus.NOT_FOUND,
+      );
+    }
+
+    this.logger.log(`使用配置档案: ${profile.name} (${profile.description})`);
+
+    // 使用配置档案调用聊天接口（自动传递 context 和 toolContext）
+    return await this.agentService.chatWithProfile(conversationId, body.message, profile, {
+      // 允许通过请求参数覆盖配置档案的设置
       model: body.model,
       allowedTools: body.allowedTools,
     });

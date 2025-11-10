@@ -19,6 +19,9 @@ import { MessageStatisticsService } from './services/message-statistics.service'
 import { MessageParser } from './utils/message-parser.util';
 import { MessageSplitter } from './utils/message-splitter.util';
 
+// 导入监控服务
+import { MonitoringService } from '@/core/monitoring/monitoring.service';
+
 /**
  * 消息处理服务（重构版）
  * 职责：协调各个子服务，处理主业务流程
@@ -51,6 +54,8 @@ export class MessageService {
     private readonly filterService: MessageFilterService,
     private readonly mergeService: MessageMergeService,
     private readonly statisticsService: MessageStatisticsService,
+    // 监控服务
+    private readonly monitoringService: MonitoringService,
   ) {
     // 从环境变量读取配置
     this.enableAiReply = this.configService.get<string>('ENABLE_AI_REPLY', 'true') === 'true';
@@ -101,7 +106,17 @@ export class MessageService {
     // 4. 标记消息为已处理（在入队列前标记，避免重复入队）
     this.deduplicationService.markMessageAsProcessed(messageData.messageId);
 
-    // 5. 处理消息（智能聚合 或 直接处理）
+    // 5. 【监控埋点】记录消息接收
+    const parsedForMonitoring = MessageParser.parse(messageData);
+    this.monitoringService.recordMessageReceived(
+      messageData.messageId,
+      parsedForMonitoring.chatId,
+      parsedForMonitoring.imContactId,
+      parsedForMonitoring.contactName,
+      parsedForMonitoring.content,
+    );
+
+    // 6. 处理消息（智能聚合 或 直接处理）
     if (this.enableMessageMerge) {
       // 启用智能消息聚合：交给 MergeService 处理
       await this.mergeService.handleMessage(messageData, (messages) =>
@@ -195,7 +210,10 @@ export class MessageService {
       // 4. 添加当前用户消息到历史（委托给 HistoryService）
       this.historyService.addMessageToHistory(chatId, 'user', content);
 
-      // 5. 调用 Agent API 生成回复
+      // 5. 【监控埋点】AI 处理开始
+      this.monitoringService.recordAiStart(messageId);
+
+      // 6. 调用 Agent API 生成回复
       const aiResponse = await this.agentService.chat({
         conversationId,
         userMessage: content,
@@ -211,10 +229,13 @@ export class MessageService {
         pruneOptions: agentProfile.pruneOptions,
       });
 
-      // 6. 提取回复内容
+      // 7. 【监控埋点】AI 处理完成
+      this.monitoringService.recordAiEnd(messageId);
+
+      // 8. 提取回复内容
       const replyContent = this.extractReplyContent(aiResponse);
 
-      // 7. 将 AI 回复添加到历史记录（委托给 HistoryService）
+      // 9. 将 AI 回复添加到历史记录（委托给 HistoryService）
       this.historyService.addMessageToHistory(chatId, 'assistant', replyContent);
 
       // 8. 记录 token 使用情况和工具使用
@@ -228,7 +249,10 @@ export class MessageService {
         `[${scenarioType}][${contactName}] 回复: "${replyContent.substring(0, 50)}${replyContent.length > 50 ? '...' : ''}" (${tokenInfo}${toolsInfo})`,
       );
 
-      // 9. 发送回复消息（使用企业级接口 v2）
+      // 10. 【监控埋点】消息发送开始
+      this.monitoringService.recordSendStart(messageId);
+
+      // 11. 发送回复消息（使用企业级接口 v2）
       // 检查是否启用消息分段发送功能，以及消息是否需要按双换行符或"～"拆分
       if (this.enableMessageSplitSend && MessageSplitter.needsSplit(replyContent)) {
         const segments = MessageSplitter.split(replyContent);
@@ -288,7 +312,13 @@ export class MessageService {
         });
       }
 
-      // 10. 智能聚合：通知 MergeService Agent 响应已完成（仅在非聚合流程中检查）
+      // 12. 【监控埋点】消息发送完成
+      this.monitoringService.recordSendEnd(messageId);
+
+      // 13. 【监控埋点】记录处理成功
+      this.monitoringService.recordSuccess(messageId);
+
+      // 14. 智能聚合：通知 MergeService Agent 响应已完成（仅在非聚合流程中检查）
       // 聚合流程中由 processMergedMessages 循环控制重试
       if (this.enableMessageMerge && !skipCheckRetry) {
         const needRetry = await this.mergeService.onAgentResponseReceived(chatId, (messages) =>
@@ -306,6 +336,10 @@ export class MessageService {
       this.logger.error(
         `[${scenarioType}][${contactName}] 消息处理失败 [${messageId}]: ${error.message}`,
       );
+
+      // 【监控埋点】记录处理失败
+      this.monitoringService.recordFailure(messageId, error.message);
+
       // 不抛出错误，避免影响其他消息处理
     }
   }

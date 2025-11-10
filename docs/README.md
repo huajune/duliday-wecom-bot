@@ -16,9 +16,12 @@ docs/
 │   └── message-service-architecture.md
 ├── guides/                # 开发指南和教程
 │   ├── development-guide.md
+│   ├── claude-code-safety-guide.md
 │   └── huajune-agent-api-guide.md
 ├── workflows/             # 工作流程文档
-│   └── auto-version-changelog.md
+│   ├── ai-code-review-guide.md
+│   ├── auto-version-changelog.md
+│   └── version-release-guide.md
 └── product/               # 产品相关文档
     ├── business-flows.md
     ├── product-definition.md
@@ -73,9 +76,9 @@ docs/
 
 ## 📝 开发指南
 
-### 版本管理
+### 工作流程 (workflows/)
 
-- **[自动化版本管理文档](auto-version-changelog.md)** (365 行)
+- **[自动化版本管理文档](workflows/auto-version-changelog.md)** (365 行)
   - GitHub Actions 自动化版本更新系统
   - Conventional Commits 规范和版本号规则
   - 完整使用示例和工作流程
@@ -96,6 +99,21 @@ feat: 添加新功能        # 次版本 +1
 fix: 修复 bug         # 修订号 +1
 docs: 更新文档        # 修订号 +1
 ```
+
+- **[AI 代码审查指南](workflows/ai-code-review-guide.md)** (222 行)
+  - 🤖 配置 AI 自动代码审查功能
+  - Anthropic API Key 设置指南
+  - 审查范围和触发条件
+  - 自定义审查规则和模型选择
+  - 成本预估和监控建议
+  - **更新日期**：2025-11-10
+
+**核心功能**：
+
+- ✅ 自动审查 PR 的 TypeScript/JavaScript 代码
+- ✅ 检查安全漏洞、性能问题、代码质量
+- ✅ 验证架构合规性和项目规范
+- ✅ 使用 Claude 3.5 Sonnet 提供专业建议
 
 ### 开发工具指南
 

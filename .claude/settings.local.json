@@ -70,7 +70,11 @@
       "Bash(%ae)",
       "Bash(%ad --date=short)",
       "Bash(git show:*)",
-      "Bash(npx prettier:*)"
+      "Bash(npx prettier:*)",
+      "Bash(pnpm run start:dev:*)",
+      "Bash(API_KEY=\"c4de6f.7NkraOJra-X7fgVqdf7H3A.awFbsH2CdPt5vSsr\")",
+      "Bash(gh auth:*)",
+      "Bash(open http://localhost:8080/monitoring.html)"
     ],
     "deny": [
       "Bash(git restore:*)",
