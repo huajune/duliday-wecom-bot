@@ -12,7 +12,9 @@ async function bootstrap() {
   app.enableCors();
 
   // 配置静态文件服务（用于监控页面）
-  app.useStaticAssets(join(__dirname, '..', 'public'));
+  // 使用 process.cwd() 确保在开发和生产环境都能正确找到 public 目录
+  const publicPath = join(process.cwd(), 'public');
+  app.useStaticAssets(publicPath);
 
   // 获取 Reflector 实例（用于读取装饰器元数据）
   const reflector = app.get(Reflector);

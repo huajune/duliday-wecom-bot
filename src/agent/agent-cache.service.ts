@@ -332,4 +332,41 @@ export class AgentCacheService {
     const hash = key.replace(this.CACHE_PREFIX, '');
     return `${hash.substring(0, 8)}...`;
   }
+
+  /**
+   * 从缓存获取或调用函数存储
+   * 封装了完整的缓存逻辑：生成键 → 尝试获取 → 未命中则调用函数 → 存储结果
+   *
+   * @param params 缓存键参数
+   * @param fetchFn 获取数据的函数（缓存未命中时调用）
+   * @param shouldCacheFn 判断是否应该缓存的函数（可选，默认总是缓存）
+   * @returns 数据和是否来自缓存的标志
+   */
+  async fetchOrStore(
+    params: CacheKeyParams,
+    fetchFn: () => Promise<ChatResponse>,
+    shouldCacheFn?: (response: ChatResponse) => boolean,
+  ): Promise<{ data: ChatResponse; fromCache: boolean }> {
+    // 1. 生成缓存键
+    const cacheKey = this.generateCacheKey(params);
+
+    // 2. 尝试从缓存获取
+    const cached = await this.get(cacheKey);
+    if (cached) {
+      this.logger.debug(`缓存命中: ${this.formatKey(cacheKey)}`);
+      return { data: cached, fromCache: true };
+    }
+
+    // 3. 缓存未命中，调用函数获取数据
+    this.logger.debug(`缓存未命中，调用函数获取数据: ${this.formatKey(cacheKey)}`);
+    const data = await fetchFn();
+
+    // 4. 判断是否应该缓存
+    const shouldCache = shouldCacheFn ? shouldCacheFn(data) : true;
+    if (shouldCache) {
+      await this.set(cacheKey, data);
+    }
+
+    return { data, fromCache: false };
+  }
 }

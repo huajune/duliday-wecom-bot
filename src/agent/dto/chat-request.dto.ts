@@ -43,6 +43,14 @@ export interface ModelConfig {
 }
 
 /**
+ * 品牌优先级策略
+ * - user-selected: UI选择优先
+ * - conversation-extracted: 职位详情识别优先（工具调用时从岗位信息提取）
+ * - smart: 智能判断（推荐）
+ */
+export type BrandPriorityStrategy = 'user-selected' | 'conversation-extracted' | 'smart';
+
+/**
  * 品牌筛选配置
  */
 export interface BrandScreening {
@@ -107,6 +115,7 @@ export interface ReplyPrompts {
  */
 export interface ChatContext {
   preferredBrand?: string;
+  brandPriorityStrategy?: BrandPriorityStrategy;
   modelConfig?: ModelConfig;
   configData?: ConfigData;
   systemPrompts?: SystemPrompts;

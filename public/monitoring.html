@@ -366,6 +366,8 @@
             font-size: 14px;
             color: var(--text-secondary);
             font-weight: 500;
+            white-space: pre-line; /* 支持换行显示 */
+            line-height: 1.5;
         }
 
         .card-trend {
@@ -658,6 +660,44 @@
             <div class="right">
                 <span class="status-indicator"></span>
                 <span>最后更新: <span id="lastUpdate">-</span></span>
+            </div>
+        </div>
+
+        <!-- 健康状态卡片 -->
+        <div class="table-section" style="margin-bottom: 30px;">
+            <h3>🏥 Agent 健康状态</h3>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; margin-top: 20px;">
+                <!-- 整体健康状态 -->
+                <div class="metric-card" id="overallHealthCard">
+                    <div class="card-icon">🎯</div>
+                    <div class="card-title">整体状态</div>
+                    <div class="card-value" id="overallHealthStatus">-</div>
+                    <div class="card-subtitle" id="overallHealthMessage">检查中...</div>
+                </div>
+
+                <!-- 模型健康状态 -->
+                <div class="metric-card" id="modelHealthCard">
+                    <div class="card-icon">🤖</div>
+                    <div class="card-title">AI 模型</div>
+                    <div class="card-value" id="modelHealthStatus">-</div>
+                    <div class="card-subtitle" id="modelHealthDetails">检查中...</div>
+                </div>
+
+                <!-- 工具健康状态 -->
+                <div class="metric-card" id="toolHealthCard">
+                    <div class="card-icon">🛠️</div>
+                    <div class="card-title">工具服务</div>
+                    <div class="card-value" id="toolHealthStatus">-</div>
+                    <div class="card-subtitle" id="toolHealthDetails">检查中...</div>
+                </div>
+
+                <!-- 品牌配置状态 -->
+                <div class="metric-card" id="brandConfigCard">
+                    <div class="card-icon">🎨</div>
+                    <div class="card-title">品牌配置</div>
+                    <div class="card-value" id="brandConfigStatus">-</div>
+                    <div class="card-subtitle" id="brandConfigDetails">检查中...</div>
+                </div>
             </div>
         </div>
 
@@ -981,11 +1021,108 @@
             }) + '时';
         }
 
+        // 刷新健康状态
+        async function refreshHealthStatus() {
+            try {
+                const response = await fetch('/agent/health');
+                const result = await response.json();
+                const health = result.data || result;
+
+                // 更新整体健康状态
+                const overallHealthCard = document.getElementById('overallHealthCard');
+                const overallHealthStatus = document.getElementById('overallHealthStatus');
+                const overallHealthMessage = document.getElementById('overallHealthMessage');
+
+                // 格式化注册表刷新时间
+                const lastRefresh = health.lastRefreshTime
+                    ? new Date(health.lastRefreshTime).toLocaleString('zh-CN', { hour12: false })
+                    : '未知';
+
+                if (health.status === 'healthy') {
+                    overallHealthCard.className = 'metric-card success';
+                    overallHealthStatus.textContent = '✅ 正常';
+                    overallHealthMessage.textContent = `${health.message || 'Agent 服务正常'}\n注册表刷新: ${lastRefresh}`;
+                } else {
+                    overallHealthCard.className = 'metric-card warning';
+                    overallHealthStatus.textContent = '⚠️ 降级';
+                    overallHealthMessage.textContent = `${health.message || '部分功能降级'}\n注册表刷新: ${lastRefresh}`;
+                }
+
+                // 更新模型健康状态
+                const modelHealthCard = document.getElementById('modelHealthCard');
+                const modelHealthStatus = document.getElementById('modelHealthStatus');
+                const modelHealthDetails = document.getElementById('modelHealthDetails');
+
+                const modelHealth = health.models || {};
+                if (modelHealth.configuredAvailable) {
+                    modelHealthCard.className = 'metric-card success';
+                    modelHealthStatus.textContent = '✅ 可用';
+                    modelHealthDetails.textContent = `${modelHealth.availableCount || 0}/${modelHealth.configuredCount || 0} 个模型可用`;
+                } else {
+                    modelHealthCard.className = 'metric-card danger';
+                    modelHealthStatus.textContent = '❌ 不可用';
+                    modelHealthDetails.textContent = '默认模型不可用';
+                }
+
+                // 更新工具健康状态
+                const toolHealthCard = document.getElementById('toolHealthCard');
+                const toolHealthStatus = document.getElementById('toolHealthStatus');
+                const toolHealthDetails = document.getElementById('toolHealthDetails');
+
+                const toolHealth = health.tools || {};
+                if (toolHealth.allAvailable) {
+                    toolHealthCard.className = 'metric-card success';
+                    toolHealthStatus.textContent = '✅ 全部可用';
+                    toolHealthDetails.textContent = `${toolHealth.availableCount || 0}/${toolHealth.configuredCount || 0} 个工具可用`;
+                } else {
+                    toolHealthCard.className = 'metric-card warning';
+                    toolHealthStatus.textContent = '⚠️ 部分可用';
+                    toolHealthDetails.textContent = `${toolHealth.availableCount || 0}/${toolHealth.configuredCount || 0} 个工具可用`;
+                }
+
+                // 更新品牌配置状态
+                const brandConfigCard = document.getElementById('brandConfigCard');
+                const brandConfigStatus = document.getElementById('brandConfigStatus');
+                const brandConfigDetails = document.getElementById('brandConfigDetails');
+
+                const brandConfig = health.brandConfig || {};
+                if (brandConfig.available && brandConfig.synced) {
+                    brandConfigCard.className = 'metric-card success';
+                    brandConfigStatus.textContent = '✅ 已同步';
+                    const lastSync = brandConfig.data?.serverSyncedAt ? new Date(brandConfig.data.serverSyncedAt).toLocaleString('zh-CN', { hour12: false }) : '未知';
+                    brandConfigDetails.textContent = `上次同步: ${lastSync}`;
+                } else if (brandConfig.available && !brandConfig.synced) {
+                    brandConfigCard.className = 'metric-card warning';
+                    brandConfigStatus.textContent = '⚠️ 未同步';
+                    brandConfigDetails.textContent = brandConfig.error || '等待首次同步';
+                } else {
+                    brandConfigCard.className = 'metric-card danger';
+                    brandConfigStatus.textContent = '❌ 不可用';
+                    brandConfigDetails.textContent = brandConfig.error || '配置加载失败';
+                }
+
+            } catch (error) {
+                console.error('获取健康状态失败:', error);
+                // 标记所有卡片为错误状态
+                ['overallHealthCard', 'modelHealthCard', 'toolHealthCard', 'brandConfigCard'].forEach(id => {
+                    const card = document.getElementById(id);
+                    if (card) card.className = 'metric-card danger';
+                });
+                document.getElementById('overallHealthStatus').textContent = '❌ 错误';
+                document.getElementById('overallHealthMessage').textContent = '无法获取健康状态';
+            }
+        }
+
         // 刷新数据
         async function refreshData() {
             try {
-                const response = await fetch('/monitoring/dashboard');
-                const result = await response.json();
+                // 并行获取监控数据和健康状态
+                const [monitoringResponse] = await Promise.all([
+                    fetch('/monitoring/dashboard'),
+                    refreshHealthStatus()
+                ]);
+
+                const result = await monitoringResponse.json();
                 const data = result.data || result;
 
                 // 更新总览卡片（带动画）

@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AgentService, AgentConfigService } from '@agent';
+import { AgentResultHelper } from '@agent/utils/agent-result-helper';
 import { MessageSenderService } from '../message-sender/message-sender.service';
 import { MessageType as SendMessageType } from '../message-sender/dto/send-message.dto';
 import {
@@ -205,7 +206,7 @@ export class MessageService {
 
       // 1. 根据场景选择合适的 Agent 配置
       const scenario = MessageParser.determineScenario();
-      const agentProfile = this.agentConfigService.getProfile(scenario);
+      const agentProfile = await this.agentConfigService.getProfile(scenario);
 
       if (!agentProfile) {
         this.logger.error(`无法获取场景 ${scenario} 的 Agent 配置`);
@@ -230,7 +231,7 @@ export class MessageService {
       const agentStartTime = Date.now(); // 记录 Agent 开始处理时间
 
       // 6. 调用 Agent API 生成回复
-      const aiResponse = await this.agentService.chat({
+      const agentResult = await this.agentService.chat({
         conversationId,
         userMessage: content,
         historyMessages,
@@ -244,6 +245,9 @@ export class MessageService {
         prune: agentProfile.prune,
         pruneOptions: agentProfile.pruneOptions,
       });
+
+      // 提取响应（优先使用 data，降级时使用 fallback）
+      const aiResponse = AgentResultHelper.extractResponse(agentResult);
 
       // 7. 【监控埋点】AI 处理完成
       this.monitoringService.recordAiEnd(messageId);
@@ -285,31 +289,12 @@ export class MessageService {
           const segment = segments[i];
           const isFirstSegment = i === 0;
 
-          // 在发送之前计算延迟
-          if (isFirstSegment) {
-            // 第一个片段：根据 Agent 处理时间决定是否延迟
-            const delayMs = this.typingDelayService.calculateDelay(segment, true, agentProcessTime);
-
-            if (delayMs > 0) {
-              this.logger.debug(
-                `[${scenarioType}][${contactName}] 等待 ${delayMs}ms 后发送第一条消息（Agent 耗时: ${agentProcessTime}ms）`,
-              );
-              await this.typingDelayService.delay(delayMs);
-            } else {
-              this.logger.debug(
-                `[${scenarioType}][${contactName}] 立即发送第一条消息（Agent 已处理 ${agentProcessTime}ms）`,
-              );
-            }
-          } else {
-            // 后续片段：使用正常的打字延迟
-            const delayMs = this.typingDelayService.calculateDelay(segment, false);
-
-            this.logger.debug(
-              `[${scenarioType}][${contactName}] 等待 ${delayMs}ms 后发送第 ${i + 1} 条消息（文本长度: ${segment.length}）`,
-            );
-
-            await this.typingDelayService.delay(delayMs);
-          }
+          // 计算并执行延迟
+          const delayMs = this.typingDelayService.calculateDelay(segment, isFirstSegment);
+          this.logger.debug(
+            `[${scenarioType}][${contactName}] 等待 ${delayMs}ms 后发送第 ${i + 1} 条消息`,
+          );
+          await this.typingDelayService.delay(delayMs);
 
           this.logger.log(
             `[${scenarioType}][${contactName}] 发送第 ${i + 1}/${segments.length} 条消息: "${segment.substring(0, 30)}${segment.length > 30 ? '...' : ''}"`,
@@ -563,7 +548,7 @@ export class MessageService {
 
     // 获取 Agent 配置
     const scenario = MessageParser.determineScenario();
-    const agentProfile = this.agentConfigService.getProfile(scenario);
+    const agentProfile = await this.agentConfigService.getProfile(scenario);
 
     if (!agentProfile) {
       throw new Error(`无法获取场景 ${scenario} 的 Agent 配置`);
@@ -577,7 +562,7 @@ export class MessageService {
     );
 
     // 调用 Agent API
-    const aiResponse = await this.agentService.chat({
+    const agentResult = await this.agentService.chat({
       conversationId: chatId,
       userMessage: content,
       historyMessages,
@@ -591,6 +576,9 @@ export class MessageService {
       prune: agentProfile.prune,
       pruneOptions: agentProfile.pruneOptions,
     });
+
+    // 提取响应（优先使用 data，降级时使用 fallback）
+    const aiResponse = AgentResultHelper.extractResponse(agentResult);
 
     // 提取回复内容
     const replyContent = this.extractReplyContent(aiResponse);
@@ -635,6 +623,13 @@ export class MessageService {
 
       for (let i = 0; i < segments.length; i++) {
         const segment = segments[i];
+        const isFirstSegment = i === 0;
+
+        // 计算并执行延迟（与非聚合流程保持一致）
+        const delayMs = this.typingDelayService.calculateDelay(segment, isFirstSegment);
+        this.logger.debug(`[聚合处理] 等待 ${delayMs}ms 后发送第 ${i + 1} 条消息`);
+        await this.typingDelayService.delay(delayMs);
+
         this.logger.log(
           `[聚合处理] 发送第 ${i + 1}/${segments.length} 条消息: "${segment.substring(0, 30)}..."`,
         );
@@ -650,11 +645,6 @@ export class MessageService {
           });
 
           this.logger.debug(`[聚合处理] 第 ${i + 1}/${segments.length} 条消息发送成功`);
-
-          // 添加延迟，确保消息按顺序到达
-          if (i < segments.length - 1) {
-            await new Promise((resolve) => setTimeout(resolve, this.messageSendDelay));
-          }
         } catch (error) {
           this.logger.error(
             `[聚合处理] 第 ${i + 1}/${segments.length} 条消息发送失败: ${error.message}`,

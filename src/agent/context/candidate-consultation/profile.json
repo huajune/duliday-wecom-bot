@@ -6,11 +6,6 @@
   "allowedTools": "${AGENT_ALLOWED_TOOLS}",
 
   "contextStrategy": "skip",
-  "prune": true,
-  "pruneOptions": {
-    "targetTokens": 8000,
-    "preserveRecentMessages": 5
-  },
 
   "files": {
     "systemPrompt": "system-prompt.md",

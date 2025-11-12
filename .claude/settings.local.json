@@ -85,7 +85,13 @@
       "Bash(xargs:*)",
       "Bash(/tmp/ai-code-review.yml.backup)",
       "Bash(/tmp/original-ai-review.yml)",
-      "Bash(.github/workflows/version-changelog.yml)"
+      "Bash(.github/workflows/version-changelog.yml)",
+      "Bash(gh api:*)",
+      "Bash(pnpm run lint:check:*)",
+      "Bash(NODE_ENV=production node:*)",
+      "Bash(pnpm run start:prod:*)",
+      "Bash(timeout 30 pnpm run start:dev:*)",
+      "Bash(tee:*)"
     ],
     "deny": [
       "Bash(git restore:*)",

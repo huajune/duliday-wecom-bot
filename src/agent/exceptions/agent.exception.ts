@@ -71,3 +71,15 @@ export class AgentRateLimitException extends AgentException {
     super(message || `请求频率过高，请${retryAfter}秒后重试`, HttpStatus.TOO_MANY_REQUESTS);
   }
 }
+
+/**
+ * Agent 品牌配置不可用错误
+ */
+export class AgentBrandConfigUnavailableException extends AgentException {
+  constructor(message?: string) {
+    super(
+      message || '抱歉，系统配置暂时不可用，请稍后再试。如果问题持续存在，请联系管理员。',
+      HttpStatus.SERVICE_UNAVAILABLE,
+    );
+  }
+}

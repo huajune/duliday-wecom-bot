@@ -1,14 +1,7 @@
-import {
-  Injectable,
-  Logger,
-  OnModuleInit,
-  OnModuleDestroy,
-  forwardRef,
-  Inject,
-} from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { parseToolsFromEnv } from './utils';
-import { AgentService } from './agent.service';
+import { AgentApiClientService } from './agent-api-client.service';
 
 /**
  * 工具信息接口
@@ -50,8 +43,7 @@ export class AgentRegistryService implements OnModuleInit, OnModuleDestroy {
 
   constructor(
     private readonly configService: ConfigService,
-    @Inject(forwardRef(() => AgentService))
-    private readonly agentService: AgentService,
+    private readonly apiClient: AgentApiClientService,
   ) {
     // 读取配置
     this.configuredModel = this.configService.get<string>('AGENT_DEFAULT_MODEL')!;
@@ -109,10 +101,10 @@ export class AgentRegistryService implements OnModuleInit, OnModuleDestroy {
     try {
       this.logger.log('刷新 Agent 资源注册表...');
 
-      // 并行获取模型和工具列表
+      // 并行获取模型和工具列表（直接调用 API 客户端）
       const [modelsResponse, toolsResponse] = await Promise.all([
-        this.agentService.getModels(),
-        this.agentService.getTools(),
+        this.apiClient.getModels(),
+        this.apiClient.getTools(),
       ]);
 
       // 更新模型列表
@@ -354,6 +346,18 @@ export class AgentRegistryService implements OnModuleInit, OnModuleDestroy {
     const allToolsAvailable =
       configuredToolsStatus.length > 0 && configuredToolsStatus.every((tool) => tool.available);
 
+    // 计算实际配置的模型数量（4个：默认、聊天、分类、回复）
+    const configuredModelsList = [
+      this.configuredModel,
+      this.chatModel,
+      this.classifyModel,
+      this.replyModel,
+    ];
+    const uniqueConfiguredModels = [...new Set(configuredModelsList)]; // 去重
+    const availableConfiguredModelsCount = uniqueConfiguredModels.filter((model) =>
+      this.availableModels.includes(model),
+    ).length;
+
     return {
       models: {
         available: this.availableModels,
@@ -361,6 +365,9 @@ export class AgentRegistryService implements OnModuleInit, OnModuleDestroy {
         configured: this.configuredModel,
         configuredAvailable: configuredModelAvailable,
         defaultAvailable: configuredModelAvailable, // 兼容旧 API
+        // 前端监控仪表盘需要的字段
+        availableCount: availableConfiguredModelsCount,
+        configuredCount: uniqueConfiguredModels.length,
         // 新增：候选人咨询场景的模型配置状态
         scenarioModels: {
           chatModel: {
@@ -388,6 +395,9 @@ export class AgentRegistryService implements OnModuleInit, OnModuleDestroy {
         configured: this.configuredTools,
         configuredStatus: configuredToolsStatus,
         allAvailable: allToolsAvailable, // 配置的工具是否全部可用
+        // 前端监控仪表盘需要的字段
+        availableCount: configuredToolsStatus.filter((t) => t.available).length,
+        configuredCount: this.configuredTools.length,
       },
       lastRefreshTime: this.lastRefreshTime?.toISOString() || null,
     };

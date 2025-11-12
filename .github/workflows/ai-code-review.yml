@@ -27,9 +27,9 @@ jobs:
       - name: Get changed files
         id: changed-files
         run: |
-          # 获取 PR 中修改的文件列表
+          # 获取 PR 中修改的文件列表（支持所有 TS/JS 扩展名）
           git fetch origin ${{ github.event.pull_request.base.ref }}
-          CHANGED_FILES=$(git diff --name-only origin/${{ github.event.pull_request.base.ref }}...HEAD | grep -E '\.(ts|js|tsx|jsx)$' || echo "")
+          CHANGED_FILES=$(git diff --name-only origin/${{ github.event.pull_request.base.ref }}...HEAD | grep -E '\.(ts|js|tsx|jsx|mts|cts|mjs|cjs|d\.ts)$' || echo "")
 
           if [ -z "$CHANGED_FILES" ]; then
             echo "has_changes=false" >> $GITHUB_OUTPUT
@@ -53,15 +53,18 @@ jobs:
         run: |
           git fetch origin ${{ github.event.pull_request.base.ref }}
 
-          # 获取所有变更的详细 diff（限制大小以避免超出 API 限制）
-          DIFF_OUTPUT=$(git diff origin/${{ github.event.pull_request.base.ref }}...HEAD -- '*.ts' '*.js' '*.tsx' '*.jsx' | head -c 50000)
+          # 使用 git diff --numstat 精确统计行数（基于完整 diff）
+          STATS=$(git diff --numstat origin/${{ github.event.pull_request.base.ref }}...HEAD -- '*.ts' '*.js' '*.tsx' '*.jsx' '*.mts' '*.cts' '*.mjs' '*.cjs' '*.d.ts')
+
+          # 计算新增和删除的总行数
+          ADDED_LINES=$(echo "$STATS" | awk '{sum += $1} END {print sum}' || echo "0")
+          REMOVED_LINES=$(echo "$STATS" | awk '{sum += $2} END {print sum}' || echo "0")
+
+          # 获取所有变更的详细 diff（限制大小以避免超出 API 限制，仅用于 AI 审查）
+          DIFF_OUTPUT=$(git diff origin/${{ github.event.pull_request.base.ref }}...HEAD -- '*.ts' '*.js' '*.tsx' '*.jsx' '*.mts' '*.cts' '*.mjs' '*.cjs' '*.d.ts' | head -c 50000)
 
           # 保存到文件
           echo "$DIFF_OUTPUT" > /tmp/pr-diff.txt
-
-          # 统计变更行数
-          ADDED_LINES=$(echo "$DIFF_OUTPUT" | grep -c "^+" || echo "0")
-          REMOVED_LINES=$(echo "$DIFF_OUTPUT" | grep -c "^-" || echo "0")
 
           echo "added_lines=$ADDED_LINES" >> $GITHUB_OUTPUT
           echo "removed_lines=$REMOVED_LINES" >> $GITHUB_OUTPUT
@@ -98,20 +101,15 @@ jobs:
             }
 
             // 构建评论内容
-            const comment = `## 🤖 AI Code Review
-
-**Changes Summary:**
-- 📝 Files changed: ${process.env.FILE_COUNT}
-- ➕ Lines added: ${process.env.ADDED_LINES}
-- ➖ Lines removed: ${process.env.REMOVED_LINES}
-
----
-
-${reviewContent}
-
----
-
-<sub>Powered by Claude Sonnet 4.5 🚀 | [View Workflow](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})</sub>`;
+            const comment = '## 🤖 AI Code Review\n\n' +
+              '**Changes Summary:**\n' +
+              `- 📝 Files changed: ${process.env.FILE_COUNT ?? 'N/A'}\n` +
+              `- ➕ Lines added: ${process.env.ADDED_LINES ? Number(process.env.ADDED_LINES) : 'N/A'}\n` +
+              `- ➖ Lines removed: ${process.env.REMOVED_LINES ? Number(process.env.REMOVED_LINES) : 'N/A'}\n\n` +
+              '---\n\n' +
+              `${reviewContent}\n\n` +
+              '---\n\n' +
+              `<sub>Powered by Claude Sonnet 4.5 🚀 | [View Workflow](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})</sub>`
 
             // 检查是否已有 AI review 评论
             const { data: comments } = await github.rest.issues.listComments({

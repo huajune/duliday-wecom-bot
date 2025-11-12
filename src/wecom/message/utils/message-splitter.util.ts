@@ -18,20 +18,32 @@ export class MessageSplitter {
     const lineSegments = text.split(/(?:\r?\n){2,}/);
 
     // 对每一段再按"～"符号拆分
+    // 只拆分后面跟着中文、标点、空白或 * 的～(作为分隔符),不拆分夹在数字/字母之间的～
     const allSegments: string[] = [];
     for (const segment of lineSegments) {
       const trimmedSegment = segment.trim();
       if (!trimmedSegment) continue;
 
-      // 按"～"拆分，保留"～"在前一个片段的末尾
-      const tildeSegments = trimmedSegment.split(/(?<=～)/);
+      // 按"～"拆分，但只拆分作为分隔符的～(后面跟着中文、标点、空白或*)
+      // 保留"～"在前一个片段的末尾
+      const tildeSegments = trimmedSegment.split(
+        /(?<=～(?=[\u4e00-\u9fa5\s*？！，。：；""''、（）【】《》…—·\u3000]))/,
+      );
       allSegments.push(...tildeSegments);
     }
 
-    // 过滤掉空片段和只包含空白字符的片段
+    // 过滤掉空片段和只包含空白字符的片段，清理分隔符
     const nonEmptySegments = allSegments
       .map((segment) => segment.trim())
-      .filter((segment) => segment.length > 0);
+      .filter((segment) => segment.length > 0)
+      .map((segment) => {
+        // 删除末尾的～分隔符
+        segment = segment.replace(/～+$/g, '');
+        // 删除所有的*符号
+        segment = segment.replace(/\*/g, '');
+        return segment.trim();
+      })
+      .filter((segment) => segment.length > 0); // 再次过滤，去掉只剩下特殊符号的片段
 
     return nonEmptySegments;
   }

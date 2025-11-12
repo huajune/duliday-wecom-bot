@@ -6,6 +6,11 @@ on:
       - main
       - master
 
+# 防止并发执行导致分支名冲突
+concurrency:
+  group: version-changelog-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   update-version-changelog:
     runs-on: ubuntu-latest
@@ -58,7 +63,8 @@ jobs:
         id: create_branch
         run: |
           VERSION="${{ steps.check_changes.outputs.version }}"
-          BRANCH_NAME="chore/update-version-$VERSION"
+          TIMESTAMP=$(date +%s)
+          BRANCH_NAME="chore/update-version-$VERSION-$TIMESTAMP"
 
           echo "branch_name=$BRANCH_NAME" >> $GITHUB_OUTPUT
 
@@ -69,8 +75,8 @@ jobs:
           git add package.json CHANGELOG.md
           git commit -m "chore: update version to $VERSION and changelog [skip ci]"
 
-          # 推送到远程
-          git push origin "$BRANCH_NAME"
+          # 推送到远程（如果分支已存在，强制推送）
+          git push origin "$BRANCH_NAME" || git push -f origin "$BRANCH_NAME"
 
           echo "✅ 已创建分支: $BRANCH_NAME"
 
@@ -78,30 +84,30 @@ jobs:
         if: steps.check_changes.outputs.has_changes == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_BODY_TEMPLATE: >
+            ## 📦 自动版本更新
+
+            **新版本**: v${{ steps.check_changes.outputs.version }}
+
+            此PR由GitHub Actions自动创建，包含：
+            - ✅ 更新 package.json 版本号
+            - ✅ 更新 CHANGELOG.md
+
+            ### 变更来源
+            基于 `${{ github.ref_name }}` 分支的commit历史自动生成。
+
+            ### 合并后操作
+            合并此PR后，建议：
+            1. 创建git tag: `v${{ steps.check_changes.outputs.version }}`
+            2. 发布GitHub Release
+
+            ---
+            🤖 由 GitHub Actions 自动生成
         run: |
           VERSION="${{ steps.check_changes.outputs.version }}"
           BRANCH_NAME="${{ steps.create_branch.outputs.branch_name }}"
           CURRENT_BRANCH="${{ github.ref_name }}"
-
-          # 创建PR描述
-          PR_BODY="## 📦 自动版本更新
-
-**新版本**: v$VERSION
-
-此PR由GitHub Actions自动创建，包含：
-- ✅ 更新 package.json 版本号
-- ✅ 更新 CHANGELOG.md
-
-### 变更来源
-基于 \`$CURRENT_BRANCH\` 分支的commit历史自动生成。
-
-### 合并后操作
-合并此PR后，建议：
-1. 创建git tag: \`v$VERSION\`
-2. 发布GitHub Release
-
----
-🤖 由 GitHub Actions 自动生成"
+          PR_BODY="$PR_BODY_TEMPLATE"
 
           # 使用gh CLI创建PR
           gh pr create \

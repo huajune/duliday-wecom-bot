@@ -97,6 +97,24 @@ export class FeiShuAlertService {
   }
 
   /**
+   * 发送品牌配置不可用告警
+   * @param error 错误信息
+   * @param isFirstLoad 是否首次加载失败
+   */
+  async sendBrandConfigUnavailableAlert(error: any, isFirstLoad: boolean = false): Promise<void> {
+    if (!this.enabled) {
+      return;
+    }
+
+    const errorMessage = error.message || error.toString() || '未知错误';
+    const errorStack = error.stack || '';
+
+    const content = this.buildBrandConfigUnavailableMessage(errorMessage, errorStack, isFirstLoad);
+
+    await this.send(content);
+  }
+
+  /**
    * 构建 Agent API 失败告警消息
    */
   private buildAgentApiFailureMessage(
@@ -238,6 +256,77 @@ export class FeiShuAlertService {
             },
           },
         ],
+      },
+    };
+  }
+
+  /**
+   * 构建品牌配置不可用告警消息
+   */
+  private buildBrandConfigUnavailableMessage(
+    errorMessage: string,
+    errorStack: string,
+    isFirstLoad: boolean,
+  ): any {
+    const timestamp = new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
+    const env = this.configService.get<string>('NODE_ENV', 'unknown');
+    const apiBaseUrl = this.configService.get<string>('AGENT_API_BASE_URL', '未配置');
+
+    const elements: any[] = [
+      {
+        tag: 'div',
+        text: {
+          tag: 'lark_md',
+          content: `**告警时间**: ${timestamp}\n**环境**: ${env}\n**首次加载**: ${isFirstLoad ? '是' : '否'}`,
+        },
+      },
+      {
+        tag: 'hr',
+      },
+      {
+        tag: 'div',
+        text: {
+          tag: 'lark_md',
+          content: `**错误信息**: ${errorMessage}\n**API 地址**: ${apiBaseUrl}/config/export`,
+        },
+      },
+      {
+        tag: 'hr',
+      },
+      {
+        tag: 'div',
+        text: {
+          tag: 'lark_md',
+          content: `**影响**: ${isFirstLoad ? '⚠️ 服务启动但无法提供智能回复，所有用户消息将返回降级提示' : 'ℹ️ 使用旧缓存数据，服务可继续运行'}\n**建议操作**: \n1. 检查 Agent API 服务是否正常\n2. 验证 AGENT_API_KEY 是否正确\n3. 查看服务日志获取详细错误信息`,
+        },
+      },
+    ];
+
+    // 如果有错误堆栈，添加详细信息
+    if (errorStack) {
+      elements.push({
+        tag: 'hr',
+      });
+      elements.push({
+        tag: 'div',
+        text: {
+          tag: 'lark_md',
+          content: `**错误堆栈**: \n\`\`\`\n${errorStack.substring(0, 500)}${errorStack.length > 500 ? '\n...(省略)' : ''}\n\`\`\``,
+        },
+      });
+    }
+
+    return {
+      msg_type: 'interactive',
+      card: {
+        header: {
+          title: {
+            tag: 'plain_text',
+            content: isFirstLoad ? '🔴 品牌配置加载失败 (首次)' : '⚠️ 品牌配置刷新失败',
+          },
+          template: isFirstLoad ? 'red' : 'orange', // 首次加载失败用红色，刷新失败用橙色
+        },
+        elements,
       },
     };
   }

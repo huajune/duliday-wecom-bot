@@ -29,6 +29,8 @@ describe('AgentController', () => {
     getAllProfiles: jest.fn(),
     getProfile: jest.fn(),
     validateProfile: jest.fn(),
+    getBrandConfigStatus: jest.fn(),
+    getBrandConfig: jest.fn(),
   };
 
   const mockCacheService = {
@@ -87,11 +89,30 @@ describe('AgentController', () => {
         lastRefreshTime: new Date().toISOString(),
       };
 
+      const mockBrandConfigStatus = {
+        available: true,
+        synced: true,
+        hasBrandData: true,
+        hasReplyPrompts: true,
+        lastRefreshTime: new Date().toISOString(),
+      };
+
+      const mockBrandConfig = {
+        synced: true,
+        brandData: { name: 'Test Brand' },
+        replyPrompts: { greeting: 'Hello' },
+        lastRefreshTime: new Date().toISOString(),
+      };
+
       mockRegistryService.getHealthStatus.mockReturnValue(mockHealthStatus);
+      mockAgentConfigService.getBrandConfigStatus.mockResolvedValue(mockBrandConfigStatus);
+      mockAgentConfigService.getBrandConfig.mockResolvedValue(mockBrandConfig);
 
       const result = await controller.healthCheck();
 
       expect(registryService.getHealthStatus).toHaveBeenCalled();
+      expect(mockAgentConfigService.getBrandConfigStatus).toHaveBeenCalled();
+      expect(mockAgentConfigService.getBrandConfig).toHaveBeenCalled();
       expect(result.success).toBe(true);
       expect(result.data.status).toEqual('healthy');
     });
@@ -103,11 +124,30 @@ describe('AgentController', () => {
         lastRefreshTime: new Date().toISOString(),
       };
 
+      const mockBrandConfigStatus = {
+        available: true,
+        synced: true,
+        hasBrandData: true,
+        hasReplyPrompts: true,
+        lastRefreshTime: new Date().toISOString(),
+      };
+
+      const mockBrandConfig = {
+        synced: true,
+        brandData: { name: 'Test Brand' },
+        replyPrompts: { greeting: 'Hello' },
+        lastRefreshTime: new Date().toISOString(),
+      };
+
       mockRegistryService.getHealthStatus.mockReturnValue(mockHealthStatus);
+      mockAgentConfigService.getBrandConfigStatus.mockResolvedValue(mockBrandConfigStatus);
+      mockAgentConfigService.getBrandConfig.mockResolvedValue(mockBrandConfig);
 
       const result = await controller.healthCheck();
 
       expect(registryService.getHealthStatus).toHaveBeenCalled();
+      expect(mockAgentConfigService.getBrandConfigStatus).toHaveBeenCalled();
+      expect(mockAgentConfigService.getBrandConfig).toHaveBeenCalled();
       expect(result.success).toBe(true);
       expect(result.data.status).toEqual('degraded');
     });
@@ -247,6 +287,91 @@ describe('AgentController', () => {
       mockAgentService.chatWithProfile.mockRejectedValue(error);
 
       await expect(controller.testChat(mockBody)).rejects.toThrow('Chat failed');
+    });
+
+    it('should throw 404 when scenario is not found', async () => {
+      const mockBody = {
+        message: '你好',
+        scenario: 'non-existent-scenario',
+      };
+
+      mockAgentConfigService.getProfile.mockReturnValue(null);
+
+      await expect(controller.testChat(mockBody)).rejects.toThrow(
+        '未找到场景 non-existent-scenario 的配置，请检查配置文件',
+      );
+    });
+
+    it('should use custom scenario when provided', async () => {
+      const mockBody = {
+        message: '你好',
+        scenario: 'wechat-group-assistant',
+      };
+      const mockResult = { reply: '你好！', conversationId: 'test-user' };
+
+      mockAgentConfigService.getProfile.mockReturnValue(mockProfile);
+      mockAgentService.chatWithProfile.mockResolvedValue(mockResult);
+
+      const result = await controller.testChat(mockBody);
+
+      expect(mockAgentConfigService.getProfile).toHaveBeenCalledWith('wechat-group-assistant');
+      expect(service.chatWithProfile).toHaveBeenCalledWith('test-user', '你好', mockProfile, {
+        model: undefined,
+        allowedTools: undefined,
+      });
+      expect(result).toEqual(mockResult);
+    });
+
+    it('should pass allowedTools to chatWithProfile when provided', async () => {
+      const mockBody = {
+        message: '帮我查询职位',
+        allowedTools: ['duliday_job_list', 'duliday_job_details'],
+      };
+      const mockResult = { reply: '正在查询职位...', conversationId: 'test-user' };
+
+      mockAgentConfigService.getProfile.mockReturnValue(mockProfile);
+      mockAgentService.chatWithProfile.mockResolvedValue(mockResult);
+
+      const result = await controller.testChat(mockBody);
+
+      expect(mockAgentConfigService.getProfile).toHaveBeenCalledWith('candidate-consultation');
+      expect(service.chatWithProfile).toHaveBeenCalledWith(
+        'test-user',
+        '帮我查询职位',
+        mockProfile,
+        {
+          model: undefined,
+          allowedTools: ['duliday_job_list', 'duliday_job_details'],
+        },
+      );
+      expect(result).toEqual(mockResult);
+    });
+
+    it('should pass both custom scenario and allowedTools', async () => {
+      const mockBody = {
+        message: '帮我查询职位',
+        scenario: 'wechat-group-assistant',
+        allowedTools: ['duliday_job_list'],
+        conversationId: 'custom-conv-123',
+      };
+      const mockResult = { reply: '正在查询...', conversationId: 'custom-conv-123' };
+
+      mockAgentConfigService.getProfile.mockReturnValue(mockProfile);
+      mockAgentService.chatWithProfile.mockResolvedValue(mockResult);
+
+      const result = await controller.testChat(mockBody);
+
+      expect(mockAgentConfigService.getProfile).toHaveBeenCalledWith('wechat-group-assistant');
+      expect(service.chatWithProfile).toHaveBeenCalledWith(
+        'custom-conv-123',
+        '帮我查询职位',
+        mockProfile,
+        {
+          model: undefined,
+          allowedTools: ['duliday_job_list'],
+        },
+      );
+      expect(result).toEqual(mockResult);
     });
   });
 });

@@ -41,7 +41,7 @@ REVIEW_PROMPT=$(jq -n \
   }' | jq -r '.prompt')
 
 # 调用 Anthropic API
-RESPONSE=$(curl -s -X POST https://api.anthropic.com/v1/messages \
+HTTP_CODE=$(curl -s -w "%{http_code}" -o /tmp/api-response.json -X POST https://api.anthropic.com/v1/messages \
   -H "content-type: application/json" \
   -H "x-api-key: $ANTHROPIC_API_KEY" \
   -H "anthropic-version: 2023-06-01" \
@@ -58,14 +58,65 @@ RESPONSE=$(curl -s -X POST https://api.anthropic.com/v1/messages \
       ]
     }')")
 
-# 检查API调用是否成功
-if [ $? -ne 0 ]; then
-  echo "❌ Failed to call Anthropic API" > "$OUTPUT_FILE"
+# 检查 HTTP 状态码
+if [ "$HTTP_CODE" -ne 200 ]; then
+  ERROR_TYPE=$(jq -r '.error.type // "unknown_error"' /tmp/api-response.json 2>/dev/null || echo "unknown_error")
+  ERROR_MESSAGE=$(jq -r '.error.message // "API request failed"' /tmp/api-response.json 2>/dev/null || echo "API request failed")
+
+  echo "❌ API Request Failed (HTTP $HTTP_CODE)" > "$OUTPUT_FILE"
+  echo "" >> "$OUTPUT_FILE"
+  echo "**Error Type:** $ERROR_TYPE" >> "$OUTPUT_FILE"
+  echo "**Error Message:** $ERROR_MESSAGE" >> "$OUTPUT_FILE"
+  echo "" >> "$OUTPUT_FILE"
+
+  # 针对常见错误提供建议
+  case "$HTTP_CODE" in
+    401)
+      echo "💡 **Suggestion:** Please verify your ANTHROPIC_API_KEY is correct and has not expired." >> "$OUTPUT_FILE"
+      ;;
+    429)
+      echo "💡 **Suggestion:** Rate limit exceeded. Please try again later or upgrade your API plan." >> "$OUTPUT_FILE"
+      ;;
+    500|502|503)
+      echo "💡 **Suggestion:** Anthropic API is temporarily unavailable. Please retry in a few moments." >> "$OUTPUT_FILE"
+      ;;
+    *)
+      echo "💡 **Suggestion:** Check the error message above and review Anthropic API documentation." >> "$OUTPUT_FILE"
+      ;;
+  esac
+
+  rm -f /tmp/api-response.json
+  exit 1
+fi
+
+# 读取响应
+RESPONSE=$(cat /tmp/api-response.json)
+rm -f /tmp/api-response.json
+
+# 检查响应是否包含错误
+ERROR_CHECK=$(echo "$RESPONSE" | jq -r '.error // empty')
+if [ -n "$ERROR_CHECK" ]; then
+  ERROR_TYPE=$(echo "$RESPONSE" | jq -r '.error.type')
+  ERROR_MESSAGE=$(echo "$RESPONSE" | jq -r '.error.message')
+
+  echo "❌ AI Review Failed" > "$OUTPUT_FILE"
+  echo "" >> "$OUTPUT_FILE"
+  echo "**Error:** $ERROR_TYPE" >> "$OUTPUT_FILE"
+  echo "**Message:** $ERROR_MESSAGE" >> "$OUTPUT_FILE"
+
   exit 1
 fi
 
 # 提取审查结果
-REVIEW_TEXT=$(echo "$RESPONSE" | jq -r '.content[0].text // "AI review failed"')
+REVIEW_TEXT=$(echo "$RESPONSE" | jq -r '.content[0].text // empty')
+
+# 验证审查结果不为空
+if [ -z "$REVIEW_TEXT" ]; then
+  echo "❌ AI review returned empty response" > "$OUTPUT_FILE"
+  echo "" >> "$OUTPUT_FILE"
+  echo "Please check the API response format or contact support." >> "$OUTPUT_FILE"
+  exit 1
+fi
 
 # 保存审查结果
 echo "$REVIEW_TEXT" > "$OUTPUT_FILE"

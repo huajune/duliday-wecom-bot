@@ -2,6 +2,7 @@ import { Process, Processor, OnQueueFailed, OnQueueCompleted } from '@nestjs/bul
 import { Logger } from '@nestjs/common';
 import { Job } from 'bull';
 import { AgentService, AgentConfigService } from '@agent';
+import { AgentResultHelper } from '@agent/utils/agent-result-helper';
 import { MessageSenderService } from '../message-sender/message-sender.service';
 import { MessageType as SendMessageType } from '../message-sender/dto/send-message.dto';
 import { EnterpriseMessageCallbackDto } from './dto/message-callback.dto';
@@ -105,7 +106,7 @@ export class MessageProcessor {
     try {
       // 判断消息场景（复用 MessageParser）
       const scenario = MessageParser.determineScenario();
-      const agentProfile = this.agentConfigService.getProfile(scenario);
+      const agentProfile = await this.agentConfigService.getProfile(scenario);
 
       if (!agentProfile) {
         this.logger.error(`无法获取场景 ${scenario} 的 Agent 配置`);
@@ -127,7 +128,7 @@ export class MessageProcessor {
       this.historyService.addMessageToHistory(chatId, 'user', mergedContent);
 
       // 调用 Agent API 生成回复
-      const aiResponse = await this.agentService.chat({
+      const agentResult = await this.agentService.chat({
         conversationId: chatId,
         userMessage: mergedContent,
         historyMessages,
@@ -141,6 +142,9 @@ export class MessageProcessor {
         prune: agentProfile.prune,
         pruneOptions: agentProfile.pruneOptions,
       });
+
+      // 提取响应（优先使用 data，降级时使用 fallback）
+      const aiResponse = AgentResultHelper.extractResponse(agentResult);
 
       // 提取回复内容
       const replyContent = this.extractReplyContent(aiResponse);

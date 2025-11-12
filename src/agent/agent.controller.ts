@@ -34,15 +34,27 @@ export class AgentController {
   @Get('health')
   async healthCheck() {
     const healthStatus = this.registryService.getHealthStatus();
-    const isHealthy = healthStatus.models.configuredAvailable && healthStatus.tools.allAvailable;
+    const brandConfigStatus = await this.agentConfigService.getBrandConfigStatus();
+    const brandConfigData = await this.agentConfigService.getBrandConfig();
+
+    const isModelHealthy = healthStatus.models.configuredAvailable;
+    const isToolHealthy = healthStatus.tools.allAvailable;
+    const isBrandConfigHealthy = brandConfigStatus.available && brandConfigStatus.synced;
+
+    // 整体健康状态：模型、工具和品牌配置都必须正常
+    const isHealthy = isModelHealthy && isToolHealthy && isBrandConfigHealthy;
 
     // 返回自定义格式的健康状态（拦截器会识别并保持原样）
     return {
       success: true,
       data: {
         status: isHealthy ? 'healthy' : 'degraded',
-        message: isHealthy ? 'Agent 服务正常' : 'Agent 服务运行中（部分功能降级）',
+        message: isHealthy ? 'Agent 服务正常' : '⚠️ Agent 服务运行中（部分功能降级）',
         ...healthStatus,
+        brandConfig: {
+          ...brandConfigStatus,
+          data: brandConfigData, // 完整的品牌配置数据（从 /api/v1/config/export）
+        },
       },
     };
   }
@@ -96,6 +108,32 @@ export class AgentController {
   async refreshHealth() {
     await this.registryService.refresh();
     return this.registryService.getHealthStatus();
+  }
+
+  /**
+   * 手动刷新品牌配置
+   * POST /agent/config/refresh
+   */
+  @Post('config/refresh')
+  async refreshBrandConfig() {
+    this.logger.log('手动刷新品牌配置');
+    await this.agentConfigService.refreshBrandConfig();
+    const brandConfigStatus = await this.agentConfigService.getBrandConfigStatus();
+
+    return {
+      success: true,
+      message: brandConfigStatus.available ? '品牌配置刷新成功' : '⚠️ 品牌配置刷新失败，请检查日志',
+      data: brandConfigStatus,
+    };
+  }
+
+  /**
+   * 获取品牌配置状态
+   * GET /agent/config/status
+   */
+  @Get('config/status')
+  async getBrandConfigStatus() {
+    return await this.agentConfigService.getBrandConfigStatus();
   }
 
   /**
@@ -177,7 +215,7 @@ export class AgentController {
 
     // 默认使用 candidate-consultation 场景配置（包含所有必需的 context）
     const scenario = body.scenario || 'candidate-consultation';
-    const profile = this.agentConfigService.getProfile(scenario);
+    const profile = await this.agentConfigService.getProfile(scenario);
 
     if (!profile) {
       throw new HttpException(
@@ -213,7 +251,7 @@ export class AgentController {
     this.logger.log(`测试工具安全校验，请求的工具: ${body.allowedTools.join(', ')}`);
     const conversationId = body.conversationId || 'test-tool-validation';
 
-    const response = await this.agentService.chat({
+    const agentResult = await this.agentService.chat({
       conversationId,
       userMessage: body.message,
       allowedTools: body.allowedTools,
@@ -222,7 +260,7 @@ export class AgentController {
     return {
       requestedTools: body.allowedTools,
       message: '工具校验通过，已过滤不安全的工具',
-      response,
+      result: agentResult,
     };
   }
 
@@ -243,7 +281,7 @@ export class AgentController {
     this.logger.log(`测试模型安全校验，请求的模型: ${body.model}`);
     const conversationId = body.conversationId || 'test-model-validation';
 
-    const response = await this.agentService.chat({
+    const agentResult = await this.agentService.chat({
       conversationId,
       userMessage: body.message,
       model: body.model,
@@ -252,7 +290,7 @@ export class AgentController {
     return {
       requestedModel: body.model,
       message: '模型校验完成，如果请求的模型不被允许，已自动使用默认模型',
-      response,
+      result: agentResult,
     };
   }
 
@@ -280,7 +318,7 @@ export class AgentController {
    */
   @Get('profiles/:scenario')
   async getProfile(@Query('scenario') scenario: string) {
-    const profile = this.agentConfigService.getProfile(scenario);
+    const profile = await this.agentConfigService.getProfile(scenario);
     if (!profile) {
       throw new HttpException(`未找到场景 ${scenario} 的配置`, HttpStatus.NOT_FOUND);
     }
@@ -294,7 +332,7 @@ export class AgentController {
    */
   @Get('profiles/:scenario/validate')
   async validateProfile(@Query('scenario') scenario: string) {
-    const profile = this.agentConfigService.getProfile(scenario);
+    const profile = await this.agentConfigService.getProfile(scenario);
     if (!profile) {
       throw new HttpException(`未找到场景 ${scenario} 的配置`, HttpStatus.NOT_FOUND);
     }
@@ -326,7 +364,7 @@ export class AgentController {
     this.logger.log(`使用配置档案聊天: ${body.scenario}, 消息: ${body.message}`);
 
     // 获取配置档案
-    const profile = this.agentConfigService.getProfile(body.scenario);
+    const profile = await this.agentConfigService.getProfile(body.scenario);
     if (!profile) {
       throw new HttpException(`未找到场景 ${body.scenario} 的配置`, HttpStatus.NOT_FOUND);
     }
