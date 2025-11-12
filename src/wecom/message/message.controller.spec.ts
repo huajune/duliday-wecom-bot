@@ -2,7 +2,8 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { MessageController } from './message.controller';
 import { MessageService } from './message.service';
 import { MessageType, ContactType, MessageSource } from './dto/message-callback.dto';
-import { AgentService, AgentConfigService } from '@agent';
+import { AgentService } from '@agent';
+import { AgentConfigService } from '@agent/agent-config.service';
 
 describe('MessageController', () => {
   let controller: MessageController;

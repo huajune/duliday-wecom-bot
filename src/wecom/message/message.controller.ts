@@ -7,7 +7,8 @@ import {
   MessageSource,
   EnterpriseMessageCallbackDto,
 } from './dto/message-callback.dto';
-import { AgentService, AgentConfigService } from '@agent';
+import { AgentService } from '@agent';
+import { AgentConfigService } from '@agent/agent-config.service';
 
 /**
  * 消息处理控制器

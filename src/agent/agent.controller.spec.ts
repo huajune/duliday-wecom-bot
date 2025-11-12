@@ -97,24 +97,19 @@ describe('AgentController', () => {
         lastRefreshTime: new Date().toISOString(),
       };
 
-      const mockBrandConfig = {
-        synced: true,
-        brandData: { name: 'Test Brand' },
-        replyPrompts: { greeting: 'Hello' },
-        lastRefreshTime: new Date().toISOString(),
-      };
-
       mockRegistryService.getHealthStatus.mockReturnValue(mockHealthStatus);
       mockAgentConfigService.getBrandConfigStatus.mockResolvedValue(mockBrandConfigStatus);
-      mockAgentConfigService.getBrandConfig.mockResolvedValue(mockBrandConfig);
 
       const result = await controller.healthCheck();
 
       expect(registryService.getHealthStatus).toHaveBeenCalled();
       expect(mockAgentConfigService.getBrandConfigStatus).toHaveBeenCalled();
-      expect(mockAgentConfigService.getBrandConfig).toHaveBeenCalled();
       expect(result.success).toBe(true);
       expect(result.data.status).toEqual('healthy');
+      // 验证不返回完整品牌配置数据
+      expect(result.data.brandConfig.available).toBe(true);
+      expect(result.data.brandConfig.synced).toBe(true);
+      expect(result.data.brandConfig).not.toHaveProperty('data');
     });
 
     it('should return degraded status when some resources are unavailable', async () => {
@@ -132,24 +127,17 @@ describe('AgentController', () => {
         lastRefreshTime: new Date().toISOString(),
       };
 
-      const mockBrandConfig = {
-        synced: true,
-        brandData: { name: 'Test Brand' },
-        replyPrompts: { greeting: 'Hello' },
-        lastRefreshTime: new Date().toISOString(),
-      };
-
       mockRegistryService.getHealthStatus.mockReturnValue(mockHealthStatus);
       mockAgentConfigService.getBrandConfigStatus.mockResolvedValue(mockBrandConfigStatus);
-      mockAgentConfigService.getBrandConfig.mockResolvedValue(mockBrandConfig);
 
       const result = await controller.healthCheck();
 
       expect(registryService.getHealthStatus).toHaveBeenCalled();
       expect(mockAgentConfigService.getBrandConfigStatus).toHaveBeenCalled();
-      expect(mockAgentConfigService.getBrandConfig).toHaveBeenCalled();
       expect(result.success).toBe(true);
       expect(result.data.status).toEqual('degraded');
+      // 验证不返回完整品牌配置数据
+      expect(result.data.brandConfig).not.toHaveProperty('data');
     });
   });
 

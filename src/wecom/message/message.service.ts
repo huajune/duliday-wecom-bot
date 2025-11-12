@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { AgentService, AgentConfigService } from '@agent';
+import { AgentService } from '@agent';
+import { AgentConfigService } from '@agent/agent-config.service';
 import { AgentResultHelper } from '@agent/utils/agent-result-helper';
 import { MessageSenderService } from '../message-sender/message-sender.service';
 import { MessageType as SendMessageType } from '../message-sender/dto/send-message.dto';

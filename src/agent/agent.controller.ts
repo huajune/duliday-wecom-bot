@@ -35,7 +35,6 @@ export class AgentController {
   async healthCheck() {
     const healthStatus = this.registryService.getHealthStatus();
     const brandConfigStatus = await this.agentConfigService.getBrandConfigStatus();
-    const brandConfigData = await this.agentConfigService.getBrandConfig();
 
     const isModelHealthy = healthStatus.models.configuredAvailable;
     const isToolHealthy = healthStatus.tools.allAvailable;
@@ -44,7 +43,7 @@ export class AgentController {
     // 整体健康状态：模型、工具和品牌配置都必须正常
     const isHealthy = isModelHealthy && isToolHealthy && isBrandConfigHealthy;
 
-    // 返回自定义格式的健康状态（拦截器会识别并保持原样）
+    // 返回自定义格式的健康状态（只包含状态信息，不暴露敏感数据）
     return {
       success: true,
       data: {
@@ -52,8 +51,10 @@ export class AgentController {
         message: isHealthy ? 'Agent 服务正常' : '⚠️ Agent 服务运行中（部分功能降级）',
         ...healthStatus,
         brandConfig: {
-          ...brandConfigStatus,
-          data: brandConfigData, // 完整的品牌配置数据（从 /api/v1/config/export）
+          available: brandConfigStatus.available,
+          synced: brandConfigStatus.synced,
+          lastRefreshTime: brandConfigStatus.lastRefreshTime,
+          // 不返回完整的品牌配置数据，避免暴露敏感信息
         },
       },
     };

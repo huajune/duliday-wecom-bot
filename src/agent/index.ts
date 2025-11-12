@@ -1,9 +1,16 @@
+// 公共接口导出
 export * from './agent.module';
 export * from './agent.service';
-export * from './agent-fallback.service';
-export * from './interfaces';
 export * from './dto/chat-request.dto';
 export * from './exceptions/agent.exception';
+export * from './interfaces';
+export * from './models/agent-result.model';
 
-// 显式导出 AgentConfigService 和相关类型
-export { AgentConfigService, BrandConfig } from './agent-config.service';
+// 内部服务通过 AgentModule 依赖注入，不对外暴露：
+// - AgentFallbackService
+// - AgentConfigService (包括 BrandConfig)
+// - AgentRegistryService
+// - AgentCacheService
+// - AgentApiClientService
+// - ProfileLoaderService
+// - BrandConfigService
