@@ -8,7 +8,7 @@ import {
   AgentContextMissingException,
   AgentRateLimitException,
 } from './exceptions/agent.exception';
-import { parseToolsFromEnv, getModelDisplayName } from './utils';
+import { getModelDisplayName } from './utils';
 import { AgentCacheService } from './agent-cache.service';
 import { AgentRegistryService } from './agent-registry.service';
 import { AgentFallbackService, FallbackScenario } from './agent-fallback.service';
@@ -43,8 +43,6 @@ import {
 @Injectable()
 export class AgentService {
   private readonly logger = new Logger(AgentService.name);
-  private readonly defaultModel: string;
-  private readonly configuredTools: string[];
   private readonly agentLogger: AgentLogger;
 
   constructor(
@@ -54,18 +52,11 @@ export class AgentService {
     private readonly registryService: AgentRegistryService,
     private readonly fallbackService: AgentFallbackService,
   ) {
-    // 初始化配置
-    this.defaultModel = this.configService.get<string>('AGENT_DEFAULT_MODEL')!;
-    const toolsString = this.configService.get<string>('AGENT_ALLOWED_TOOLS', '');
-    this.configuredTools = parseToolsFromEnv(toolsString);
-
     // 初始化日志工具
     this.agentLogger = new AgentLogger(this.logger, this.configService);
 
-    this.logger.log(`默认模型: ${this.defaultModel}`);
-    this.logger.log(
-      `配置的工具: ${this.configuredTools.length > 0 ? this.configuredTools.join(', ') : '无'}`,
-    );
+    // 注意：工具和模型配置现在统一由 AgentRegistryService 管理
+    this.logger.log('AgentService 已初始化（工具/模型由 RegistryService 统一管理）');
   }
 
   /**
@@ -265,7 +256,7 @@ export class AgentService {
         `请求的模型 "${requestedModel}" 不可用，已回退到默认模型 "${validatedModel}"`,
       );
       this.logger.warn(`会话: ${conversationId}`);
-    } else if (validatedModel !== this.defaultModel && requestedModel) {
+    } else if (validatedModel !== this.registryService.getConfiguredModel() && requestedModel) {
       this.logger.log(`使用模型: ${getModelDisplayName(validatedModel)}，会话: ${conversationId}`);
     }
 
