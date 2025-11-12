@@ -246,8 +246,18 @@ export class MessageService {
         pruneOptions: agentProfile.pruneOptions,
       });
 
+      // 检查 Agent 调用结果
+      if (AgentResultHelper.isError(agentResult)) {
+        this.logger.error(`[${scenarioType}][${contactName}] Agent 调用失败:`, agentResult.error);
+        throw new Error(agentResult.error?.message || 'Agent 调用失败');
+      }
+
       // 提取响应（优先使用 data，降级时使用 fallback）
-      const aiResponse = AgentResultHelper.extractResponse(agentResult);
+      const aiResponse = AgentResultHelper.getResponse(agentResult);
+      if (!aiResponse) {
+        this.logger.error(`[${scenarioType}][${contactName}] Agent 返回空响应`);
+        throw new Error('Agent 返回空响应');
+      }
 
       // 7. 【监控埋点】AI 处理完成
       this.monitoringService.recordAiEnd(messageId);
@@ -577,8 +587,18 @@ export class MessageService {
       pruneOptions: agentProfile.pruneOptions,
     });
 
+    // 检查 Agent 调用结果
+    if (AgentResultHelper.isError(agentResult)) {
+      this.logger.error(`[聚合处理][${chatId}] Agent 调用失败:`, agentResult.error);
+      throw new Error(agentResult.error?.message || 'Agent 调用失败');
+    }
+
     // 提取响应（优先使用 data，降级时使用 fallback）
-    const aiResponse = AgentResultHelper.extractResponse(agentResult);
+    const aiResponse = AgentResultHelper.getResponse(agentResult);
+    if (!aiResponse) {
+      this.logger.error(`[聚合处理][${chatId}] Agent 返回空响应`);
+      throw new Error('Agent 返回空响应');
+    }
 
     // 提取回复内容
     const replyContent = this.extractReplyContent(aiResponse);

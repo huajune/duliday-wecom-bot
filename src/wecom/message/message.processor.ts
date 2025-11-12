@@ -143,8 +143,18 @@ export class MessageProcessor {
         pruneOptions: agentProfile.pruneOptions,
       });
 
+      // 检查 Agent 调用结果
+      if (AgentResultHelper.isError(agentResult)) {
+        this.logger.error(`[Bull] Agent 调用失败:`, agentResult.error);
+        throw new Error(agentResult.error?.message || 'Agent 调用失败');
+      }
+
       // 提取响应（优先使用 data，降级时使用 fallback）
-      const aiResponse = AgentResultHelper.extractResponse(agentResult);
+      const aiResponse = AgentResultHelper.getResponse(agentResult);
+      if (!aiResponse) {
+        this.logger.error(`[Bull] Agent 返回空响应`);
+        throw new Error('Agent 返回空响应');
+      }
 
       // 提取回复内容
       const replyContent = this.extractReplyContent(aiResponse);

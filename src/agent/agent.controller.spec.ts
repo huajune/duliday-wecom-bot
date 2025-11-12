@@ -221,16 +221,26 @@ describe('AgentController', () => {
       toolContext: {},
     };
 
+    const createMockAgentResult = (text: string) => ({
+      status: 'success',
+      data: {
+        messages: [{ role: 'assistant', parts: [{ type: 'text', text }] }],
+        usage: { inputTokens: 10, outputTokens: 20, totalTokens: 30 },
+      },
+      fromCache: false,
+      correlationId: 'test-correlation-id',
+    });
+
     it('should call agentService.chatWithProfile with all parameters', async () => {
       const mockBody = {
         message: '你好',
         conversationId: 'conv123',
         model: 'gpt-4',
       };
-      const mockResult = { reply: '你好！', conversationId: 'conv123' };
+      const mockAgentResult = createMockAgentResult('你好！');
 
       mockAgentConfigService.getProfile.mockReturnValue(mockProfile);
-      mockAgentService.chatWithProfile.mockResolvedValue(mockResult);
+      mockAgentService.chatWithProfile.mockResolvedValue(mockAgentResult);
 
       const result = await controller.testChat(mockBody);
 
@@ -239,15 +249,22 @@ describe('AgentController', () => {
         model: 'gpt-4',
         allowedTools: undefined,
       });
-      expect(result).toEqual(mockResult);
+      expect(result).toEqual({
+        response: mockAgentResult.data,
+        metadata: {
+          status: 'success',
+          fromCache: false,
+          correlationId: 'test-correlation-id',
+        },
+      });
     });
 
     it('should use default conversationId when not provided', async () => {
       const mockBody = { message: '测试消息' };
-      const mockResult = { reply: '收到测试消息', conversationId: 'test-user' };
+      const mockAgentResult = createMockAgentResult('收到测试消息');
 
       mockAgentConfigService.getProfile.mockReturnValue(mockProfile);
-      mockAgentService.chatWithProfile.mockResolvedValue(mockResult);
+      mockAgentService.chatWithProfile.mockResolvedValue(mockAgentResult);
 
       const result = await controller.testChat(mockBody);
 
@@ -256,7 +273,14 @@ describe('AgentController', () => {
         model: undefined,
         allowedTools: undefined,
       });
-      expect(result).toEqual(mockResult);
+      expect(result).toEqual({
+        response: mockAgentResult.data,
+        metadata: {
+          status: 'success',
+          fromCache: false,
+          correlationId: 'test-correlation-id',
+        },
+      });
     });
 
     it('should call agentService.chatWithProfile without model parameter', async () => {
@@ -264,10 +288,10 @@ describe('AgentController', () => {
         message: '你好',
         conversationId: 'conv456',
       };
-      const mockResult = { reply: '你好！', conversationId: 'conv456' };
+      const mockAgentResult = createMockAgentResult('你好！');
 
       mockAgentConfigService.getProfile.mockReturnValue(mockProfile);
-      mockAgentService.chatWithProfile.mockResolvedValue(mockResult);
+      mockAgentService.chatWithProfile.mockResolvedValue(mockAgentResult);
 
       const result = await controller.testChat(mockBody);
 
@@ -276,7 +300,14 @@ describe('AgentController', () => {
         model: undefined,
         allowedTools: undefined,
       });
-      expect(result).toEqual(mockResult);
+      expect(result).toEqual({
+        response: mockAgentResult.data,
+        metadata: {
+          status: 'success',
+          fromCache: false,
+          correlationId: 'test-correlation-id',
+        },
+      });
     });
 
     it('should handle errors from agentService.chatWithProfile', async () => {
@@ -307,10 +338,10 @@ describe('AgentController', () => {
         message: '你好',
         scenario: 'wechat-group-assistant',
       };
-      const mockResult = { reply: '你好！', conversationId: 'test-user' };
+      const mockAgentResult = createMockAgentResult('你好！');
 
       mockAgentConfigService.getProfile.mockReturnValue(mockProfile);
-      mockAgentService.chatWithProfile.mockResolvedValue(mockResult);
+      mockAgentService.chatWithProfile.mockResolvedValue(mockAgentResult);
 
       const result = await controller.testChat(mockBody);
 
@@ -319,7 +350,14 @@ describe('AgentController', () => {
         model: undefined,
         allowedTools: undefined,
       });
-      expect(result).toEqual(mockResult);
+      expect(result).toEqual({
+        response: mockAgentResult.data,
+        metadata: {
+          status: 'success',
+          fromCache: false,
+          correlationId: 'test-correlation-id',
+        },
+      });
     });
 
     it('should pass allowedTools to chatWithProfile when provided', async () => {
@@ -327,10 +365,10 @@ describe('AgentController', () => {
         message: '帮我查询职位',
         allowedTools: ['duliday_job_list', 'duliday_job_details'],
       };
-      const mockResult = { reply: '正在查询职位...', conversationId: 'test-user' };
+      const mockAgentResult = createMockAgentResult('正在查询职位...');
 
       mockAgentConfigService.getProfile.mockReturnValue(mockProfile);
-      mockAgentService.chatWithProfile.mockResolvedValue(mockResult);
+      mockAgentService.chatWithProfile.mockResolvedValue(mockAgentResult);
 
       const result = await controller.testChat(mockBody);
 
@@ -344,7 +382,14 @@ describe('AgentController', () => {
           allowedTools: ['duliday_job_list', 'duliday_job_details'],
         },
       );
-      expect(result).toEqual(mockResult);
+      expect(result).toEqual({
+        response: mockAgentResult.data,
+        metadata: {
+          status: 'success',
+          fromCache: false,
+          correlationId: 'test-correlation-id',
+        },
+      });
     });
 
     it('should pass both custom scenario and allowedTools', async () => {
@@ -354,10 +399,10 @@ describe('AgentController', () => {
         allowedTools: ['duliday_job_list'],
         conversationId: 'custom-conv-123',
       };
-      const mockResult = { reply: '正在查询...', conversationId: 'custom-conv-123' };
+      const mockAgentResult = createMockAgentResult('正在查询...');
 
       mockAgentConfigService.getProfile.mockReturnValue(mockProfile);
-      mockAgentService.chatWithProfile.mockResolvedValue(mockResult);
+      mockAgentService.chatWithProfile.mockResolvedValue(mockAgentResult);
 
       const result = await controller.testChat(mockBody);
 
@@ -371,7 +416,14 @@ describe('AgentController', () => {
           allowedTools: ['duliday_job_list'],
         },
       );
-      expect(result).toEqual(mockResult);
+      expect(result).toEqual({
+        response: mockAgentResult.data,
+        metadata: {
+          status: 'success',
+          fromCache: false,
+          correlationId: 'test-correlation-id',
+        },
+      });
     });
   });
 });

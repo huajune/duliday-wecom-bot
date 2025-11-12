@@ -227,11 +227,30 @@ export class AgentController {
     this.logger.log(`使用配置档案: ${profile.name} (${profile.description})`);
 
     // 使用配置档案调用聊天接口（自动传递 context 和 toolContext）
-    return await this.agentService.chatWithProfile(conversationId, body.message, profile, {
+    const result = await this.agentService.chatWithProfile(conversationId, body.message, profile, {
       // 允许通过请求参数覆盖配置档案的设置
       model: body.model,
       allowedTools: body.allowedTools,
     });
+
+    // 基于状态返回不同响应
+    if (result.status === 'error') {
+      throw new HttpException(
+        result.error?.message || 'Agent 调用失败',
+        result.error?.retryable ? HttpStatus.SERVICE_UNAVAILABLE : HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+
+    // 返回扁平结构
+    return {
+      response: result.data || result.fallback,
+      metadata: {
+        status: result.status,
+        fromCache: result.fromCache,
+        correlationId: result.correlationId,
+        ...(result.fallbackInfo && { fallbackInfo: result.fallbackInfo }),
+      },
+    };
   }
 
   /**
@@ -251,16 +270,30 @@ export class AgentController {
     this.logger.log(`测试工具安全校验，请求的工具: ${body.allowedTools.join(', ')}`);
     const conversationId = body.conversationId || 'test-tool-validation';
 
-    const agentResult = await this.agentService.chat({
+    const result = await this.agentService.chat({
       conversationId,
       userMessage: body.message,
       allowedTools: body.allowedTools,
     });
 
+    // 基于状态返回不同响应
+    if (result.status === 'error') {
+      throw new HttpException(
+        result.error?.message || 'Agent 调用失败',
+        result.error?.retryable ? HttpStatus.SERVICE_UNAVAILABLE : HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+
     return {
       requestedTools: body.allowedTools,
       message: '工具校验通过，已过滤不安全的工具',
-      result: agentResult,
+      response: result.data || result.fallback,
+      metadata: {
+        status: result.status,
+        fromCache: result.fromCache,
+        correlationId: result.correlationId,
+        ...(result.fallbackInfo && { fallbackInfo: result.fallbackInfo }),
+      },
     };
   }
 
@@ -281,16 +314,30 @@ export class AgentController {
     this.logger.log(`测试模型安全校验，请求的模型: ${body.model}`);
     const conversationId = body.conversationId || 'test-model-validation';
 
-    const agentResult = await this.agentService.chat({
+    const result = await this.agentService.chat({
       conversationId,
       userMessage: body.message,
       model: body.model,
     });
 
+    // 基于状态返回不同响应
+    if (result.status === 'error') {
+      throw new HttpException(
+        result.error?.message || 'Agent 调用失败',
+        result.error?.retryable ? HttpStatus.SERVICE_UNAVAILABLE : HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+
     return {
       requestedModel: body.model,
       message: '模型校验完成，如果请求的模型不被允许，已自动使用默认模型',
-      result: agentResult,
+      response: result.data || result.fallback,
+      metadata: {
+        status: result.status,
+        fromCache: result.fromCache,
+        correlationId: result.correlationId,
+        ...(result.fallbackInfo && { fallbackInfo: result.fallbackInfo }),
+      },
     };
   }
 
@@ -372,17 +419,31 @@ export class AgentController {
     // 生成会话ID
     const conversationId = body.roomId ? `room_${body.roomId}` : `user_${body.fromUser}`;
 
-    const response = await this.agentService.chatWithProfile(
+    const result = await this.agentService.chatWithProfile(
       conversationId,
       body.message,
       profile,
       body.overrides,
     );
 
+    // 基于状态返回不同响应
+    if (result.status === 'error') {
+      throw new HttpException(
+        result.error?.message || 'Agent 调用失败',
+        result.error?.retryable ? HttpStatus.SERVICE_UNAVAILABLE : HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+
     return {
       conversationId,
       scenario: body.scenario,
-      response,
+      response: result.data || result.fallback,
+      metadata: {
+        status: result.status,
+        fromCache: result.fromCache,
+        correlationId: result.correlationId,
+        ...(result.fallbackInfo && { fallbackInfo: result.fallbackInfo }),
+      },
     };
   }
 }
