@@ -1,8 +1,8 @@
-# Claude Code Safety Protection Mechanism
+# Claude Code Hooks
 
-**Last Updated**: 2025-11-05 16:30:00
+**Last Updated**: 2025-11-13 14:10:00
 
-This directory contains automated scripts for code safety protection.
+This directory contains automated hook scripts for Claude Code, including safety protection, code quality, and development workflow enhancements.
 
 ---
 
@@ -80,8 +80,36 @@ To commit, run:
 
 ---
 
+### 5. Session Start Reminder
+
+**Trigger**: Every time a new Claude Code session starts
+
+**Script**: `session-start.sh`
+
+**Features**:
+- Displays project development standards reminder
+- Shows commit guidelines (10-15 chars per line)
+- Shows code standards (no `any`, dependency injection, etc.)
+- Provides quick links to full guidelines
+
+**Output Example**:
+```
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📋 项目开发规范提醒
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📌 Commit 规范 (.claude/agents/commit-guidelines.md)：
+  • 标题：10-15 中文字符
+  • 正文：每行 10-15 字符
+  • 禁止：冗长技术解释
+...
+```
+
+---
+
 ## 📁 File Descriptions
 
+- `session-start.sh` - **NEW** Session start reminder for development standards
 - `auto-stage-files.sh` - Auto-stage modified files
 - `check-modified-files.sh` - Check and alert on modified file count
 - `README.md` - This document
@@ -151,6 +179,11 @@ If you need to temporarily disable safety protection:
 ---
 
 ## 📝 Maintenance Log
+
+- 2025-11-13 14:10:00: Directory renamed from `scripts/` to `hooks/`
+  - Added SessionStart hook for development standards reminder
+  - Updated all path references in settings.local.json
+  - Enhanced README documentation
 
 - 2025-11-05 16:30:00: Initial version, added basic safety protection
   - Blocked 8 dangerous commands
