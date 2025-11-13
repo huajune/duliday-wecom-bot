@@ -1,26 +1,25 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AxiosResponse } from 'axios';
-import { ApiResponse, ChatRequest, ChatResponse, SimpleMessage } from './dto/chat-request.dto';
+import { ApiResponse, ChatRequest, ChatResponse, SimpleMessage, AgentResult } from './utils/types';
 import {
   AgentApiException,
   AgentConfigException,
   AgentContextMissingException,
   AgentRateLimitException,
-} from './exceptions/agent.exception';
+} from './utils/exceptions';
 import { getModelDisplayName } from './utils';
-import { AgentCacheService } from './agent-cache.service';
-import { AgentRegistryService } from './agent-registry.service';
-import { AgentFallbackService, FallbackScenario } from './agent-fallback.service';
-import { AgentApiClientService } from './agent-api-client.service';
+import { AgentCacheService } from './services/agent-cache.service';
+import { AgentRegistryService } from './services/agent-registry.service';
+import { AgentFallbackService, FallbackScenario } from './services/agent-fallback.service';
+import { AgentApiClientService } from './services/agent-api-client.service';
 import { ProfileSanitizer, AgentProfile } from './utils/profile-sanitizer';
-import { AgentLogger } from './utils/agent-logger';
+import { AgentLogger } from './utils/logger';
 import {
-  AgentResult,
   createSuccessResult,
   createFallbackResult,
   createErrorResult,
-} from './models/agent-result.model';
+} from './utils/result-helper';
 
 /**
  * Agent 服务（重构版）

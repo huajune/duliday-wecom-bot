@@ -1,9 +1,11 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { AgentController } from './agent.controller';
 import { AgentService } from './agent.service';
-import { AgentConfigService } from './agent-config.service';
-import { AgentRegistryService } from './agent-registry.service';
-import { AgentCacheService } from './agent-cache.service';
+import { ProfileLoaderService } from './services/profile-loader.service';
+import { BrandConfigService } from './services/brand-config.service';
+import { AgentConfigValidator } from './utils/validator';
+import { AgentRegistryService } from './services/agent-registry.service';
+import { AgentCacheService } from './services/agent-cache.service';
 import { ConfigService } from '@nestjs/config';
 
 describe('AgentController', () => {
@@ -25,12 +27,26 @@ describe('AgentController', () => {
     refresh: jest.fn(),
   };
 
-  const mockAgentConfigService = {
-    getAllProfiles: jest.fn(),
+  const mockProfileLoader = {
     getProfile: jest.fn(),
-    validateProfile: jest.fn(),
+    getAllProfiles: jest.fn(),
+    reloadProfile: jest.fn(),
+    reloadAllProfiles: jest.fn(),
+    hasProfile: jest.fn(),
+    deleteProfile: jest.fn(),
+  };
+
+  const mockBrandConfig = {
     getBrandConfigStatus: jest.fn(),
+    refreshBrandConfig: jest.fn(),
     getBrandConfig: jest.fn(),
+  };
+
+  const mockConfigValidator = {
+    validateBrandConfig: jest.fn(),
+    validateRequiredFields: jest.fn(),
+    validateContext: jest.fn(),
+    logValidationWarnings: jest.fn(),
   };
 
   const mockCacheService = {
@@ -54,8 +70,16 @@ describe('AgentController', () => {
           useValue: mockRegistryService,
         },
         {
-          provide: AgentConfigService,
-          useValue: mockAgentConfigService,
+          provide: ProfileLoaderService,
+          useValue: mockProfileLoader,
+        },
+        {
+          provide: BrandConfigService,
+          useValue: mockBrandConfig,
+        },
+        {
+          provide: AgentConfigValidator,
+          useValue: mockConfigValidator,
         },
         {
           provide: AgentCacheService,
@@ -98,12 +122,12 @@ describe('AgentController', () => {
       };
 
       mockRegistryService.getHealthStatus.mockReturnValue(mockHealthStatus);
-      mockAgentConfigService.getBrandConfigStatus.mockResolvedValue(mockBrandConfigStatus);
+      mockBrandConfig.getBrandConfigStatus.mockResolvedValue(mockBrandConfigStatus);
 
       const result = await controller.healthCheck();
 
       expect(registryService.getHealthStatus).toHaveBeenCalled();
-      expect(mockAgentConfigService.getBrandConfigStatus).toHaveBeenCalled();
+      expect(mockBrandConfig.getBrandConfigStatus).toHaveBeenCalled();
       expect(result.success).toBe(true);
       expect(result.data.status).toEqual('healthy');
       // 验证不返回完整品牌配置数据
@@ -128,12 +152,12 @@ describe('AgentController', () => {
       };
 
       mockRegistryService.getHealthStatus.mockReturnValue(mockHealthStatus);
-      mockAgentConfigService.getBrandConfigStatus.mockResolvedValue(mockBrandConfigStatus);
+      mockBrandConfig.getBrandConfigStatus.mockResolvedValue(mockBrandConfigStatus);
 
       const result = await controller.healthCheck();
 
       expect(registryService.getHealthStatus).toHaveBeenCalled();
-      expect(mockAgentConfigService.getBrandConfigStatus).toHaveBeenCalled();
+      expect(mockBrandConfig.getBrandConfigStatus).toHaveBeenCalled();
       expect(result.success).toBe(true);
       expect(result.data.status).toEqual('degraded');
       // 验证不返回完整品牌配置数据
@@ -227,12 +251,12 @@ describe('AgentController', () => {
       };
       const mockAgentResult = createMockAgentResult('你好！');
 
-      mockAgentConfigService.getProfile.mockReturnValue(mockProfile);
+      mockProfileLoader.getProfile.mockReturnValue(mockProfile);
       mockAgentService.chatWithProfile.mockResolvedValue(mockAgentResult);
 
       const result = await controller.testChat(mockBody);
 
-      expect(mockAgentConfigService.getProfile).toHaveBeenCalledWith('candidate-consultation');
+      expect(mockProfileLoader.getProfile).toHaveBeenCalledWith('candidate-consultation');
       expect(service.chatWithProfile).toHaveBeenCalledWith('conv123', '你好', mockProfile, {
         model: 'gpt-4',
         allowedTools: undefined,
@@ -251,12 +275,12 @@ describe('AgentController', () => {
       const mockBody = { message: '测试消息' };
       const mockAgentResult = createMockAgentResult('收到测试消息');
 
-      mockAgentConfigService.getProfile.mockReturnValue(mockProfile);
+      mockProfileLoader.getProfile.mockReturnValue(mockProfile);
       mockAgentService.chatWithProfile.mockResolvedValue(mockAgentResult);
 
       const result = await controller.testChat(mockBody);
 
-      expect(mockAgentConfigService.getProfile).toHaveBeenCalledWith('candidate-consultation');
+      expect(mockProfileLoader.getProfile).toHaveBeenCalledWith('candidate-consultation');
       expect(service.chatWithProfile).toHaveBeenCalledWith('test-user', '测试消息', mockProfile, {
         model: undefined,
         allowedTools: undefined,
@@ -278,12 +302,12 @@ describe('AgentController', () => {
       };
       const mockAgentResult = createMockAgentResult('你好！');
 
-      mockAgentConfigService.getProfile.mockReturnValue(mockProfile);
+      mockProfileLoader.getProfile.mockReturnValue(mockProfile);
       mockAgentService.chatWithProfile.mockResolvedValue(mockAgentResult);
 
       const result = await controller.testChat(mockBody);
 
-      expect(mockAgentConfigService.getProfile).toHaveBeenCalledWith('candidate-consultation');
+      expect(mockProfileLoader.getProfile).toHaveBeenCalledWith('candidate-consultation');
       expect(service.chatWithProfile).toHaveBeenCalledWith('conv456', '你好', mockProfile, {
         model: undefined,
         allowedTools: undefined,
@@ -302,7 +326,7 @@ describe('AgentController', () => {
       const mockBody = { message: '测试' };
       const error = new Error('Chat failed');
 
-      mockAgentConfigService.getProfile.mockReturnValue(mockProfile);
+      mockProfileLoader.getProfile.mockReturnValue(mockProfile);
       mockAgentService.chatWithProfile.mockRejectedValue(error);
 
       await expect(controller.testChat(mockBody)).rejects.toThrow('Chat failed');
@@ -314,7 +338,7 @@ describe('AgentController', () => {
         scenario: 'non-existent-scenario',
       };
 
-      mockAgentConfigService.getProfile.mockReturnValue(null);
+      mockProfileLoader.getProfile.mockReturnValue(null);
 
       await expect(controller.testChat(mockBody)).rejects.toThrow(
         '未找到场景 non-existent-scenario 的配置，请检查配置文件',
@@ -328,12 +352,12 @@ describe('AgentController', () => {
       };
       const mockAgentResult = createMockAgentResult('你好！');
 
-      mockAgentConfigService.getProfile.mockReturnValue(mockProfile);
+      mockProfileLoader.getProfile.mockReturnValue(mockProfile);
       mockAgentService.chatWithProfile.mockResolvedValue(mockAgentResult);
 
       const result = await controller.testChat(mockBody);
 
-      expect(mockAgentConfigService.getProfile).toHaveBeenCalledWith('wechat-group-assistant');
+      expect(mockProfileLoader.getProfile).toHaveBeenCalledWith('wechat-group-assistant');
       expect(service.chatWithProfile).toHaveBeenCalledWith('test-user', '你好', mockProfile, {
         model: undefined,
         allowedTools: undefined,
@@ -355,12 +379,12 @@ describe('AgentController', () => {
       };
       const mockAgentResult = createMockAgentResult('正在查询职位...');
 
-      mockAgentConfigService.getProfile.mockReturnValue(mockProfile);
+      mockProfileLoader.getProfile.mockReturnValue(mockProfile);
       mockAgentService.chatWithProfile.mockResolvedValue(mockAgentResult);
 
       const result = await controller.testChat(mockBody);
 
-      expect(mockAgentConfigService.getProfile).toHaveBeenCalledWith('candidate-consultation');
+      expect(mockProfileLoader.getProfile).toHaveBeenCalledWith('candidate-consultation');
       expect(service.chatWithProfile).toHaveBeenCalledWith(
         'test-user',
         '帮我查询职位',
@@ -389,12 +413,12 @@ describe('AgentController', () => {
       };
       const mockAgentResult = createMockAgentResult('正在查询...');
 
-      mockAgentConfigService.getProfile.mockReturnValue(mockProfile);
+      mockProfileLoader.getProfile.mockReturnValue(mockProfile);
       mockAgentService.chatWithProfile.mockResolvedValue(mockAgentResult);
 
       const result = await controller.testChat(mockBody);
 
-      expect(mockAgentConfigService.getProfile).toHaveBeenCalledWith('wechat-group-assistant');
+      expect(mockProfileLoader.getProfile).toHaveBeenCalledWith('wechat-group-assistant');
       expect(service.chatWithProfile).toHaveBeenCalledWith(
         'custom-conv-123',
         '帮我查询职位',

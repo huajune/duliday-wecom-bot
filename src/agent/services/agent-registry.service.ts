@@ -1,6 +1,6 @@
 import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { parseToolsFromEnv } from './utils';
+import { parseToolsFromEnv } from '../utils';
 import { AgentApiClientService } from './agent-api-client.service';
 
 /**

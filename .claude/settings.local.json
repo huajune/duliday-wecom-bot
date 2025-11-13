@@ -91,7 +91,8 @@
       "Bash(NODE_ENV=production node:*)",
       "Bash(pnpm run start:prod:*)",
       "Bash(timeout 30 pnpm run start:dev:*)",
-      "Bash(tee:*)"
+      "Bash(tee:*)",
+      "Bash(pnpm test:*)"
     ],
     "deny": [
       "Bash(git restore:*)",

@@ -2,12 +2,12 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { readFile } from 'fs/promises';
 import { join } from 'path';
-import { AgentProfile, ScenarioType } from '../interfaces/agent-profile.interface';
-import { AgentRegistryService } from '../agent-registry.service';
+import { AgentProfile, ScenarioType } from '../utils/types';
+import { AgentRegistryService } from './agent-registry.service';
 
 /**
  * 配置文件结构
- * 对应 context/{scenarioName}/profile.json 的结构
+ * 对应 profiles/{scenarioName}/profile.json 的结构
  */
 interface ProfileConfig {
   name: string;
@@ -55,9 +55,9 @@ export class ProfileLoaderService implements OnModuleInit {
     private readonly configService: ConfigService,
     private readonly registryService: AgentRegistryService,
   ) {
-    // 配置文件基础路径 - context/ 文件夹
-    // 编译后: dist/src/agent -> ../../agent/context
-    this.contextBasePath = join(__dirname, '..', '..', '..', 'agent', 'context');
+    // 配置文件基础路径 - profiles/ 文件夹
+    // 编译后: dist/src/agent -> ../../agent/profiles
+    this.contextBasePath = join(__dirname, '..', '..', '..', 'agent', 'profiles');
     this.logger.log(`Profile 配置文件路径: ${this.contextBasePath}`);
   }
 
@@ -424,7 +424,7 @@ export class ProfileLoaderService implements OnModuleInit {
         let actualPath = filePath;
         if (filePath.endsWith('.ts')) {
           actualPath = filePath.replace(/\.ts$/, '.js');
-          actualPath = actualPath.replace('/agent/context/', '/src/agent/context/');
+          actualPath = actualPath.replace('/agent/profiles/', '/src/agent/profiles/');
         }
 
         const module = await import(actualPath);

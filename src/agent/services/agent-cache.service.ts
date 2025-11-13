@@ -1,8 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createHash } from 'crypto';
-import { RedisService } from '../core/redis';
-import { ChatResponse } from './dto/chat-request.dto';
+import { RedisService } from '@core/redis';
+import { ChatResponse } from '../utils/types';
 
 /**
  * 缓存键生成参数接口

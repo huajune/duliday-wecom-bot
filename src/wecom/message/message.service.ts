@@ -1,8 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { AgentService } from '@agent';
-import { AgentConfigService } from '@agent/agent-config.service';
-import { AgentResultHelper } from '@agent/utils/agent-result-helper';
+import {
+  AgentService,
+  ProfileLoaderService,
+  AgentConfigValidator,
+  AgentResultHelper,
+} from '@agent';
 import { MessageSenderService } from '../message-sender/message-sender.service';
 import { MessageType as SendMessageType } from '../message-sender/dto/send-message.dto';
 import {
@@ -51,7 +54,8 @@ export class MessageService {
     // 原有依赖
     private readonly messageSenderService: MessageSenderService,
     private readonly agentService: AgentService,
-    private readonly agentConfigService: AgentConfigService,
+    private readonly profileLoader: ProfileLoaderService,
+    private readonly configValidator: AgentConfigValidator,
     private readonly configService: ConfigService,
     // 新的子服务
     private readonly deduplicationService: MessageDeduplicationService,
@@ -207,7 +211,7 @@ export class MessageService {
 
       // 1. 根据场景选择合适的 Agent 配置
       const scenario = MessageParser.determineScenario();
-      const agentProfile = await this.agentConfigService.getProfile(scenario);
+      const agentProfile = this.profileLoader.getProfile(scenario);
 
       if (!agentProfile) {
         this.logger.error(`无法获取场景 ${scenario} 的 Agent 配置`);
@@ -215,9 +219,15 @@ export class MessageService {
       }
 
       // 2. 验证配置有效性
-      const validation = this.agentConfigService.validateProfile(agentProfile);
-      if (!validation.valid) {
-        this.logger.error(`Agent 配置验证失败: ${validation.errors.join(', ')}`);
+      try {
+        this.configValidator.validateRequiredFields(agentProfile);
+        const contextValidation = this.configValidator.validateContext(agentProfile.context);
+        if (!contextValidation.isValid) {
+          this.logger.error(`Agent 配置验证失败: ${contextValidation.errors.join(', ')}`);
+          return;
+        }
+      } catch (error) {
+        this.logger.error(`Agent 配置验证失败: ${error.message}`);
         return;
       }
 
@@ -559,7 +569,7 @@ export class MessageService {
 
     // 获取 Agent 配置
     const scenario = MessageParser.determineScenario();
-    const agentProfile = await this.agentConfigService.getProfile(scenario);
+    const agentProfile = this.profileLoader.getProfile(scenario);
 
     if (!agentProfile) {
       throw new Error(`无法获取场景 ${scenario} 的 Agent 配置`);

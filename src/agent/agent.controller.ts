@@ -9,9 +9,11 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import { AgentService } from './agent.service';
-import { AgentConfigService } from './agent-config.service';
-import { AgentRegistryService } from './agent-registry.service';
-import { AgentCacheService } from './agent-cache.service';
+import { AgentRegistryService } from './services/agent-registry.service';
+import { AgentCacheService } from './services/agent-cache.service';
+import { ProfileLoaderService } from './services/profile-loader.service';
+import { BrandConfigService } from './services/brand-config.service';
+import { AgentConfigValidator } from './utils/validator';
 import { ConfigService } from '@nestjs/config';
 import { RawResponse } from '@/core';
 
@@ -21,7 +23,9 @@ export class AgentController {
 
   constructor(
     private readonly agentService: AgentService,
-    private readonly agentConfigService: AgentConfigService,
+    private readonly profileLoader: ProfileLoaderService,
+    private readonly brandConfig: BrandConfigService,
+    private readonly validator: AgentConfigValidator,
     private readonly registryService: AgentRegistryService,
     private readonly cacheService: AgentCacheService,
     private readonly configService: ConfigService,
@@ -34,7 +38,7 @@ export class AgentController {
   @Get('health')
   async healthCheck() {
     const healthStatus = this.registryService.getHealthStatus();
-    const brandConfigStatus = await this.agentConfigService.getBrandConfigStatus();
+    const brandConfigStatus = await this.brandConfig.getBrandConfigStatus();
 
     const isModelHealthy = healthStatus.models.configuredAvailable;
     const isToolHealthy = healthStatus.tools.allAvailable;
@@ -118,8 +122,8 @@ export class AgentController {
   @Post('config/refresh')
   async refreshBrandConfig() {
     this.logger.log('手动刷新品牌配置');
-    await this.agentConfigService.refreshBrandConfig();
-    const brandConfigStatus = await this.agentConfigService.getBrandConfigStatus();
+    await this.brandConfig.refreshBrandConfig();
+    const brandConfigStatus = await this.brandConfig.getBrandConfigStatus();
 
     return {
       success: true,
@@ -134,7 +138,7 @@ export class AgentController {
    */
   @Get('config/status')
   async getBrandConfigStatus() {
-    return await this.agentConfigService.getBrandConfigStatus();
+    return await this.brandConfig.getBrandConfigStatus();
   }
 
   /**
@@ -216,7 +220,7 @@ export class AgentController {
 
     // 默认使用 candidate-consultation 场景配置（包含所有必需的 context）
     const scenario = body.scenario || 'candidate-consultation';
-    const profile = await this.agentConfigService.getProfile(scenario);
+    const profile = this.profileLoader.getProfile(scenario);
 
     if (!profile) {
       throw new HttpException(
@@ -348,7 +352,7 @@ export class AgentController {
    */
   @Get('profiles')
   async getProfiles() {
-    const profiles = this.agentConfigService.getAllProfiles();
+    const profiles = this.profileLoader.getAllProfiles();
     return profiles.map((p) => ({
       name: p.name,
       description: p.description,
@@ -366,7 +370,7 @@ export class AgentController {
    */
   @Get('profiles/:scenario')
   async getProfile(@Query('scenario') scenario: string) {
-    const profile = await this.agentConfigService.getProfile(scenario);
+    const profile = this.profileLoader.getProfile(scenario);
     if (!profile) {
       throw new HttpException(`未找到场景 ${scenario} 的配置`, HttpStatus.NOT_FOUND);
     }
@@ -380,12 +384,32 @@ export class AgentController {
    */
   @Get('profiles/:scenario/validate')
   async validateProfile(@Query('scenario') scenario: string) {
-    const profile = await this.agentConfigService.getProfile(scenario);
+    const profile = this.profileLoader.getProfile(scenario);
     if (!profile) {
       throw new HttpException(`未找到场景 ${scenario} 的配置`, HttpStatus.NOT_FOUND);
     }
 
-    return this.agentConfigService.validateProfile(profile);
+    // 验证必填字段
+    try {
+      this.validator.validateRequiredFields(profile);
+    } catch (error) {
+      return {
+        valid: false,
+        error: error.message,
+      };
+    }
+
+    // 验证品牌配置
+    const brandValidation = this.validator.validateBrandConfig(profile);
+
+    // 验证上下文
+    const contextValidation = this.validator.validateContext(profile.context);
+
+    return {
+      valid: brandValidation.isValid && contextValidation.isValid,
+      brandConfig: brandValidation,
+      context: contextValidation,
+    };
   }
 
   /**
@@ -412,7 +436,7 @@ export class AgentController {
     this.logger.log(`使用配置档案聊天: ${body.scenario}, 消息: ${body.message}`);
 
     // 获取配置档案
-    const profile = await this.agentConfigService.getProfile(body.scenario);
+    const profile = this.profileLoader.getProfile(body.scenario);
     if (!profile) {
       throw new HttpException(`未找到场景 ${body.scenario} 的配置`, HttpStatus.NOT_FOUND);
     }

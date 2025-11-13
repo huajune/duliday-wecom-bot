@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { AgentFallbackInfo } from './models/agent-result.model';
+import { AgentFallbackInfo } from '../utils/types';
 
 /**
  * 降级场景枚举

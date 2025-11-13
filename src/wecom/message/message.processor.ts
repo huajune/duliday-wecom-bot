@@ -1,9 +1,12 @@
 import { Process, Processor, OnQueueFailed, OnQueueCompleted } from '@nestjs/bull';
 import { Logger } from '@nestjs/common';
 import { Job } from 'bull';
-import { AgentService } from '@agent';
-import { AgentConfigService } from '@agent/agent-config.service';
-import { AgentResultHelper } from '@agent/utils/agent-result-helper';
+import {
+  AgentService,
+  ProfileLoaderService,
+  AgentConfigValidator,
+  AgentResultHelper,
+} from '@agent';
 import { MessageSenderService } from '../message-sender/message-sender.service';
 import { MessageType as SendMessageType } from '../message-sender/dto/send-message.dto';
 import { EnterpriseMessageCallbackDto } from './dto/message-callback.dto';
@@ -29,7 +32,8 @@ export class MessageProcessor {
 
   constructor(
     private readonly agentService: AgentService,
-    private readonly agentConfigService: AgentConfigService,
+    private readonly profileLoader: ProfileLoaderService,
+    private readonly configValidator: AgentConfigValidator,
     private readonly messageSenderService: MessageSenderService,
     // 注入新的子服务
     private readonly historyService: MessageHistoryService,
@@ -107,7 +111,7 @@ export class MessageProcessor {
     try {
       // 判断消息场景（复用 MessageParser）
       const scenario = MessageParser.determineScenario();
-      const agentProfile = await this.agentConfigService.getProfile(scenario);
+      const agentProfile = this.profileLoader.getProfile(scenario);
 
       if (!agentProfile) {
         this.logger.error(`无法获取场景 ${scenario} 的 Agent 配置`);
@@ -115,9 +119,15 @@ export class MessageProcessor {
       }
 
       // 验证配置有效性
-      const validation = this.agentConfigService.validateProfile(agentProfile);
-      if (!validation.valid) {
-        this.logger.error(`Agent 配置验证失败: ${validation.errors.join(', ')}`);
+      try {
+        this.configValidator.validateRequiredFields(agentProfile);
+        const contextValidation = this.configValidator.validateContext(agentProfile.context);
+        if (!contextValidation.isValid) {
+          this.logger.error(`Agent 配置验证失败: ${contextValidation.errors.join(', ')}`);
+          return;
+        }
+      } catch (error) {
+        this.logger.error(`Agent 配置验证失败: ${error.message}`);
         return;
       }
 

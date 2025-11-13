@@ -1,6 +1,6 @@
 import { Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { ChatRequest, ChatResponse } from '../dto/chat-request.dto';
+import { ChatRequest, ChatResponse } from './types';
 
 /**
  * Agent logging utility

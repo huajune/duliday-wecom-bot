@@ -1,8 +1,63 @@
-import { ChatResponse } from '../dto/chat-request.dto';
-import { AgentResult } from '../models/agent-result.model';
+import { ChatResponse, AgentResult, AgentError, AgentFallbackInfo } from './types';
 
 /**
  * Agent Result 辅助函数
+ * 提供创建和操作 AgentResult 的便捷方法
+ */
+
+// ========================================
+// 创建 AgentResult 的工厂函数
+// ========================================
+
+/**
+ * 创建成功响应
+ */
+export function createSuccessResult(
+  data: ChatResponse,
+  correlationId?: string,
+  fromCache = false,
+): AgentResult {
+  return {
+    data,
+    correlationId,
+    fromCache,
+    status: 'success',
+  };
+}
+
+/**
+ * 创建降级响应
+ */
+export function createFallbackResult(
+  fallback: ChatResponse,
+  fallbackInfo: AgentFallbackInfo,
+  correlationId?: string,
+): AgentResult {
+  return {
+    fallback,
+    fallbackInfo,
+    correlationId,
+    status: 'fallback',
+  };
+}
+
+/**
+ * 创建错误响应
+ */
+export function createErrorResult(error: AgentError, correlationId?: string): AgentResult {
+  return {
+    error,
+    correlationId,
+    status: 'error',
+  };
+}
+
+// ========================================
+// AgentResult 辅助类
+// ========================================
+
+/**
+ * Agent Result 辅助类
  * 提供从 AgentResult 中提取数据的便捷方法
  */
 export class AgentResultHelper {
