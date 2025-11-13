@@ -1,6 +1,7 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { readFile } from 'fs/promises';
+import { existsSync } from 'fs';
 import { join } from 'path';
 import { AgentProfile, ScenarioType } from '../utils/types';
 import { AgentRegistryService } from './agent-registry.service';
@@ -70,16 +71,13 @@ export class ProfileLoaderService implements OnModuleInit {
 
   /**
    * 获取 Profile（不包含品牌配置）
+   * 返回 null 表示配置不存在，调用方应处理错误情况
    */
   getProfile(scenario: ScenarioType | string): AgentProfile | null {
-    let profile = this.profiles.get(scenario);
+    const profile = this.profiles.get(scenario);
     if (!profile) {
-      this.logger.warn(`未找到场景 ${scenario} 的配置，将使用默认配置`);
-      // 只有一个场景，直接返回候选人咨询配置
-      profile = this.profiles.get(ScenarioType.CANDIDATE_CONSULTATION);
-      if (!profile) {
-        return null;
-      }
+      this.logger.warn(`未找到场景 ${scenario} 的配置`);
+      return null;
     }
     return profile;
   }
@@ -413,6 +411,10 @@ export class ProfileLoaderService implements OnModuleInit {
 
   /**
    * 读取配置文件（支持 JSON 和 TypeScript 模块）
+   *
+   * 对于 .ts 文件：
+   * 1. 首先尝试加载源文件（开发环境）
+   * 2. 如果失败，尝试加载编译后的 .js 文件（生产环境）
    */
   private async readConfigFile<T = any>(filePath: string): Promise<T | null> {
     try {
@@ -421,14 +423,39 @@ export class ProfileLoaderService implements OnModuleInit {
       }
 
       if (filePath.endsWith('.ts') || filePath.endsWith('.js')) {
-        let actualPath = filePath;
+        // 尝试多个可能的路径
+        const pathsToTry: string[] = [];
+
         if (filePath.endsWith('.ts')) {
-          actualPath = filePath.replace(/\.ts$/, '.js');
-          actualPath = actualPath.replace('/agent/profiles/', '/src/agent/profiles/');
+          // 1. 源文件路径（开发环境）
+          const srcPath = filePath.replace(
+            /^.*\/agent\/profiles\//,
+            join(process.cwd(), 'src/agent/profiles/'),
+          );
+          pathsToTry.push(srcPath);
+
+          // 2. 编译后的 .js 路径（生产环境）
+          const distPath = filePath.replace(/\.ts$/, '.js');
+          pathsToTry.push(distPath);
+        } else {
+          pathsToTry.push(filePath);
         }
 
-        const module = await import(actualPath);
-        return module.default || module.toolContext || module;
+        // 尝试每个路径
+        for (const path of pathsToTry) {
+          if (existsSync(path)) {
+            try {
+              const module = await import(path);
+              return module.default || module.toolContext || module;
+            } catch (importError) {
+              this.logger.warn(`导入文件失败: ${path}`, importError);
+              continue;
+            }
+          }
+        }
+
+        this.logger.error(`所有路径尝试失败: ${pathsToTry.join(', ')}`);
+        return null;
       }
 
       this.logger.warn(`不支持的配置文件格式: ${filePath}`);

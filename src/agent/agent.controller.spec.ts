@@ -438,4 +438,65 @@ describe('AgentController', () => {
       });
     });
   });
+
+  describe('getProfile', () => {
+    it('should return profile when exists', async () => {
+      const mockProfile = {
+        name: 'test-profile',
+        description: 'Test',
+        model: 'test-model',
+      };
+
+      mockProfileLoader.getProfile.mockReturnValue(mockProfile);
+
+      const result = await controller.getProfile('test-profile');
+
+      expect(mockProfileLoader.getProfile).toHaveBeenCalledWith('test-profile');
+      expect(result).toEqual(mockProfile);
+    });
+
+    it('should throw 404 when profile not found', async () => {
+      mockProfileLoader.getProfile.mockReturnValue(null);
+
+      await expect(controller.getProfile('non-existent')).rejects.toThrow(
+        '未找到场景 non-existent 的配置',
+      );
+    });
+  });
+
+  describe('validateProfile', () => {
+    it('should validate profile successfully', async () => {
+      const mockProfile = {
+        name: 'test-profile',
+        description: 'Test',
+        model: 'test-model',
+        context: [],
+      };
+
+      mockProfileLoader.getProfile.mockReturnValue(mockProfile);
+      mockConfigValidator.validateRequiredFields.mockReturnValue(undefined);
+      mockConfigValidator.validateBrandConfig.mockReturnValue({
+        isValid: true,
+        errors: [],
+      });
+      mockConfigValidator.validateContext.mockReturnValue({
+        isValid: true,
+        errors: [],
+      });
+
+      const result = await controller.validateProfile('test-profile');
+
+      expect(mockProfileLoader.getProfile).toHaveBeenCalledWith('test-profile');
+      expect(result).toBeDefined();
+      expect(result.valid).toBe(true);
+    });
+
+    it('should throw 404 when profile not found for validation', async () => {
+      mockProfileLoader.getProfile.mockReturnValue(null);
+
+      await expect(controller.validateProfile('non-existent')).rejects.toThrow(
+        '未找到场景 non-existent 的配置',
+      );
+    });
+  });
 });

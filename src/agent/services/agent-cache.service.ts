@@ -86,8 +86,8 @@ export class AgentCacheService {
       // 消息摘要（数量 + 最近消息的哈希）
       messageCount: params.messages.length,
       messagesHash: this.hashMessages(params.messages),
-      // 工具列表（排序后）
-      tools: params.tools?.sort().join(',') || 'none',
+      // 工具列表（排序后）- 使用数组副本避免修改原数组
+      tools: params.tools ? [...params.tools].sort().join(',') : 'none',
       // 上下文摘要
       contextHash: params.context ? this.hashObject(params.context) : 'none',
       toolContextHash: params.toolContext ? this.hashObject(params.toolContext) : 'none',

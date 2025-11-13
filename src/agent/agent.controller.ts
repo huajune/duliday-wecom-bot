@@ -4,7 +4,7 @@ import {
   Post,
   Body,
   Logger,
-  Query,
+  Param,
   HttpException,
   HttpStatus,
 } from '@nestjs/common';
@@ -369,7 +369,7 @@ export class AgentController {
    * GET /agent/profiles/:scenario
    */
   @Get('profiles/:scenario')
-  async getProfile(@Query('scenario') scenario: string) {
+  async getProfile(@Param('scenario') scenario: string) {
     const profile = this.profileLoader.getProfile(scenario);
     if (!profile) {
       throw new HttpException(`未找到场景 ${scenario} 的配置`, HttpStatus.NOT_FOUND);
@@ -383,7 +383,7 @@ export class AgentController {
    * GET /agent/profiles/:scenario/validate
    */
   @Get('profiles/:scenario/validate')
-  async validateProfile(@Query('scenario') scenario: string) {
+  async validateProfile(@Param('scenario') scenario: string) {
     const profile = this.profileLoader.getProfile(scenario);
     if (!profile) {
       throw new HttpException(`未找到场景 ${scenario} 的配置`, HttpStatus.NOT_FOUND);
