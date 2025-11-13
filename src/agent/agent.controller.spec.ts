@@ -440,11 +440,20 @@ describe('AgentController', () => {
   });
 
   describe('getProfile', () => {
-    it('should return profile when exists', async () => {
+    it('should return sanitized profile when exists', async () => {
       const mockProfile = {
         name: 'test-profile',
         description: 'Test',
         model: 'test-model',
+        allowedTools: ['tool1', 'tool2'],
+        promptType: 'safe',
+        contextStrategy: 'skip',
+        prune: true,
+        pruneOptions: { maxTokens: 1000 },
+        // 敏感字段（不应该出现在响应中）
+        context: { apiKey: 'secret-key' },
+        toolContext: { internalConfig: 'confidential' },
+        systemPrompt: 'System instructions',
       };
 
       mockProfileLoader.getProfile.mockReturnValue(mockProfile);
@@ -452,7 +461,21 @@ describe('AgentController', () => {
       const result = await controller.getProfile('test-profile');
 
       expect(mockProfileLoader.getProfile).toHaveBeenCalledWith('test-profile');
-      expect(result).toEqual(mockProfile);
+      // 验证返回脱敏后的版本
+      expect(result).toEqual({
+        name: 'test-profile',
+        description: 'Test',
+        model: 'test-model',
+        allowedTools: ['tool1', 'tool2'],
+        promptType: 'safe',
+        contextStrategy: 'skip',
+        prune: true,
+        pruneOptions: { maxTokens: 1000 },
+      });
+      // 验证敏感字段被移除
+      expect(result).not.toHaveProperty('context');
+      expect(result).not.toHaveProperty('toolContext');
+      expect(result).not.toHaveProperty('systemPrompt');
     });
 
     it('should throw 404 when profile not found', async () => {

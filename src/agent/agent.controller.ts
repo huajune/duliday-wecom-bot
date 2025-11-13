@@ -365,8 +365,13 @@ export class AgentController {
   }
 
   /**
-   * 获取特定配置档案
+   * 获取特定配置档案（公开接口，已脱敏）
    * GET /agent/profiles/:scenario
+   *
+   * ⚠️ 安全说明：
+   * - 此接口返回脱敏后的配置摘要，不包含敏感凭据
+   * - context、toolContext、systemPrompt 等字段已移除
+   * - 仅返回公开可见的元数据
    */
   @Get('profiles/:scenario')
   async getProfile(@Param('scenario') scenario: string) {
@@ -375,7 +380,21 @@ export class AgentController {
       throw new HttpException(`未找到场景 ${scenario} 的配置`, HttpStatus.NOT_FOUND);
     }
 
-    return profile;
+    // 返回脱敏后的公开版本，移除敏感字段
+    return {
+      name: profile.name,
+      description: profile.description,
+      model: profile.model,
+      allowedTools: profile.allowedTools || [],
+      promptType: profile.promptType,
+      contextStrategy: profile.contextStrategy,
+      prune: profile.prune,
+      pruneOptions: profile.pruneOptions,
+      // 敏感字段已移除：
+      // - context（可能包含 API tokens）
+      // - toolContext（可能包含业务敏感配置）
+      // - systemPrompt（可能包含业务逻辑）
+    };
   }
 
   /**

@@ -93,6 +93,8 @@ export class AgentCacheService {
       toolContextHash: params.toolContext ? this.hashObject(params.toolContext) : 'none',
       // 其他影响响应的参数
       systemPromptHash: params.systemPrompt ? this.hashString(params.systemPrompt) : 'none',
+      // 提示类型（影响响应格式）
+      promptType: params.promptType || 'default',
     };
 
     // 生成最终的哈希键

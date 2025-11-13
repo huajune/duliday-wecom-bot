@@ -1,6 +1,6 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { readFile } from 'fs/promises';
+import { readFile, readdir } from 'fs/promises';
 import { existsSync } from 'fs';
 import { join } from 'path';
 import { AgentProfile, ScenarioType } from '../utils/types';
@@ -270,16 +270,41 @@ export class ProfileLoaderService implements OnModuleInit {
 
   /**
    * 从文件系统加载所有配置档案
+   * 动态扫描 profiles/ 目录，自动发现所有包含 profile.json 的场景
    */
   private async loadAllProfilesFromFiles(): Promise<AgentProfile[]> {
-    const profileNames = ['candidate-consultation'];
     const profiles: AgentProfile[] = [];
 
-    for (const name of profileNames) {
-      const profile = await this.loadProfileFromFile(name);
-      if (profile) {
-        profiles.push(profile);
+    try {
+      // 检查基础路径是否存在
+      if (!existsSync(this.contextBasePath)) {
+        this.logger.warn(`配置目录不存在: ${this.contextBasePath}`);
+        return profiles;
       }
+
+      // 读取所有子目录
+      const entries = await readdir(this.contextBasePath, { withFileTypes: true });
+
+      // 过滤出目录并检查是否包含 profile.json
+      const profileNames = entries
+        .filter((entry) => entry.isDirectory())
+        .map((entry) => entry.name)
+        .filter((name) => {
+          const profilePath = join(this.contextBasePath, name, 'profile.json');
+          return existsSync(profilePath);
+        });
+
+      this.logger.log(`发现 ${profileNames.length} 个配置场景: ${profileNames.join(', ')}`);
+
+      // 加载每个配置
+      for (const name of profileNames) {
+        const profile = await this.loadProfileFromFile(name);
+        if (profile) {
+          profiles.push(profile);
+        }
+      }
+    } catch (error) {
+      this.logger.error('扫描配置目录失败', error);
     }
 
     return profiles;
