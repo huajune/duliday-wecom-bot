@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createHash } from 'crypto';
 import { RedisService } from '@core/redis';
-import { ChatResponse } from '../utils/types';
+import { ChatResponse } from '../utils/agent-types';
 
 /**
  * 缓存键生成参数接口
@@ -15,6 +15,7 @@ export interface CacheKeyParams {
   toolContext?: any;
   systemPrompt?: string;
   promptType?: string;
+  conversationId?: string; // 【新增】可选的会话ID，用于隔离不同会话的缓存
 }
 
 /**
@@ -74,8 +75,7 @@ export class AgentCacheService {
    * 生成缓存键
    * 基于消息历史、模型、工具和上下文生成唯一键
    *
-   * 注意：不包含 conversationId，允许不同会话共享缓存
-   * （相同的对话历史和参数应该得到相同的响应）
+   * 【修复】包含 conversationId，避免不同会话因最后几条消息相同而串话
    *
    * @param params 缓存键参数
    * @returns SHA-256 哈希值
@@ -83,6 +83,8 @@ export class AgentCacheService {
   generateCacheKey(params: CacheKeyParams): string {
     const keyParts = {
       model: params.model,
+      // 【修复】会话ID（如果提供）- 隔离不同会话的缓存
+      conversationId: params.conversationId || 'shared',
       // 消息摘要（数量 + 最近消息的哈希）
       messageCount: params.messages.length,
       messagesHash: this.hashMessages(params.messages),
@@ -159,7 +161,7 @@ export class AgentCacheService {
 
   /**
    * 判断是否应该缓存此次响应
-   * 只缓存没有实际使用工具且无上下文的简单查询
+   * 只缓存没有实际使用工具且无动态上下文的简单查询
    *
    * @param params 缓存判断参数
    * @returns 是否应该缓存
@@ -171,20 +173,42 @@ export class AgentCacheService {
   }): boolean {
     // 检查是否实际使用了工具（而不是检查 allowedTools）
     const hasUsedTools = params.usedTools && params.usedTools.length > 0;
-    const hasContext = params.context && Object.keys(params.context).length > 0;
+
+    // 【修复】品牌配置是全局静态配置，不应阻止缓存
+    // 只检查是否有除品牌字段外的动态上下文
+    const hasDynamicContext = this.hasDynamicContext(params.context);
     const hasToolContext = params.toolContext && Object.keys(params.toolContext).length > 0;
 
-    const shouldCache = !hasUsedTools && !hasContext && !hasToolContext;
+    const shouldCache = !hasUsedTools && !hasDynamicContext && !hasToolContext;
 
     if (!shouldCache) {
       this.logger.debug(
-        `不缓存此次响应: usedTools=${hasUsedTools ? params.usedTools?.join(',') : 'none'}, context=${hasContext}, toolContext=${hasToolContext}`,
+        `不缓存此次响应: usedTools=${hasUsedTools ? params.usedTools?.join(',') : 'none'}, dynamicContext=${hasDynamicContext}, toolContext=${hasToolContext}`,
       );
     } else {
-      this.logger.debug('缓存此次响应: 未使用工具且无上下文');
+      this.logger.debug('缓存此次响应: 未使用工具且无动态上下文');
     }
 
     return shouldCache;
+  }
+
+  /**
+   * 检查是否包含动态上下文（排除品牌配置等静态字段）
+   * @param context 上下文对象
+   * @returns 是否包含动态字段
+   */
+  private hasDynamicContext(context?: any): boolean {
+    if (!context || typeof context !== 'object') {
+      return false;
+    }
+
+    // 品牌配置字段（静态配置，允许缓存）
+    const brandConfigFields = ['synced', 'brandData', 'replyPrompts', 'lastRefreshTime'];
+
+    // 过滤掉品牌配置字段，检查是否还有其他字段
+    const dynamicFields = Object.keys(context).filter((key) => !brandConfigFields.includes(key));
+
+    return dynamicFields.length > 0;
   }
 
   /**
@@ -298,10 +322,11 @@ export class AgentCacheService {
 
   /**
    * 对消息列表生成哈希
-   * 只取最后3条消息进行哈希，避免键过长
+   * 【修复】增加哈希的消息数量（从3条增加到10条），降低串话风险
+   * 同时保持键长度合理（10条消息足以区分不同对话）
    */
   private hashMessages(messages: any[]): string {
-    const recentMessages = messages.slice(-3);
+    const recentMessages = messages.slice(-10); // 从3条增加到10条
     const content = recentMessages
       .map((msg) => {
         const text =

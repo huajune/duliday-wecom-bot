@@ -1,4 +1,5 @@
-import { ChatResponse, AgentResult, AgentError, AgentFallbackInfo } from './types';
+import { ChatResponse, AgentResult, AgentError, AgentFallbackInfo } from './agent-types';
+import { AgentResultStatus } from './agent-enums';
 
 /**
  * Agent Result 辅助函数
@@ -21,7 +22,7 @@ export function createSuccessResult(
     data,
     correlationId,
     fromCache,
-    status: 'success',
+    status: AgentResultStatus.SUCCESS,
   };
 }
 
@@ -37,7 +38,7 @@ export function createFallbackResult(
     fallback,
     fallbackInfo,
     correlationId,
-    status: 'fallback',
+    status: AgentResultStatus.FALLBACK,
   };
 }
 
@@ -48,7 +49,7 @@ export function createErrorResult(error: AgentError, correlationId?: string): Ag
   return {
     error,
     correlationId,
-    status: 'error',
+    status: AgentResultStatus.ERROR,
   };
 }
 
@@ -111,21 +112,21 @@ export class AgentResultHelper {
    * 检查是否为降级响应
    */
   static isFallback(result: AgentResult): boolean {
-    return result.status === 'fallback';
+    return result.status === AgentResultStatus.FALLBACK;
   }
 
   /**
    * 检查是否为错误响应
    */
   static isError(result: AgentResult): boolean {
-    return result.status === 'error';
+    return result.status === AgentResultStatus.ERROR;
   }
 
   /**
    * 检查是否为成功响应
    */
   static isSuccess(result: AgentResult): boolean {
-    return result.status === 'success';
+    return result.status === AgentResultStatus.SUCCESS;
   }
 
   /**
@@ -133,7 +134,9 @@ export class AgentResultHelper {
    * 当状态为 success 或 fallback 时，都可以正常使用响应数据
    */
   static isSuccessOrFallback(result: AgentResult): boolean {
-    return result.status === 'success' || result.status === 'fallback';
+    return (
+      result.status === AgentResultStatus.SUCCESS || result.status === AgentResultStatus.FALLBACK
+    );
   }
 
   /**

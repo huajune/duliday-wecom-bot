@@ -87,21 +87,23 @@ To commit, run:
 **Script**: `session-start.sh`
 
 **Features**:
-- Displays project development standards reminder
-- Shows commit guidelines (10-15 chars per line)
-- Shows code standards (no `any`, dependency injection, etc.)
-- Provides quick links to full guidelines
+- Shows scenario-based guideline references (on-demand approach)
+- Groups guidelines by work context (coding, committing, documenting, reviewing)
+- Provides direct commands to view relevant guidelines
+- Covers all 6 agent guideline files
 
 **Output Example**:
 ```
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📋 项目开发规范提醒
+📋 开发规范 - 按需查阅
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-📌 Commit 规范 (.claude/agents/commit-guidelines.md)：
-  • 标题：10-15 中文字符
-  • 正文：每行 10-15 字符
-  • 禁止：冗长技术解释
+💻 编写代码时：
+  cat .claude/agents/code-standards.md
+  cat .claude/agents/architecture-principles.md
+
+📝 提交代码时：
+  cat .claude/agents/commit-guidelines.md
 ...
 ```
 

@@ -49,6 +49,7 @@ export class AlertController {
         conversationId,
         userMessage,
         '/api/v1/chat',
+        { errorType: 'agent', scenario: 'test-alert' },
       );
 
       return {

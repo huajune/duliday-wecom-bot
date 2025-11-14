@@ -1,25 +1,32 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AxiosResponse } from 'axios';
-import { ApiResponse, ChatRequest, ChatResponse, SimpleMessage, AgentResult } from './utils/types';
+import {
+  ApiResponse,
+  ChatRequest,
+  ChatResponse,
+  SimpleMessage,
+  AgentResult,
+} from './utils/agent-types';
 import {
   AgentApiException,
   AgentConfigException,
   AgentContextMissingException,
   AgentRateLimitException,
-} from './utils/exceptions';
+  AgentAuthException,
+} from './utils/agent-exceptions';
 import { getModelDisplayName } from './utils';
 import { AgentCacheService } from './services/agent-cache.service';
 import { AgentRegistryService } from './services/agent-registry.service';
 import { AgentFallbackService, FallbackScenario } from './services/agent-fallback.service';
 import { AgentApiClientService } from './services/agent-api-client.service';
-import { ProfileSanitizer, AgentProfile } from './utils/profile-sanitizer';
-import { AgentLogger } from './utils/logger';
+import { ProfileSanitizer, AgentProfile } from './utils/agent-profile-sanitizer';
+import { AgentLogger } from './utils/agent-logger';
 import {
   createSuccessResult,
   createFallbackResult,
   createErrorResult,
-} from './utils/result-helper';
+} from './utils/agent-result-helper';
 
 /**
  * Agent 服务（重构版）
@@ -200,6 +207,7 @@ export class AgentService {
         toolContext: params.toolContext,
         systemPrompt: params.systemPrompt,
         promptType: params.promptType,
+        conversationId, // 【修复】添加 conversationId 避免不同会话缓存冲突
       },
       async () => {
         // 缓存未命中，调用 API
@@ -296,6 +304,18 @@ export class AgentService {
     }
     if (params.context && Object.keys(params.context).length > 0) {
       chatRequest.context = params.context;
+
+      // 调试日志：检查 context 中的 dulidayToken
+      if ('dulidayToken' in params.context) {
+        const tokenLength = params.context.dulidayToken
+          ? String(params.context.dulidayToken).length
+          : 0;
+        this.logger.debug(
+          `✅ buildChatRequest: context 中包含 dulidayToken (长度: ${tokenLength})，将传递给 Agent API`,
+        );
+      } else {
+        this.logger.warn('⚠️ buildChatRequest: context 中未找到 dulidayToken');
+      }
     }
     if (params.toolContext && Object.keys(params.toolContext).length > 0) {
       chatRequest.toolContext = params.toolContext;
@@ -365,7 +385,26 @@ export class AgentService {
       );
     }
 
-    // 2. 上下文缺失 → 返回引导消息（降级）
+    // 2. 认证失败 → 返回错误结果（需要立即修复 API Key）
+    if (error instanceof AgentAuthException) {
+      this.logger.error(
+        `Agent API 认证失败 (${error.statusCode}): ${error.message}，会话: ${conversationId}`,
+      );
+      return createErrorResult(
+        {
+          code: 'AUTH_ERROR',
+          message: error.message,
+          retryable: false,
+          details: {
+            statusCode: error.statusCode,
+            hint: '请检查 AGENT_API_KEY 环境变量是否正确配置',
+          },
+        },
+        conversationId,
+      );
+    }
+
+    // 3. 上下文缺失 → 返回引导消息（降级）
     if (error instanceof AgentContextMissingException) {
       this.logger.warn(`上下文缺失，返回引导消息，会话: ${conversationId}`);
       const fallbackInfo = this.fallbackService.getFallbackInfo(FallbackScenario.CONTEXT_MISSING);
@@ -373,7 +412,7 @@ export class AgentService {
       return createFallbackResult(fallbackResponse, fallbackInfo, conversationId);
     }
 
-    // 3. 频率限制 → 返回等待消息（降级）
+    // 4. 频率限制 → 返回等待消息（降级）
     if (error instanceof AgentRateLimitException) {
       this.logger.warn(`请求频率受限，返回等待消息，会话: ${conversationId}`);
       const fallbackInfo = this.fallbackService.getFallbackInfo(
@@ -384,7 +423,7 @@ export class AgentService {
       return createFallbackResult(fallbackResponse, fallbackInfo, conversationId);
     }
 
-    // 4. 网络错误 → 返回通用降级消息
+    // 5. 网络错误 → 返回通用降级消息
     if (error.code === 'ECONNREFUSED' || error.code === 'ETIMEDOUT') {
       this.logger.error(`网络连接失败，返回降级消息，会话: ${conversationId}`, {
         code: error.code,
@@ -394,7 +433,7 @@ export class AgentService {
       return createFallbackResult(fallbackResponse, fallbackInfo, conversationId);
     }
 
-    // 5. Agent API 异常 → 根据错误类型决定
+    // 6. Agent API 异常 → 根据错误类型决定
     if (error instanceof AgentApiException) {
       const fallbackInfo = this.fallbackService.getFallbackInfo(FallbackScenario.AGENT_API_ERROR);
       this.logger.warn(
@@ -404,7 +443,7 @@ export class AgentService {
       return createFallbackResult(fallbackResponse, fallbackInfo, conversationId);
     }
 
-    // 6. 其他未知错误 → 返回通用降级消息
+    // 7. 其他未知错误 → 返回通用降级消息
     this.logger.error(`未知错误，返回降级消息，会话: ${conversationId}`, error);
     const fallbackInfo = this.fallbackService.getFallbackInfo(FallbackScenario.NETWORK_ERROR);
     const fallbackResponse = this.createFallbackResponse(fallbackInfo.message);

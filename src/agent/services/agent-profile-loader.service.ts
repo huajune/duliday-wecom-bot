@@ -3,7 +3,8 @@ import { ConfigService } from '@nestjs/config';
 import { readFile, readdir } from 'fs/promises';
 import { existsSync } from 'fs';
 import { join } from 'path';
-import { AgentProfile, ScenarioType } from '../utils/types';
+import { AgentProfile } from '../utils/agent-types';
+import { ScenarioType } from '../utils/agent-enums';
 import { AgentRegistryService } from './agent-registry.service';
 
 /**
@@ -368,6 +369,10 @@ export class ProfileLoaderService implements OnModuleInit {
       const contextData = await this.readJsonFile(contextPath);
       if (contextData) {
         profile.context = this.resolveEnvVarsInObject(contextData);
+        // 调试日志：确认 context 中的关键字段
+        if (profile.context && 'dulidayToken' in profile.context) {
+          this.logger.debug(`✅ Profile [${config.name}] context.dulidayToken 已配置`);
+        }
       }
     }
 
@@ -407,6 +412,12 @@ export class ProfileLoaderService implements OnModuleInit {
         this.logger.warn(`环境变量未设置: ${varName}, 使用空字符串`);
         return '';
       }
+
+      // 特别记录 DULIDAY_API_TOKEN 的加载情况
+      if (varName === 'DULIDAY_API_TOKEN') {
+        this.logger.debug(`✅ DULIDAY_API_TOKEN 已加载 (长度: ${envValue.length})`);
+      }
+
       return envValue;
     });
   }

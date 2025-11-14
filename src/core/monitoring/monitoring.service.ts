@@ -201,7 +201,7 @@ export class MonitoringService {
         hourly: last24Hours,
       },
       recentMessages,
-      recentErrors: this.errorLogs.slice(-20),
+      recentErrors: this.errorLogs.slice(-20).reverse(),
       realtime: {
         processingCount,
         lastMessageTime: recentMessages.length > 0 ? recentMessages[0].receivedAt : undefined,

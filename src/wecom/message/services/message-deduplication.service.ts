@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
 /**
@@ -6,13 +6,17 @@ import { ConfigService } from '@nestjs/config';
  * 负责防止重复处理相同的消息（企微回调重试场景）
  */
 @Injectable()
-export class MessageDeduplicationService {
+export class MessageDeduplicationService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(MessageDeduplicationService.name);
 
   // 消息去重缓存 (messageId -> timestamp)
   private readonly processedMessages = new Map<string, number>();
   private readonly messageDedupeTTL: number;
   private readonly maxProcessedMessages: number;
+
+  // 定时清理定时器
+  private cleanupTimer: NodeJS.Timeout | null = null;
+  private readonly CLEANUP_INTERVAL = 60 * 1000; // 1分钟
 
   constructor(private readonly configService: ConfigService) {
     // 从环境变量读取配置
@@ -22,6 +26,20 @@ export class MessageDeduplicationService {
     this.logger.log(
       `消息去重服务已初始化: TTL=${this.messageDedupeTTL / 1000}秒, 最大缓存=${this.maxProcessedMessages}`,
     );
+  }
+
+  /**
+   * 模块初始化：启动定时清理
+   */
+  onModuleInit() {
+    this.startCleanupTimer();
+  }
+
+  /**
+   * 模块销毁：停止定时清理
+   */
+  onModuleDestroy() {
+    this.stopCleanupTimer();
   }
 
   /**
@@ -103,5 +121,39 @@ export class MessageDeduplicationService {
       utilizationPercent: (this.processedMessages.size / this.maxProcessedMessages) * 100,
       ttlMinutes: this.messageDedupeTTL / 1000 / 60,
     };
+  }
+
+  /**
+   * 启动定时清理
+   * 定期清理过期的消息 ID，防止内存泄漏
+   */
+  private startCleanupTimer(): void {
+    if (this.cleanupTimer) {
+      return; // 已启动，避免重复
+    }
+
+    this.cleanupTimer = setInterval(() => {
+      try {
+        const cleaned = this.cleanupExpiredMessages();
+        if (cleaned > 0) {
+          this.logger.debug(`[定时清理] 清理了 ${cleaned} 条过期记录`);
+        }
+      } catch (error) {
+        this.logger.error('[定时清理] 失败:', error);
+      }
+    }, this.CLEANUP_INTERVAL);
+
+    this.logger.log(`✅ 去重缓存定时清理已启动（间隔: ${this.CLEANUP_INTERVAL / 1000}秒）`);
+  }
+
+  /**
+   * 停止定时清理
+   */
+  private stopCleanupTimer(): void {
+    if (this.cleanupTimer) {
+      clearInterval(this.cleanupTimer);
+      this.cleanupTimer = null;
+      this.logger.log('去重缓存定时清理已停止');
+    }
   }
 }

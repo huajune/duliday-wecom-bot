@@ -1,12 +1,13 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { AgentController } from './agent.controller';
 import { AgentService } from './agent.service';
-import { ProfileLoaderService } from './services/profile-loader.service';
+import { ProfileLoaderService } from './services/agent-profile-loader.service';
 import { BrandConfigService } from './services/brand-config.service';
-import { AgentConfigValidator } from './utils/validator';
+import { AgentConfigValidator } from './utils/agent-validator';
 import { AgentRegistryService } from './services/agent-registry.service';
 import { AgentCacheService } from './services/agent-cache.service';
 import { ConfigService } from '@nestjs/config';
+import { FeiShuAlertService } from '@/core/alert/feishu-alert.service';
 
 describe('AgentController', () => {
   let controller: AgentController;
@@ -57,6 +58,10 @@ describe('AgentController', () => {
     get: jest.fn(),
   };
 
+  const mockFeiShuAlertService = {
+    sendAgentApiFailureAlert: jest.fn().mockResolvedValue(undefined),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [AgentController],
@@ -88,6 +93,10 @@ describe('AgentController', () => {
         {
           provide: ConfigService,
           useValue: mockConfigService,
+        },
+        {
+          provide: FeiShuAlertService,
+          useValue: mockFeiShuAlertService,
         },
       ],
     }).compile();

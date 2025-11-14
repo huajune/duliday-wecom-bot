@@ -2,6 +2,14 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import axios, { AxiosInstance } from 'axios';
 import * as crypto from 'crypto';
+import { AlertErrorType } from './types';
+
+interface AgentAlertOptions {
+  errorType?: AlertErrorType;
+  fallbackMessage?: string;
+  scenario?: string;
+  channel?: string;
+}
 
 /**
  * 飞书告警服务
@@ -56,6 +64,7 @@ export class FeiShuAlertService {
     conversationId: string,
     userMessage: string,
     apiEndpoint: string = '/api/v1/chat',
+    options?: AgentAlertOptions,
   ): Promise<void> {
     if (!this.enabled) {
       return;
@@ -72,6 +81,7 @@ export class FeiShuAlertService {
       userMessage,
       apiEndpoint,
       errorDetails,
+      options,
     );
 
     await this.send(content);
@@ -124,22 +134,38 @@ export class FeiShuAlertService {
     userMessage: string,
     apiEndpoint: string,
     errorDetails: any,
+    options?: AgentAlertOptions,
   ): any {
     const timestamp = new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
     const env = this.configService.get<string>('NODE_ENV', 'unknown');
     const logViewerUrl = this.configService.get<string>('LOG_VIEWER_URL', '');
+    const errorType = options?.errorType || 'agent';
+
+    const { title, template } = this.getAlertHeaderMeta(errorType);
+    const errorTypeLabel = this.getErrorTypeLabel(errorType);
+    const metaLines = [
+      `**告警时间**: ${timestamp}`,
+      `**环境**: ${env}`,
+      `**会话ID**: ${conversationId}`,
+      `**错误类型**: ${errorTypeLabel}`,
+    ];
+
+    if (options?.scenario) {
+      metaLines.push(`**场景**: ${options.scenario}`);
+    }
+    if (options?.channel) {
+      metaLines.push(`**渠道**: ${options.channel}`);
+    }
 
     const elements: any[] = [
       {
         tag: 'div',
         text: {
           tag: 'lark_md',
-          content: `**告警时间**: ${timestamp}\n**环境**: ${env}\n**会话ID**: ${conversationId}`,
+          content: metaLines.join('\n'),
         },
       },
-      {
-        tag: 'hr',
-      },
+      { tag: 'hr' },
       {
         tag: 'div',
         text: {
@@ -147,9 +173,7 @@ export class FeiShuAlertService {
           content: `**错误信息**: ${errorMessage}\n**HTTP 状态码**: ${statusCode}\n**API 端点**: ${apiEndpoint}`,
         },
       },
-      {
-        tag: 'hr',
-      },
+      { tag: 'hr' },
       {
         tag: 'div',
         text: {
@@ -157,9 +181,23 @@ export class FeiShuAlertService {
           content: `**用户消息**: ${userMessage.substring(0, 100)}${userMessage.length > 100 ? '...' : ''}`,
         },
       },
-      {
-        tag: 'hr',
-      },
+    ];
+
+    if (options?.fallbackMessage) {
+      elements.push(
+        { tag: 'hr' },
+        {
+          tag: 'div',
+          text: {
+            tag: 'lark_md',
+            content: `**降级话术**: ${options.fallbackMessage}`,
+          },
+        },
+      );
+    }
+
+    elements.push(
+      { tag: 'hr' },
       {
         tag: 'div',
         text: {
@@ -167,9 +205,8 @@ export class FeiShuAlertService {
           content: `**错误详情**:\n\`\`\`json\n${JSON.stringify(errorDetails, null, 2).substring(0, 500)}\n\`\`\``,
         },
       },
-    ];
+    );
 
-    // 只有配置了日志查看器 URL 时才添加按钮
     if (logViewerUrl) {
       elements.push({
         tag: 'action',
@@ -193,13 +230,41 @@ export class FeiShuAlertService {
         header: {
           title: {
             tag: 'plain_text',
-            content: '🚨 Agent API 调用失败告警',
+            content: title,
           },
-          template: 'red', // 红色表示错误
+          template,
         },
         elements,
       },
     };
+  }
+
+  private getAlertHeaderMeta(errorType: AlertErrorType): { title: string; template: string } {
+    switch (errorType) {
+      case 'message':
+        return { title: '⚠️ Message 处理失败告警', template: 'orange' };
+      case 'delivery':
+        return { title: '⚠️ 消息发送失败告警', template: 'yellow' };
+      case 'merge':
+        return { title: '⚠️ 聚合流程失败告警', template: 'wathet' };
+      case 'agent':
+      default:
+        return { title: '🚨 Agent 调用失败告警', template: 'red' };
+    }
+  }
+
+  private getErrorTypeLabel(errorType: AlertErrorType): string {
+    switch (errorType) {
+      case 'message':
+        return 'Message Processing Error';
+      case 'delivery':
+        return 'Delivery Error';
+      case 'merge':
+        return 'Merge Processor Error';
+      case 'agent':
+      default:
+        return 'Agent Invocation Error';
+    }
   }
 
   /**

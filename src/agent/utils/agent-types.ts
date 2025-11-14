@@ -1,7 +1,15 @@
 /**
  * Agent 模块统一类型定义
  * 合并了 DTO、Model 和 Interface
+ *
+ * 注意：枚举类型已迁移到 ./enums.ts，保持单一职责原则
  */
+
+// 导入枚举类型（用于类型引用）
+import { AgentResultStatus } from './agent-enums';
+
+// 注意：不再重新导出枚举类型，避免与 agent-enums.ts 冲突
+// 使用方应该从 './agent-enums' 或 '@agent' 直接导入枚举
 
 // ========================================
 // DTO - API 请求和响应类型
@@ -80,6 +88,18 @@ export interface BrandConfig {
 /**
  * 配置数据
  */
+export interface BrandData {
+  name: string;
+  description?: string;
+  location?: string;
+  stores?: Array<{
+    name: string;
+    address: string;
+    contact?: string;
+  }>;
+  [key: string]: any;
+}
+
 export interface ConfigData {
   city?: string;
   stores?: any[];
@@ -131,6 +151,17 @@ export interface ChatContext {
 }
 
 /**
+ * 品牌上下文（供下游服务合并使用）
+ */
+export interface BrandContext {
+  brandData?: BrandData;
+  replyPrompts?: ReplyPrompts;
+  synced?: boolean;
+  lastRefreshTime?: string;
+  [key: string]: any;
+}
+
+/**
  * 工具特定上下文
  */
 export interface ToolContext {
@@ -138,7 +169,6 @@ export interface ToolContext {
     [key: string]: any;
   };
 }
-
 /**
  * 上下文策略
  */
@@ -288,7 +318,7 @@ export interface AgentResult {
   fromCache?: boolean;
 
   /** 响应状态 */
-  status: 'success' | 'fallback' | 'error';
+  status: AgentResultStatus;
 }
 
 // ========================================
@@ -373,13 +403,4 @@ export interface AgentProfile {
     targetTokens?: number;
     preserveRecentMessages?: number;
   };
-}
-
-/**
- * 场景类型枚举
- * 当前只有候选人咨询服务这一个场景
- */
-export enum ScenarioType {
-  /** 候选人私聊咨询服务 - 通过企微私聊为候选人提供招聘咨询 */
-  CANDIDATE_CONSULTATION = 'candidate-consultation',
 }

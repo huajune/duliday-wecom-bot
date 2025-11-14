@@ -7,22 +7,22 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <style>
         :root {
-            --bg-dark: #0a0e27;
-            --bg-card: rgba(15, 20, 45, 0.7);
-            --glass-bg: rgba(15, 20, 45, 0.5);
-            --glass-border: rgba(102, 126, 234, 0.3);
-            --primary: #667eea;
-            --primary-light: #8b9cff;
-            --secondary: #764ba2;
+            --bg-dark: #0d0d0d;
+            --bg-card: #1a1a1a;
+            --glass-bg: #1a1a1a;
+            --glass-border: rgba(255, 255, 255, 0.08);
+            --primary: #3b82f6;
+            --primary-light: #60a5fa;
+            --secondary: #2563eb;
             --success: #10b981;
             --success-light: #34d399;
             --danger: #ef4444;
             --danger-light: #f87171;
             --warning: #f59e0b;
             --info: #3b82f6;
-            --text-primary: #f8fafc;
-            --text-secondary: #cbd5e1;
-            --text-muted: #94a3b8;
+            --text-primary: #ffffff;
+            --text-secondary: #a3a3a3;
+            --text-muted: #737373;
         }
 
         * {
@@ -66,30 +66,11 @@
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
             background: var(--bg-dark);
-            background: linear-gradient(-45deg, #0a0e27, #1a1f3a, #2d1b4e, #1e293b);
-            background-size: 400% 400%;
-            animation: gradient 15s ease infinite;
             color: var(--text-primary);
             padding: 20px;
             min-height: 100vh;
             position: relative;
             overflow-x: hidden;
-        }
-
-        /* 动态背景粒子效果 */
-        body::before {
-            content: '';
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-image:
-                radial-gradient(circle at 20% 50%, rgba(102, 126, 234, 0.15) 0%, transparent 50%),
-                radial-gradient(circle at 80% 80%, rgba(118, 75, 162, 0.15) 0%, transparent 50%),
-                radial-gradient(circle at 40% 20%, rgba(139, 156, 255, 0.1) 0%, transparent 50%);
-            pointer-events: none;
-            z-index: 0;
         }
 
         .container {
@@ -99,81 +80,49 @@
             z-index: 1;
         }
 
-        /* 玻璃态效果卡片 */
+        /* 简化卡片效果 */
         .glass-card {
-            background: var(--glass-bg);
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
+            background: var(--bg-card);
             border: 1px solid var(--glass-border);
-            border-radius: 20px;
-            box-shadow:
-                0 8px 32px 0 rgba(102, 126, 234, 0.2),
-                inset 0 1px 0 0 rgba(255, 255, 255, 0.05);
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            border-radius: 12px;
+            transition: all 0.2s ease;
         }
 
         .glass-card:hover {
-            transform: translateY(-5px);
-            box-shadow:
-                0 20px 40px 0 rgba(102, 126, 234, 0.4),
-                inset 0 1px 0 0 rgba(255, 255, 255, 0.1);
-            border-color: rgba(102, 126, 234, 0.5);
+            border-color: rgba(255, 255, 255, 0.15);
         }
 
         /* 头部 */
         .header {
-            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
-            padding: 40px;
-            border-radius: 24px;
-            margin-bottom: 30px;
-            box-shadow:
-                0 20px 60px rgba(102, 126, 234, 0.4),
-                0 0 80px rgba(118, 75, 162, 0.3);
-            position: relative;
-            overflow: hidden;
-            animation: slideIn 0.6s ease-out;
-        }
-
-        .header::before {
-            content: '';
-            position: absolute;
-            top: -50%;
-            right: -50%;
-            width: 200%;
-            height: 200%;
-            background: linear-gradient(45deg, transparent, rgba(255, 255, 255, 0.1), transparent);
-            transform: rotate(45deg);
-            animation: shimmer 3s infinite;
+            background: var(--bg-card);
+            padding: 32px;
+            border-radius: 12px;
+            margin-bottom: 24px;
+            border: 1px solid var(--glass-border);
         }
 
         .header h1 {
-            font-size: 36px;
-            font-weight: 700;
-            margin-bottom: 10px;
-            text-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
-            position: relative;
-            z-index: 1;
+            font-size: 24px;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: var(--text-primary);
         }
 
         .header p {
-            opacity: 0.95;
-            font-size: 16px;
-            position: relative;
-            z-index: 1;
+            font-size: 14px;
+            color: var(--text-secondary);
         }
 
         /* 控制栏 */
         .controls {
-            background: var(--glass-bg);
-            backdrop-filter: blur(20px);
-            padding: 20px 30px;
-            border-radius: 20px;
-            margin-bottom: 30px;
+            background: var(--bg-card);
+            padding: 16px 24px;
+            border-radius: 12px;
+            margin-bottom: 24px;
             display: flex;
             justify-content: space-between;
             align-items: center;
             border: 1px solid var(--glass-border);
-            animation: slideIn 0.6s ease-out 0.1s both;
         }
 
         .controls .left {
@@ -202,55 +151,41 @@
 
         /* 按钮 */
         button {
-            padding: 12px 24px;
-            border: none;
-            border-radius: 12px;
+            padding: 8px 16px;
+            border: 1px solid var(--glass-border);
+            border-radius: 8px;
             cursor: pointer;
-            font-size: 14px;
-            font-weight: 600;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            position: relative;
-            overflow: hidden;
+            font-size: 13px;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            background: transparent;
+            color: var(--text-secondary);
         }
 
-        button::before {
-            content: '';
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            width: 0;
-            height: 0;
-            border-radius: 50%;
-            background: rgba(255, 255, 255, 0.2);
-            transform: translate(-50%, -50%);
-            transition: width 0.6s, height 0.6s;
-        }
-
-        button:hover::before {
-            width: 300px;
-            height: 300px;
+        button:hover {
+            border-color: rgba(255, 255, 255, 0.2);
+            background: rgba(255, 255, 255, 0.05);
         }
 
         .btn-primary {
-            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
+            background: var(--primary);
             color: white;
-            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.5);
+            border-color: var(--primary);
         }
 
         .btn-primary:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.7);
+            background: var(--primary-light);
+            border-color: var(--primary-light);
         }
 
         .btn-danger {
-            background: linear-gradient(135deg, var(--danger) 0%, var(--danger-light) 100%);
-            color: white;
-            box-shadow: 0 4px 15px rgba(239, 68, 68, 0.5);
+            background: transparent;
+            color: var(--danger);
+            border-color: var(--danger);
         }
 
         .btn-danger:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(239, 68, 68, 0.7);
+            background: rgba(239, 68, 68, 0.1);
         }
 
         .auto-refresh {
@@ -278,46 +213,16 @@
 
         /* 数据卡片 */
         .metric-card {
-            background: var(--glass-bg);
-            backdrop-filter: blur(20px);
-            padding: 28px;
-            border-radius: 20px;
+            background: var(--bg-card);
+            padding: 20px;
+            border-radius: 12px;
             border: 1px solid var(--glass-border);
-            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            transition: all 0.2s ease;
             position: relative;
-            overflow: hidden;
-            animation: slideIn 0.6s ease-out backwards;
         }
-
-        .metric-card::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 4px;
-            background: linear-gradient(90deg, transparent, currentColor, transparent);
-            opacity: 0;
-            transition: opacity 0.3s;
-        }
-
-        .metric-card:hover::before {
-            opacity: 1;
-        }
-
-        .metric-card:nth-child(1) { animation-delay: 0.1s; }
-        .metric-card:nth-child(2) { animation-delay: 0.15s; }
-        .metric-card:nth-child(3) { animation-delay: 0.2s; }
-        .metric-card:nth-child(4) { animation-delay: 0.25s; }
-        .metric-card:nth-child(5) { animation-delay: 0.3s; }
-        .metric-card:nth-child(6) { animation-delay: 0.35s; }
 
         .metric-card:hover {
-            transform: translateY(-8px) scale(1.02);
-            border-color: currentColor;
-            box-shadow:
-                0 20px 40px rgba(0, 0, 0, 0.6),
-                0 0 40px currentColor;
+            border-color: rgba(255, 255, 255, 0.15);
         }
 
         .metric-card.primary { color: var(--primary-light); }
@@ -327,59 +232,39 @@
         .metric-card.info { color: var(--info); }
 
         .card-icon {
-            width: 48px;
-            height: 48px;
-            border-radius: 12px;
-            background: currentColor;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin-bottom: 16px;
-            opacity: 0.2;
-            font-size: 24px;
+            display: none;
         }
 
         .card-title {
             font-size: 13px;
             color: var(--text-muted);
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            margin-bottom: 12px;
-            font-weight: 600;
+            margin-bottom: 8px;
+            font-weight: 400;
         }
 
         .card-value {
-            font-size: 42px;
-            font-weight: 800;
+            font-size: 32px;
+            font-weight: 600;
             color: var(--text-primary);
-            margin-bottom: 8px;
-            line-height: 1;
-            transition: all 0.3s;
-        }
-
-        .metric-card:hover .card-value {
-            color: currentColor;
-            transform: scale(1.05);
+            margin-bottom: 6px;
+            line-height: 1.2;
         }
 
         .card-subtitle {
-            font-size: 14px;
-            color: var(--text-secondary);
-            font-weight: 500;
+            font-size: 12px;
+            color: var(--text-muted);
+            font-weight: 400;
             white-space: pre-line; /* 支持换行显示 */
-            line-height: 1.5;
+            line-height: 1.4;
         }
 
         .card-trend {
             display: inline-flex;
             align-items: center;
             gap: 4px;
-            font-size: 12px;
-            padding: 4px 8px;
-            border-radius: 6px;
-            background: rgba(16, 185, 129, 0.1);
+            font-size: 11px;
             color: var(--success-light);
-            margin-top: 8px;
+            margin-top: 4px;
         }
 
         /* 图表网格 */
@@ -391,70 +276,42 @@
         }
 
         .chart-card {
-            background: var(--glass-bg);
-            backdrop-filter: blur(20px);
-            padding: 30px;
-            border-radius: 20px;
+            background: var(--bg-card);
+            padding: 24px;
+            border-radius: 12px;
             border: 1px solid var(--glass-border);
-            transition: all 0.3s;
-            animation: slideIn 0.6s ease-out 0.4s both;
+            transition: all 0.2s ease;
         }
 
         .chart-card:hover {
-            border-color: rgba(102, 126, 234, 0.5);
-            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.5);
+            border-color: rgba(255, 255, 255, 0.15);
         }
 
         .chart-card h3 {
-            font-size: 18px;
+            font-size: 16px;
             margin-bottom: 20px;
             color: var(--text-primary);
-            font-weight: 700;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .chart-card h3::before {
-            content: '';
-            width: 4px;
-            height: 24px;
-            background: linear-gradient(180deg, var(--primary), var(--secondary));
-            border-radius: 2px;
+            font-weight: 600;
         }
 
         /* 表格区域 */
         .table-section {
-            background: var(--glass-bg);
-            backdrop-filter: blur(20px);
-            padding: 30px;
-            border-radius: 20px;
+            background: var(--bg-card);
+            padding: 24px;
+            border-radius: 12px;
             border: 1px solid var(--glass-border);
-            margin-bottom: 25px;
-            animation: slideIn 0.6s ease-out 0.5s both;
+            margin-bottom: 24px;
         }
 
         .table-section h3 {
-            font-size: 18px;
-            margin-bottom: 20px;
+            font-size: 16px;
+            margin-bottom: 16px;
             color: var(--text-primary);
-            font-weight: 700;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .table-section h3::before {
-            content: '';
-            width: 4px;
-            height: 24px;
-            background: linear-gradient(180deg, var(--success), var(--info));
-            border-radius: 2px;
+            font-weight: 600;
         }
 
         .table-wrapper {
             overflow-x: auto;
-            border-radius: 12px;
         }
 
         table {
@@ -464,24 +321,22 @@
         }
 
         thead {
-            background: rgba(102, 126, 234, 0.15);
+            background: transparent;
         }
 
         th {
             text-align: left;
-            padding: 16px;
-            font-weight: 700;
-            color: var(--text-secondary);
-            font-size: 13px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            border-bottom: 2px solid var(--glass-border);
+            padding: 12px 16px;
+            font-weight: 500;
+            color: var(--text-muted);
+            font-size: 12px;
+            border-bottom: 1px solid var(--glass-border);
         }
 
         td {
-            padding: 16px;
-            border-bottom: 1px solid rgba(102, 126, 234, 0.2);
-            font-size: 14px;
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--glass-border);
+            font-size: 13px;
             color: var(--text-secondary);
         }
 
@@ -490,47 +345,41 @@
         }
 
         tbody tr:hover {
-            background: rgba(102, 126, 234, 0.1);
+            background: rgba(255, 255, 255, 0.03);
         }
 
         /* 状态徽章 */
         .status {
             display: inline-flex;
             align-items: center;
-            gap: 6px;
-            padding: 6px 12px;
-            border-radius: 8px;
-            font-size: 12px;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
+            gap: 4px;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 500;
         }
 
         .status::before {
             content: '';
-            width: 6px;
-            height: 6px;
+            width: 4px;
+            height: 4px;
             border-radius: 50%;
             background: currentColor;
         }
 
         .status.success {
-            background: rgba(16, 185, 129, 0.15);
+            background: rgba(16, 185, 129, 0.1);
             color: var(--success-light);
-            border: 1px solid rgba(16, 185, 129, 0.3);
         }
 
         .status.failure {
-            background: rgba(239, 68, 68, 0.15);
+            background: rgba(239, 68, 68, 0.1);
             color: var(--danger-light);
-            border: 1px solid rgba(239, 68, 68, 0.3);
         }
 
         .status.processing {
-            background: rgba(59, 130, 246, 0.15);
+            background: rgba(59, 130, 246, 0.1);
             color: var(--info);
-            border: 1px solid rgba(59, 130, 246, 0.3);
-            animation: pulse 2s ease-in-out infinite;
         }
 
         .message-preview {
@@ -538,13 +387,12 @@
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
-            color: var(--text-primary);
-            font-weight: 500;
+            color: var(--text-secondary);
         }
 
         .error-message {
             color: var(--danger-light);
-            font-size: 13px;
+            font-size: 12px;
             max-width: 400px;
             overflow: hidden;
             text-overflow: ellipsis;
@@ -622,22 +470,21 @@
 
         /* 滚动条美化 */
         ::-webkit-scrollbar {
-            width: 8px;
-            height: 8px;
+            width: 6px;
+            height: 6px;
         }
 
         ::-webkit-scrollbar-track {
-            background: rgba(102, 126, 234, 0.15);
-            border-radius: 4px;
+            background: transparent;
         }
 
         ::-webkit-scrollbar-thumb {
-            background: linear-gradient(180deg, var(--primary), var(--secondary));
-            border-radius: 4px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 3px;
         }
 
         ::-webkit-scrollbar-thumb:hover {
-            background: linear-gradient(180deg, var(--primary-light), var(--secondary));
+            background: rgba(255, 255, 255, 0.3);
         }
     </style>
 </head>
@@ -730,7 +577,7 @@
                 <div class="card-icon">⏳</div>
                 <div class="card-title">处理中</div>
                 <div class="card-value" id="processingCount" data-value="0">-</div>
-                <div class="card-subtitle">当前队列</div>
+                <div class="card-subtitle" id="processingSubtitle">当前队列</div>
             </div>
             <div class="metric-card danger">
                 <div class="card-icon">⚠️</div>
@@ -748,6 +595,57 @@
             <div class="chart-card">
                 <h3>消息量趋势 (最近24小时)</h3>
                 <canvas id="messageChart"></canvas>
+            </div>
+        </div>
+
+        <!-- 性能统计卡片 -->
+        <div class="overview-cards">
+            <div class="metric-card info">
+                <div class="card-icon">📊</div>
+                <div class="card-title">P50 耗时</div>
+                <div class="card-value" id="p50Duration">-</div>
+                <div class="card-subtitle">中位数</div>
+            </div>
+            <div class="metric-card info">
+                <div class="card-icon">📈</div>
+                <div class="card-title">P95 耗时</div>
+                <div class="card-value" id="p95Duration">-</div>
+                <div class="card-subtitle">95%</div>
+            </div>
+            <div class="metric-card warning">
+                <div class="card-icon">📉</div>
+                <div class="card-title">P99 耗时</div>
+                <div class="card-value" id="p99Duration">-</div>
+                <div class="card-subtitle">99%</div>
+            </div>
+            <div class="metric-card danger">
+                <div class="card-icon">🔥</div>
+                <div class="card-title">P999 耗时</div>
+                <div class="card-value" id="p999Duration">-</div>
+                <div class="card-subtitle">99.9%</div>
+            </div>
+        </div>
+
+        <div class="table-section">
+            <h3>最慢记录 (Top 10)</h3>
+            <div class="table-wrapper">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>时间</th>
+                            <th>消息ID</th>
+                            <th>用户</th>
+                            <th>消息预览</th>
+                            <th>总耗时</th>
+                            <th>AI耗时</th>
+                            <th>发送耗时</th>
+                            <th>状态</th>
+                        </tr>
+                    </thead>
+                    <tbody id="slowestRecords">
+                        <tr><td colspan="8" class="loading">加载中...</td></tr>
+                    </tbody>
+                </table>
             </div>
         </div>
 
@@ -832,41 +730,41 @@
                     legend: {
                         position: 'top',
                         labels: {
-                            color: '#cbd5e1',
+                            color: '#a3a3a3',
                             font: {
                                 size: 12,
-                                weight: '600'
+                                weight: '500'
                             },
-                            padding: 15,
+                            padding: 12,
                             usePointStyle: true,
                             pointStyle: 'circle'
                         }
                     },
                     tooltip: {
-                        backgroundColor: 'rgba(15, 20, 45, 0.98)',
-                        titleColor: '#f8fafc',
-                        bodyColor: '#cbd5e1',
-                        borderColor: 'rgba(102, 126, 234, 0.5)',
-                        borderWidth: 2,
-                        padding: 12,
-                        cornerRadius: 8,
+                        backgroundColor: 'rgba(26, 26, 26, 0.98)',
+                        titleColor: '#ffffff',
+                        bodyColor: '#a3a3a3',
+                        borderColor: 'rgba(255, 255, 255, 0.1)',
+                        borderWidth: 1,
+                        padding: 10,
+                        cornerRadius: 6,
                         titleFont: {
-                            size: 14,
-                            weight: '700'
+                            size: 13,
+                            weight: '600'
                         },
                         bodyFont: {
-                            size: 13
+                            size: 12
                         }
                     }
                 },
                 scales: {
                     x: {
                         grid: {
-                            color: 'rgba(102, 126, 234, 0.2)',
+                            color: 'rgba(255, 255, 255, 0.05)',
                             drawBorder: false
                         },
                         ticks: {
-                            color: '#94a3b8',
+                            color: '#737373',
                             font: {
                                 size: 11
                             }
@@ -875,11 +773,11 @@
                     y: {
                         beginAtZero: true,
                         grid: {
-                            color: 'rgba(102, 126, 234, 0.2)',
+                            color: 'rgba(255, 255, 255, 0.05)',
                             drawBorder: false
                         },
                         ticks: {
-                            color: '#94a3b8',
+                            color: '#737373',
                             font: {
                                 size: 11
                             }
@@ -898,31 +796,61 @@
                         {
                             label: '平均耗时',
                             data: [],
-                            borderColor: '#8b9cff',
-                            backgroundColor: 'rgba(139, 156, 255, 0.2)',
-                            borderWidth: 3,
+                            borderColor: '#3b82f6',
+                            backgroundColor: 'rgba(59, 130, 246, 0.15)',
+                            borderWidth: 2,
                             tension: 0.4,
                             fill: true,
-                            pointBackgroundColor: '#8b9cff',
+                            pointBackgroundColor: '#3b82f6',
+                            pointBorderColor: '#fff',
+                            pointBorderWidth: 1,
+                            pointRadius: 3,
+                            pointHoverRadius: 5
+                        },
+                        {
+                            label: 'P50 耗时',
+                            data: [],
+                            borderColor: '#3b82f6',
+                            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                            borderWidth: 2,
+                            tension: 0.4,
+                            fill: false,
+                            borderDash: [5, 5],
+                            pointBackgroundColor: '#3b82f6',
                             pointBorderColor: '#fff',
                             pointBorderWidth: 2,
-                            pointRadius: 4,
-                            pointHoverRadius: 6
+                            pointRadius: 3,
+                            pointHoverRadius: 5
                         },
                         {
                             label: 'P95 耗时',
                             data: [],
-                            borderColor: '#764ba2',
-                            backgroundColor: 'rgba(118, 75, 162, 0.2)',
-                            borderWidth: 3,
+                            borderColor: '#60a5fa',
+                            backgroundColor: 'rgba(96, 165, 250, 0.1)',
+                            borderWidth: 2,
                             tension: 0.4,
                             fill: false,
                             borderDash: [8, 4],
-                            pointBackgroundColor: '#764ba2',
+                            pointBackgroundColor: '#60a5fa',
+                            pointBorderColor: '#fff',
+                            pointBorderWidth: 1,
+                            pointRadius: 3,
+                            pointHoverRadius: 5
+                        },
+                        {
+                            label: 'P99 耗时',
+                            data: [],
+                            borderColor: '#f59e0b',
+                            backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                            borderWidth: 2,
+                            tension: 0.4,
+                            fill: false,
+                            borderDash: [10, 5],
+                            pointBackgroundColor: '#f59e0b',
                             pointBorderColor: '#fff',
                             pointBorderWidth: 2,
-                            pointRadius: 4,
-                            pointHoverRadius: 6
+                            pointRadius: 3,
+                            pointHoverRadius: 5
                         }
                     ]
                 },
@@ -935,10 +863,10 @@
                             title: {
                                 display: true,
                                 text: '耗时 (ms)',
-                                color: '#cbd5e1',
+                                color: '#a3a3a3',
                                 font: {
                                     size: 12,
-                                    weight: '600'
+                                    weight: '500'
                                 }
                             }
                         }
@@ -960,7 +888,8 @@
                             borderColor: '#10b981',
                             borderWidth: 2,
                             borderRadius: 8,
-                            borderSkipped: false
+                            borderSkipped: false,
+                            yAxisID: 'y'
                         },
                         {
                             label: '失败',
@@ -969,7 +898,24 @@
                             borderColor: '#ef4444',
                             borderWidth: 2,
                             borderRadius: 8,
-                            borderSkipped: false
+                            borderSkipped: false,
+                            yAxisID: 'y'
+                        },
+                        {
+                            label: '成功率',
+                            data: [],
+                            type: 'line',
+                            borderColor: '#3b82f6',
+                            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                            borderWidth: 2,
+                            tension: 0.4,
+                            fill: false,
+                            pointBackgroundColor: '#3b82f6',
+                            pointBorderColor: '#fff',
+                            pointBorderWidth: 1,
+                            pointRadius: 3,
+                            pointHoverRadius: 5,
+                            yAxisID: 'y1'
                         }
                     ]
                 },
@@ -984,13 +930,41 @@
                         y: {
                             ...commonOptions.scales.y,
                             stacked: true,
+                            position: 'left',
                             title: {
                                 display: true,
                                 text: '消息数',
-                                color: '#cbd5e1',
+                                color: '#a3a3a3',
                                 font: {
                                     size: 12,
-                                    weight: '600'
+                                    weight: '500'
+                                }
+                            }
+                        },
+                        y1: {
+                            type: 'linear',
+                            position: 'right',
+                            min: 0,
+                            max: 100,
+                            grid: {
+                                drawOnChartArea: false
+                            },
+                            ticks: {
+                                color: '#737373',
+                                font: {
+                                    size: 11
+                                },
+                                callback: function(value) {
+                                    return value + '%';
+                                }
+                            },
+                            title: {
+                                display: true,
+                                text: '成功率 (%)',
+                                color: '#a3a3a3',
+                                font: {
+                                    size: 12,
+                                    weight: '500'
                                 }
                             }
                         }
@@ -1061,7 +1035,15 @@
                 } else {
                     modelHealthCard.className = 'metric-card danger';
                     modelHealthStatus.textContent = '❌ 不可用';
-                    modelHealthDetails.textContent = '默认模型不可用';
+                    // 显示具体哪些模型不可用
+                    const scenarioModels = modelHealth.scenarioModels || {};
+                    const unavailableModels = [];
+                    if (scenarioModels.chatModel && !scenarioModels.chatModel.available) unavailableModels.push('聊天');
+                    if (scenarioModels.classifyModel && !scenarioModels.classifyModel.available) unavailableModels.push('分类');
+                    if (scenarioModels.replyModel && !scenarioModels.replyModel.available) unavailableModels.push('回复');
+                    modelHealthDetails.textContent = unavailableModels.length > 0
+                        ? `不可用: ${unavailableModels.join('、')}`
+                        : '默认模型不可用';
                 }
 
                 // 更新工具健康状态
@@ -1077,7 +1059,14 @@
                 } else {
                     toolHealthCard.className = 'metric-card warning';
                     toolHealthStatus.textContent = '⚠️ 部分可用';
-                    toolHealthDetails.textContent = `${toolHealth.availableCount || 0}/${toolHealth.configuredCount || 0} 个工具可用`;
+                    // 显示具体哪些工具不可用
+                    const configuredStatus = toolHealth.configuredStatus || [];
+                    const unavailableTools = configuredStatus
+                        .filter(t => !t.available)
+                        .map(t => t.name.replace('duliday_', '').replace(/_/g, ' '));
+                    toolHealthDetails.textContent = unavailableTools.length > 0
+                        ? `不可用: ${unavailableTools.join('、')}`
+                        : `${toolHealth.availableCount || 0}/${toolHealth.configuredCount || 0} 个工具可用`;
                 }
 
                 // 更新品牌配置状态
@@ -1089,8 +1078,9 @@
                 if (brandConfig.available && brandConfig.synced) {
                     brandConfigCard.className = 'metric-card success';
                     brandConfigStatus.textContent = '✅ 已同步';
-                    const lastSync = brandConfig.data?.serverSyncedAt ? new Date(brandConfig.data.serverSyncedAt).toLocaleString('zh-CN', { hour12: false }) : '未知';
-                    brandConfigDetails.textContent = `上次同步: ${lastSync}`;
+                    const lastSync = brandConfig.lastRefreshTime ? new Date(brandConfig.lastRefreshTime).toLocaleString('zh-CN', { hour12: false }) : '未知';
+                    const dataStatus = `品牌数据: ${brandConfig.hasBrandData ? '✅' : '❌'} | 回复模板: ${brandConfig.hasReplyPrompts ? '✅' : '❌'}`;
+                    brandConfigDetails.textContent = `上次同步: ${lastSync} | ${dataStatus}`;
                 } else if (brandConfig.available && !brandConfig.synced) {
                     brandConfigCard.className = 'metric-card warning';
                     brandConfigStatus.textContent = '⚠️ 未同步';
@@ -1116,14 +1106,18 @@
         // 刷新数据
         async function refreshData() {
             try {
-                // 并行获取监控数据和健康状态
-                const [monitoringResponse] = await Promise.all([
+                // 并行获取监控数据、详细指标和健康状态
+                const [monitoringResponse, metricsResponse] = await Promise.all([
                     fetch('/monitoring/dashboard'),
+                    fetch('/monitoring/metrics'),
                     refreshHealthStatus()
                 ]);
 
                 const result = await monitoringResponse.json();
                 const data = result.data || result;
+
+                const metricsResult = await metricsResponse.json();
+                const metrics = metricsResult.data || metricsResult;
 
                 // 更新总览卡片（带动画）
                 const updates = [
@@ -1145,11 +1139,19 @@
                 document.getElementById('successCount').textContent = `成功 ${data.overview.successCount} 条`;
                 document.getElementById('activeChats').textContent = `${data.overview.activeChats} 个会话`;
 
+                // 更新处理中卡片的 subtitle，包含最后消息时间
+                const lastMsgTime = data.realtime.lastMessageTime ? formatTime(data.realtime.lastMessageTime) : '无消息';
+                document.getElementById('processingSubtitle').textContent = `当前队列 | 最后: ${lastMsgTime}`;
+
                 // 更新图表
                 updateCharts(data.trends.hourly);
 
+                // 更新百分位数统计
+                updatePercentiles(metrics.percentiles);
+
                 // 更新表格
                 updateRecentMessages(data.recentMessages);
+                updateSlowestRecords(metrics.slowestRecords);
                 updateErrorLogs(data.recentErrors);
 
                 // 更新时间
@@ -1164,19 +1166,58 @@
         function updateCharts(hourlyData) {
             const labels = hourlyData.map(d => formatHour(d.hour));
             const avgDurations = hourlyData.map(d => d.avgDuration);
+            const p50Durations = hourlyData.map(d => d.p50Duration);
             const p95Durations = hourlyData.map(d => d.p95Duration);
+            const p99Durations = hourlyData.map(d => d.p99Duration);
             const successCounts = hourlyData.map(d => d.successCount);
             const failureCounts = hourlyData.map(d => d.failureCount);
+            const successRates = hourlyData.map(d => d.successRate);
 
             durationChart.data.labels = labels;
             durationChart.data.datasets[0].data = avgDurations;
-            durationChart.data.datasets[1].data = p95Durations;
+            durationChart.data.datasets[1].data = p50Durations;
+            durationChart.data.datasets[2].data = p95Durations;
+            durationChart.data.datasets[3].data = p99Durations;
             durationChart.update('none');
 
             messageChart.data.labels = labels;
             messageChart.data.datasets[0].data = successCounts;
             messageChart.data.datasets[1].data = failureCounts;
+            messageChart.data.datasets[2].data = successRates;
             messageChart.update('none');
+        }
+
+        // 更新百分位数统计
+        function updatePercentiles(percentiles) {
+            if (!percentiles) {
+                return;
+            }
+            document.getElementById('p50Duration').textContent = `${percentiles.p50.toFixed(0)}ms`;
+            document.getElementById('p95Duration').textContent = `${percentiles.p95.toFixed(0)}ms`;
+            document.getElementById('p99Duration').textContent = `${percentiles.p99.toFixed(0)}ms`;
+            document.getElementById('p999Duration').textContent = `${percentiles.p999.toFixed(0)}ms`;
+        }
+
+        // 更新最慢记录
+        function updateSlowestRecords(records) {
+            const tbody = document.getElementById('slowestRecords');
+            if (!records || records.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="8" class="loading">暂无数据</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = records.map(msg => `
+                <tr>
+                    <td>${formatTime(msg.receivedAt)}</td>
+                    <td><code>${msg.messageId.substring(0, 8)}...</code></td>
+                    <td>${msg.userName || msg.userId || '-'}</td>
+                    <td class="message-preview">${msg.messagePreview || '-'}</td>
+                    <td>${msg.totalDuration ? msg.totalDuration.toFixed(0) + 'ms' : '-'}</td>
+                    <td>${msg.aiDuration ? msg.aiDuration.toFixed(0) + 'ms' : '-'}</td>
+                    <td>${msg.sendDuration ? msg.sendDuration.toFixed(0) + 'ms' : '-'}</td>
+                    <td><span class="status ${msg.status}">${getStatusText(msg.status)}</span></td>
+                </tr>
+            `).join('');
         }
 
         // 更新最近消息

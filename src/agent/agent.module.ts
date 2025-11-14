@@ -1,15 +1,16 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { HttpModule } from '@core/http';
+import { AlertModule } from '@core/alert/alert.module';
 import { AgentService } from './agent.service';
 import { AgentCacheService } from './services/agent-cache.service';
 import { AgentRegistryService } from './services/agent-registry.service';
 import { AgentFallbackService } from './services/agent-fallback.service';
 import { AgentApiClientService } from './services/agent-api-client.service';
-import { AgentConfigValidator } from './utils/validator';
-import { BrandConfigMonitor } from './utils/monitor';
+import { AgentConfigValidator } from './utils/agent-validator';
+import { BrandConfigMonitor } from './utils/agent-monitor';
 import { AgentController } from './agent.controller';
-import { ProfileLoaderService } from './services/profile-loader.service';
+import { ProfileLoaderService } from './services/agent-profile-loader.service';
 import { BrandConfigService } from './services/brand-config.service';
 
 /**
@@ -35,6 +36,7 @@ import { BrandConfigService } from './services/brand-config.service';
   imports: [
     ConfigModule,
     HttpModule, // 依赖 HTTP 模块提供的 HttpClientFactory
+    AlertModule, // 依赖告警模块提供的 FeiShuAlertService
   ],
   controllers: [AgentController],
   providers: [

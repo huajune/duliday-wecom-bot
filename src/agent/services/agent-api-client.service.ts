@@ -2,8 +2,8 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AxiosInstance, AxiosResponse } from 'axios';
 import { HttpClientFactory } from '@core/http';
-import { AgentRateLimitException } from '../utils/exceptions';
-import { ApiResponse, ChatRequest, ChatResponse } from '../utils/types';
+import { AgentRateLimitException, AgentAuthException } from '../utils/agent-exceptions';
+import { ApiResponse, ChatRequest, ChatResponse } from '../utils/agent-types';
 
 /**
  * Agent API 客户端服务
@@ -196,6 +196,13 @@ export class AgentApiClientService {
    */
   private convertError(error: any): Error {
     const status = error.response?.status;
+
+    // 401/403 认证失败
+    if (status === 401 || status === 403) {
+      const message =
+        error.response?.data?.message || error.response?.data?.error || 'API Key 无效或已过期';
+      return new AgentAuthException(message, status);
+    }
 
     // 429 频率限制
     if (status === 429) {

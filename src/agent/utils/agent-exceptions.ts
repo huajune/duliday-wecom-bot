@@ -83,3 +83,15 @@ export class AgentBrandConfigUnavailableException extends AgentException {
     );
   }
 }
+
+/**
+ * Agent API 认证失败错误
+ */
+export class AgentAuthException extends AgentException {
+  constructor(
+    message?: string,
+    public readonly statusCode?: number,
+  ) {
+    super(message || 'Agent API 认证失败：API Key 无效或已过期', HttpStatus.UNAUTHORIZED);
+  }
+}

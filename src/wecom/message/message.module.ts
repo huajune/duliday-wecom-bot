@@ -7,20 +7,24 @@ import { MessageProcessor } from './message.processor';
 import { AgentModule } from '@agent';
 import { MessageSenderModule } from '../message-sender/message-sender.module';
 
-// 导入新的子服务
+// 导入子服务
 import { MessageDeduplicationService } from './services/message-deduplication.service';
 import { MessageHistoryService } from './services/message-history.service';
 import { MessageFilterService } from './services/message-filter.service';
 import { MessageMergeService } from './services/message-merge.service';
 import { MessageStatisticsService } from './services/message-statistics.service';
-import { TypingDelayService } from './services/typing-delay.service';
+import { TypingDelayService } from './services/message-typing-delay.service';
+import { MessageDeliveryService } from './services/message-delivery.service';
+import { AgentGatewayService } from './services/message-agent-gateway.service';
+import { FallbackMessageService } from './services/message-fallback.service';
 
 /**
  * 消息处理模块
  * 负责接收、解析消息并触发 AI 自动回复
  *
- * 重构说明：
- * - 新增 5 个子服务，职责更清晰
+ * 重构说明 v3：
+ * - 8 个核心子服务，职责清晰（从10个优化到8个）
+ * - AgentGatewayService 增强：整合上下文构建和降级处理
  * - MessageService 作为协调者，职责精简
  */
 @Module({
@@ -104,13 +108,16 @@ import { TypingDelayService } from './services/typing-delay.service';
     // 主服务
     MessageService,
     MessageProcessor,
-    // 子服务（按职责分类）
+    // 子服务（8个核心服务，按职责分类）
     MessageDeduplicationService, // 消息去重
     MessageHistoryService, // 消息历史
     MessageFilterService, // 消息过滤
     MessageMergeService, // 消息聚合
     MessageStatisticsService, // 统计监控
     TypingDelayService, // 智能打字延迟
+    MessageDeliveryService, // 消息发送（统一分段发送和监控）
+    AgentGatewayService, // Agent 调用网关（增强版：包含上下文构建和降级处理）
+    FallbackMessageService, // 用户降级话术集中管理
   ],
   exports: [MessageService],
 })

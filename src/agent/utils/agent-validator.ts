@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { AgentProfile } from '../utils/profile-sanitizer';
+import { AgentProfile } from '../utils/agent-profile-sanitizer';
 
 /**
  * 品牌配置验证结果

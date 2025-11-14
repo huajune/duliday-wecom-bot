@@ -11,11 +11,12 @@ import {
 import { AgentService } from './agent.service';
 import { AgentRegistryService } from './services/agent-registry.service';
 import { AgentCacheService } from './services/agent-cache.service';
-import { ProfileLoaderService } from './services/profile-loader.service';
+import { ProfileLoaderService } from './services/agent-profile-loader.service';
 import { BrandConfigService } from './services/brand-config.service';
-import { AgentConfigValidator } from './utils/validator';
+import { AgentConfigValidator } from './utils/agent-validator';
 import { ConfigService } from '@nestjs/config';
 import { RawResponse } from '@/core';
+import { FeiShuAlertService } from '@/core/alert/feishu-alert.service';
 
 @Controller('agent')
 export class AgentController {
@@ -29,6 +30,7 @@ export class AgentController {
     private readonly registryService: AgentRegistryService,
     private readonly cacheService: AgentCacheService,
     private readonly configService: ConfigService,
+    private readonly feiShuAlertService: FeiShuAlertService,
   ) {}
 
   /**
@@ -57,6 +59,8 @@ export class AgentController {
         brandConfig: {
           available: brandConfigStatus.available,
           synced: brandConfigStatus.synced,
+          hasBrandData: brandConfigStatus.hasBrandData,
+          hasReplyPrompts: brandConfigStatus.hasReplyPrompts,
           lastRefreshTime: brandConfigStatus.lastRefreshTime,
           // 不返回完整的品牌配置数据，避免暴露敏感信息
         },
@@ -111,8 +115,44 @@ export class AgentController {
    */
   @Post('health/refresh')
   async refreshHealth() {
-    await this.registryService.refresh();
-    return this.registryService.getHealthStatus();
+    try {
+      this.logger.log('手动触发刷新 Agent 注册表');
+      await this.registryService.refresh();
+      const healthStatus = this.registryService.getHealthStatus();
+
+      this.logger.log('注册表刷新成功');
+      return {
+        success: true,
+        message: '注册表刷新成功',
+        data: healthStatus,
+      };
+    } catch (error) {
+      this.logger.error('注册表刷新失败:', error);
+
+      // 发送飞书告警
+      this.feiShuAlertService
+        .sendAgentApiFailureAlert(
+          error,
+          'agent-registry',
+          'refresh models/tools',
+          '/agent/health/refresh',
+          {
+            errorType: 'agent',
+          },
+        )
+        .catch((alertError) => {
+          this.logger.error(`飞书告警发送失败: ${alertError.message}`);
+        });
+
+      throw new HttpException(
+        {
+          success: false,
+          message: '注册表刷新失败',
+          error: error.message,
+        },
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
   }
 
   /**

@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { FeiShuAlertService } from '@/core/alert/feishu-alert.service';
-import { BrandConfigValidation } from './validator';
+import { BrandConfigValidation } from './agent-validator';
 
 /**
  * 品牌配置监控服务
