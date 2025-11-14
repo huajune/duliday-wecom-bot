@@ -10,10 +10,10 @@ import { FallbackMessageOptions } from '../types';
 export class FallbackMessageService {
   private readonly defaultFallbackMessages: string[] = [
     '收到，我需要跟同事同步一下再回复您～',
-    '抱歉稍等，我需要跟同事同步一下再回复您～',
+    '抱歉稍等，我需要跟同事确认一下再回复您～',
     '您先别急，我这边马上去核实一下信息～',
-    '不好意思，让我去找下资料，确认完立刻回您～',
-    '稍等片刻，我跟负责的同事沟通下再告知您～',
+    '我这边先去对下数据，请稍等哈～',
+    '稍等片刻，我跟负责的同事了解下最新的信息～',
   ];
 
   constructor(private readonly configService: ConfigService) {}

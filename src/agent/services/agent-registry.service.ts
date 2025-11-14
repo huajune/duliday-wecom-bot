@@ -123,12 +123,12 @@ export class AgentRegistryService implements OnModuleInit, OnModuleDestroy {
         this.apiClient.getTools(),
       ]);
 
-      // 【修复】更新模型列表 - apiClient 已经返回 response.data，无需再次解包
-      const models = modelsResponse?.models || [];
+      // 【修复】更新模型列表 - apiClient 返回 response.data，需要访问 data.models
+      const models = modelsResponse?.data?.models || [];
       this.availableModels = models.map((m: any) => m.id);
 
-      // 【修复】更新工具列表 - apiClient 已经返回 response.data，无需再次解包
-      const tools = toolsResponse?.tools || [];
+      // 【修复】更新工具列表 - apiClient 返回 response.data，需要访问 data.tools
+      const tools = toolsResponse?.data?.tools || [];
       this.availableTools.clear();
       tools.forEach((tool: any) => {
         this.availableTools.set(tool.name, {

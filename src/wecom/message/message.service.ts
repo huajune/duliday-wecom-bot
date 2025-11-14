@@ -164,12 +164,14 @@ export class MessageService {
    */
   private recordMessageReceived(messageData: EnterpriseMessageCallbackDto): void {
     const parsed = MessageParser.parse(messageData);
+    const scenario = MessageParser.determineScenario(messageData);
     this.monitoringService.recordMessageReceived(
       messageData.messageId,
       parsed.chatId,
       parsed.imContactId,
       parsed.contactName,
       parsed.content,
+      { scenario },
     );
   }
 
@@ -238,7 +240,13 @@ export class MessageService {
       await this.deliveryService.deliverReply(agentResult.reply, deliveryContext, true);
 
       // 7. 记录成功
-      this.monitoringService.recordSuccess(messageId);
+      this.monitoringService.recordSuccess(messageId, {
+        scenario,
+        tools: agentResult.reply.tools?.used,
+        tokenUsage: agentResult.reply.usage?.totalTokens,
+        replyPreview: agentResult.reply.content,
+        isFallback: agentResult.isFallback,
+      });
 
       // 8. 标记消息为已处理（直发路径）
       this.deduplicationService.markMessageAsProcessed(messageId);
@@ -305,10 +313,20 @@ export class MessageService {
       await this.deliveryService.deliverReply(agentResult.reply, deliveryContext, false);
 
       // 9. 【修复】标记所有聚合的消息为已处理，并记录监控成功
+      const sharedSuccessMetadata = {
+        scenario,
+        tools: agentResult.reply.tools?.used,
+        tokenUsage: agentResult.reply.usage?.totalTokens,
+        replyPreview: agentResult.reply.content,
+        isFallback: agentResult.isFallback,
+      };
       for (const message of messages) {
         this.deduplicationService.markMessageAsProcessed(message.messageId);
         // 记录监控成功（所有消息都标记为成功）
-        this.monitoringService.recordSuccess(message.messageId);
+        this.monitoringService.recordSuccess(
+          message.messageId,
+          message.messageId === lastMessageId ? sharedSuccessMetadata : { scenario },
+        );
       }
       this.logger.debug(`[聚合处理][${chatId}] 已标记 ${messages.length} 条消息为已处理`);
     } catch (error) {
@@ -324,7 +342,9 @@ export class MessageService {
         // 【修复】标记所有消息为已处理，并记录监控失败
         for (const message of messages) {
           this.deduplicationService.markMessageAsProcessed(message.messageId);
-          this.monitoringService.recordFailure(message.messageId, error.message || '聚合处理失败');
+          this.monitoringService.recordFailure(message.messageId, error.message || '聚合处理失败', {
+            scenario,
+          });
         }
       }
 
@@ -353,7 +373,7 @@ export class MessageService {
     this.logger.error(`[${contactName}] 消息处理失败 [${messageId}]: ${error.message}`);
 
     // 记录失败
-    this.monitoringService.recordFailure(messageId, error.message);
+    this.monitoringService.recordFailure(messageId, error.message, { scenario });
 
     // 发送告警
     const fallbackMessage = this.agentGateway.getFallbackMessage();
@@ -362,6 +382,10 @@ export class MessageService {
       errorType,
       fallbackMessage,
       scenario,
+      contactName, // 传递用户昵称
+      requestParams: (error as any).requestParams, // 传递请求参数
+      apiKey: (error as any).apiKey, // 传递 API Key（会自动脱敏）
+      requestHeaders: (error as any).requestHeaders,
     });
 
     // 发送降级回复

@@ -131,6 +131,26 @@ export class AgentGatewayService {
     };
   }
 
+  /**
+   * 清理 context，移除内部元数据字段
+   * 这些字段只用于内部逻辑判断，不需要传给 Agent API
+   */
+  private cleanContextForAgent(context: BrandContext): Record<string, any> {
+    const {
+      synced: _synced,
+      lastRefreshTime: _lastRefreshTime,
+      brandData,
+      replyPrompts,
+      ...cleanedContext
+    } = context;
+    // 注意：brandData 和 replyPrompts 需要传给 Agent，所以要保留
+    return {
+      ...cleanedContext,
+      ...(brandData && { brandData }),
+      ...(replyPrompts && { replyPrompts }),
+    };
+  }
+
   // ========================================
   // 降级消息管理（合并自 FallbackMessageProviderService）
   // ========================================
@@ -186,7 +206,10 @@ export class AgentGatewayService {
         shouldRecordAiEnd = true;
       }
 
-      // 3. 调用 Agent API
+      // 3. 清理 context，移除内部元数据字段（不传给 Agent API）
+      const cleanedContext = this.cleanContextForAgent(mergedContext);
+
+      // 4. 调用 Agent API
       const agentResult = await this.agentService.chat({
         conversationId,
         userMessage,
@@ -195,7 +218,7 @@ export class AgentGatewayService {
         systemPrompt: agentProfile.systemPrompt,
         promptType: agentProfile.promptType,
         allowedTools: agentProfile.allowedTools,
-        context: mergedContext,
+        context: cleanedContext,
         toolContext: agentProfile.toolContext,
         contextStrategy: agentProfile.contextStrategy,
         prune: agentProfile.prune,
@@ -207,7 +230,30 @@ export class AgentGatewayService {
       // 4. 检查 Agent 调用结果
       if (AgentResultHelper.isError(agentResult)) {
         this.logger.error(`Agent 调用失败:`, agentResult.error);
-        throw new Error(agentResult.error?.message || 'Agent 调用失败');
+
+        // 【修复】立即发送告警（从 agentResult 中提取完整错误信息）
+        const errorToThrow = new Error(agentResult.error?.message || 'Agent 调用失败');
+        (errorToThrow as any).requestParams = (agentResult.error as any)?.requestParams;
+        (errorToThrow as any).apiKey = (agentResult.error as any)?.apiKey;
+        // 兼容 apiResponse 和 response 两种属性名
+        (errorToThrow as any).response =
+          (agentResult.error as any)?.response || (agentResult.error as any)?.apiResponse;
+        (errorToThrow as any).requestHeaders = (agentResult.error as any)?.requestHeaders;
+
+        // 发送告警（异步，不阻塞主流程）
+        this.feiShuAlertService
+          .sendAgentApiFailureAlert(errorToThrow, conversationId, userMessage, '/api/v1/chat', {
+            errorType: 'agent',
+            scenario,
+            requestParams: (errorToThrow as any).requestParams,
+            apiKey: (errorToThrow as any).apiKey,
+            requestHeaders: (errorToThrow as any).requestHeaders,
+          })
+          .catch((alertError) => {
+            this.logger.error(`飞书告警发送失败: ${alertError.message}`);
+          });
+
+        throw errorToThrow;
       }
 
       // 5. 检查是否为降级响应
@@ -244,6 +290,9 @@ export class AgentGatewayService {
         .sendAgentApiFailureAlert(error, conversationId, userMessage, '/api/v1/chat', {
           errorType: 'agent',
           scenario,
+          requestParams: (error as any).requestParams, // 传递请求参数
+          apiKey: (error as any).apiKey, // 传递 API Key（会自动脱敏）
+          requestHeaders: (error as any).requestHeaders,
         })
         .catch((alertError) => {
           this.logger.error(`飞书告警发送失败: ${alertError.message}`);
@@ -296,18 +345,29 @@ export class AgentGatewayService {
     const fallbackReason = agentResult.fallbackInfo.reason;
     this.logger.warn(`Agent 降级响应（原因: ${fallbackReason}），触发飞书告警`);
 
+    const apiResponse = (agentResult as any).response;
+    const requestHeaders = (agentResult as any).requestHeaders;
+    const defaultResponseData = {
+      error: fallbackReason,
+      message: agentResult.fallbackInfo.message,
+      suggestion: agentResult.fallbackInfo.suggestion,
+      retryAfter: agentResult.fallbackInfo.retryAfter,
+    };
+    const responseData = apiResponse?.data ?? defaultResponseData;
+    const normalizedMessage =
+      typeof responseData === 'string'
+        ? responseData
+        : responseData?.message || responseData?.error || agentResult.fallbackInfo.message;
+
     // 构造错误对象用于告警
     const mockError = {
-      message: agentResult.fallbackInfo.message,
-      response: {
+      message: normalizedMessage,
+      response: apiResponse || {
         status: 'N/A',
-        data: {
-          error: fallbackReason,
-          message: agentResult.fallbackInfo.message,
-          suggestion: agentResult.fallbackInfo.suggestion,
-          retryAfter: agentResult.fallbackInfo.retryAfter,
-        },
+        data: responseData,
       },
+      requestParams: (agentResult as any).requestParams, // 传递请求参数（如果有）
+      requestHeaders,
     };
 
     // 异步发送告警（不阻塞主流程）
@@ -316,6 +376,9 @@ export class AgentGatewayService {
         errorType: 'agent',
         fallbackMessage: agentResult.fallbackInfo.message,
         scenario,
+        requestParams: mockError.requestParams, // 传递请求参数
+        apiKey: (agentResult as any).apiKey, // 传递 API Key（会自动脱敏）
+        requestHeaders: mockError.requestHeaders,
       })
       .catch((alertError) => {
         this.logger.error(`飞书告警发送失败: ${alertError.message}`);

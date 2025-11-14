@@ -64,6 +64,8 @@ export class AgentValidationException extends AgentException {
  * Agent 频率限制错误
  */
 export class AgentRateLimitException extends AgentException {
+  public apiResponse?: any; // 保留原始 API 响应对象
+
   constructor(
     public readonly retryAfter: number,
     message?: string,
@@ -88,6 +90,8 @@ export class AgentBrandConfigUnavailableException extends AgentException {
  * Agent API 认证失败错误
  */
 export class AgentAuthException extends AgentException {
+  public apiResponse?: any; // 保留原始 API 响应对象
+
   constructor(
     message?: string,
     public readonly statusCode?: number,

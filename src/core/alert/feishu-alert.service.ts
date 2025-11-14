@@ -9,6 +9,10 @@ interface AgentAlertOptions {
   fallbackMessage?: string;
   scenario?: string;
   channel?: string;
+  contactName?: string; // 用户昵称
+  requestParams?: any; // Chat API 请求参数（用于排查问题）
+  apiKey?: string; // Agent API Key（会自动脱敏）
+  requestHeaders?: Record<string, any>; // 请求头信息
 }
 
 /**
@@ -70,9 +74,11 @@ export class FeiShuAlertService {
       return;
     }
 
-    const errorMessage = error.message || '未知错误';
-    const statusCode = error.response?.status || 'N/A';
-    const errorDetails = error.response?.data || {};
+    const apiResponse = error.response || (error as any)?.apiResponse;
+    const errorDetails = apiResponse?.data || error.response?.data || {};
+    const statusCode = apiResponse?.status || 'N/A';
+    const errorMessage = this.extractErrorMessage(error, apiResponse);
+    const requestHeaders = (error as any)?.requestHeaders;
 
     const content = this.buildAgentApiFailureMessage(
       errorMessage,
@@ -81,6 +87,7 @@ export class FeiShuAlertService {
       userMessage,
       apiEndpoint,
       errorDetails,
+      requestHeaders,
       options,
     );
 
@@ -125,6 +132,128 @@ export class FeiShuAlertService {
   }
 
   /**
+   * 脱敏 Token/Key
+   * 只保留前 8 位和后 4 位，中间用 *** 替代
+   */
+  private maskToken(token: string): string {
+    if (!token || token.length < 12) {
+      return '[无效令牌]';
+    }
+    const prefix = token.substring(0, 8);
+    const suffix = token.substring(token.length - 4);
+    return `${prefix}***${suffix}`;
+  }
+
+  private extractErrorMessage(error: any, response?: any): string {
+    if (response?.data) {
+      if (typeof response.data === 'string') {
+        return response.data;
+      }
+      return (
+        response.data.message ||
+        response.data.error ||
+        response.data.detail ||
+        JSON.stringify(response.data)
+      );
+    }
+
+    return error?.message || '未知错误';
+  }
+
+  private shouldMaskHeader(headerName: string): boolean {
+    const lower = headerName.toLowerCase();
+    return (
+      lower.includes('authorization') ||
+      lower.includes('token') ||
+      lower.includes('key') ||
+      lower.includes('secret')
+    );
+  }
+
+  private formatRequestHeaders(headers?: Record<string, any>): string | null {
+    if (!headers || Object.keys(headers).length === 0) {
+      return null;
+    }
+
+    const lines = Object.entries(headers).map(([key, rawValue]) => {
+      let displayValue: string;
+      if (typeof rawValue === 'string') {
+        displayValue = rawValue;
+      } else if (Array.isArray(rawValue)) {
+        displayValue = rawValue.join(', ');
+      } else if (rawValue !== undefined && rawValue !== null) {
+        displayValue = JSON.stringify(rawValue);
+      } else {
+        displayValue = '';
+      }
+
+      if (displayValue && this.shouldMaskHeader(key)) {
+        if (/^Bearer\s+/i.test(displayValue)) {
+          const token = displayValue.replace(/^Bearer\s+/i, '').trim();
+          displayValue = `Bearer ${this.maskToken(token)}`;
+        } else {
+          displayValue = this.maskToken(displayValue);
+        }
+      }
+
+      return `- ${key}: ${displayValue || '[空]'}`;
+    });
+
+    return lines.join('\n');
+  }
+
+  private sanitizeErrorDetails(details: any, summary: string): any {
+    if (!details) {
+      return null;
+    }
+
+    if (typeof details === 'string') {
+      return this.isSameMessage(details, summary) ? null : details;
+    }
+
+    if (Array.isArray(details)) {
+      return details;
+    }
+
+    if (typeof details === 'object') {
+      const clone = { ...details };
+      ['message', 'detail', 'error_message', 'errorMessage'].forEach((key) => {
+        if (typeof clone[key] === 'string' && this.isSameMessage(clone[key], summary)) {
+          delete clone[key];
+        }
+      });
+
+      return Object.keys(clone).length === 0 ? null : clone;
+    }
+
+    return details;
+  }
+
+  private stringifyErrorDetails(details: any): string | null {
+    if (!details) {
+      return null;
+    }
+
+    if (typeof details === 'string') {
+      return details;
+    }
+
+    try {
+      const str = JSON.stringify(details, null, 2);
+      return str === '{}' ? null : str;
+    } catch {
+      return null;
+    }
+  }
+
+  private isSameMessage(value: string, summary?: string): boolean {
+    if (!value || !summary) {
+      return false;
+    }
+    return value.trim().toLowerCase() === summary.trim().toLowerCase();
+  }
+
+  /**
    * 构建 Agent API 失败告警消息
    */
   private buildAgentApiFailureMessage(
@@ -134,6 +263,7 @@ export class FeiShuAlertService {
     userMessage: string,
     apiEndpoint: string,
     errorDetails: any,
+    requestHeaders: Record<string, any> | undefined,
     options?: AgentAlertOptions,
   ): any {
     const timestamp = new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
@@ -143,6 +273,10 @@ export class FeiShuAlertService {
 
     const { title, template } = this.getAlertHeaderMeta(errorType);
     const errorTypeLabel = this.getErrorTypeLabel(errorType);
+
+    // 从 requestParams 中提取 dulidayToken
+    const dulidayToken = options?.requestParams?.context?.dulidayToken;
+
     const metaLines = [
       `**告警时间**: ${timestamp}`,
       `**环境**: ${env}`,
@@ -150,11 +284,20 @@ export class FeiShuAlertService {
       `**错误类型**: ${errorTypeLabel}`,
     ];
 
+    if (options?.contactName) {
+      metaLines.push(`**用户昵称**: ${options.contactName}`);
+    }
     if (options?.scenario) {
       metaLines.push(`**场景**: ${options.scenario}`);
     }
     if (options?.channel) {
       metaLines.push(`**渠道**: ${options.channel}`);
+    }
+    if (dulidayToken) {
+      metaLines.push(`**DuLiDay Token**: ${this.maskToken(dulidayToken)}`);
+    }
+    if (options?.apiKey) {
+      metaLines.push(`**API Key**: ${this.maskToken(options.apiKey)}`);
     }
 
     const elements: any[] = [
@@ -196,16 +339,45 @@ export class FeiShuAlertService {
       );
     }
 
-    elements.push(
-      { tag: 'hr' },
-      {
-        tag: 'div',
-        text: {
-          tag: 'lark_md',
-          content: `**错误详情**:\n\`\`\`json\n${JSON.stringify(errorDetails, null, 2).substring(0, 500)}\n\`\`\``,
+    // 【优化】改进错误详情显示
+    const sanitizedErrorDetails = this.sanitizeErrorDetails(errorDetails, errorMessage);
+    const errorDetailsStr = this.stringifyErrorDetails(sanitizedErrorDetails);
+    const hasErrorDetails = Boolean(errorDetailsStr);
+
+    if (hasErrorDetails) {
+      const codeLanguage = typeof sanitizedErrorDetails === 'string' ? 'text' : 'json';
+      // 限制显示长度为 1500 字符（原来是 500，现在增加到 1500）
+      const maxLength = 1500;
+      const truncatedDetails =
+        errorDetailsStr.length > maxLength
+          ? errorDetailsStr.substring(0, maxLength) + '\n...(已截断，查看日志获取完整信息)'
+          : errorDetailsStr;
+
+      elements.push(
+        { tag: 'hr' },
+        {
+          tag: 'div',
+          text: {
+            tag: 'lark_md',
+            content: `**错误详情**:\n\`\`\`${codeLanguage}\n${truncatedDetails}\n\`\`\``,
+          },
         },
-      },
-    );
+      );
+    }
+
+    const headersMarkdown = this.formatRequestHeaders(requestHeaders || options?.requestHeaders);
+    if (headersMarkdown) {
+      elements.push(
+        { tag: 'hr' },
+        {
+          tag: 'div',
+          text: {
+            tag: 'lark_md',
+            content: `**请求 Headers**:\n${headersMarkdown}`,
+          },
+        },
+      );
+    }
 
     if (logViewerUrl) {
       elements.push({

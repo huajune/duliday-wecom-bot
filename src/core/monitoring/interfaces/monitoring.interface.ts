@@ -1,6 +1,30 @@
+import { ScenarioType } from '@agent';
+
 /**
  * 监控系统接口定义
  */
+
+export interface ToolUsageMetric {
+  name: string;
+  total: number;
+  failureCount: number;
+  failureRate: number;
+  lastUsedAt: number;
+}
+
+export interface ScenarioUsageMetric {
+  name: string;
+  total: number;
+  percentage: number;
+}
+
+export interface MonitoringMetadata {
+  scenario?: ScenarioType;
+  tools?: string[];
+  tokenUsage?: number;
+  replyPreview?: string;
+  isFallback?: boolean;
+}
 
 /**
  * 消息处理记录
@@ -10,6 +34,7 @@ export interface MessageProcessingRecord {
   chatId: string;
   userId?: string;
   userName?: string;
+  scenario?: ScenarioType;
 
   // 时间戳
   receivedAt: number; // 收到消息时间
@@ -22,13 +47,18 @@ export interface MessageProcessingRecord {
   totalDuration?: number; // 总耗时
   aiDuration?: number; // AI 处理耗时
   sendDuration?: number; // 消息发送耗时
+  queueDuration?: number; // 排队耗时（AI 开始前）
 
   // 状态
   status: 'processing' | 'success' | 'failure';
   error?: string;
+  isFallback?: boolean;
 
   // 消息内容（用于调试）
   messagePreview?: string; // 消息预览（前50字符）
+  replyPreview?: string; // AI 回复预览
+  tokenUsage?: number; // Token 使用
+  tools?: string[]; // 使用的工具
 }
 
 /**
@@ -63,6 +93,8 @@ export interface HourlyStats {
  * 仪表盘数据
  */
 export interface DashboardData {
+  lastWindowHours: number;
+
   // 总览
   overview: {
     totalMessages: number;
@@ -74,9 +106,33 @@ export interface DashboardData {
     activeChats: number;
   };
 
-  // 趋势数据（最近24小时）
+  overviewDelta: {
+    totalMessages: number;
+    successRate: number;
+    avgDuration: number;
+    activeUsers: number;
+  };
+
+  usage: {
+    tools: ToolUsageMetric[];
+    scenarios: ScenarioUsageMetric[];
+  };
+
+  queue: {
+    currentProcessing: number;
+    peakProcessing: number;
+    avgQueueDuration: number;
+  };
+
+  alertsSummary: {
+    total: number;
+    last24Hours: number;
+  };
+
+  // 趋势数据
   trends: {
     hourly: HourlyStats[];
+    previous?: HourlyStats[];
   };
 
   // 最近消息（最新50条）

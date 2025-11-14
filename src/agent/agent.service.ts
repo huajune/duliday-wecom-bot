@@ -373,9 +373,19 @@ export class AgentService {
   private handleChatError(error: any, conversationId: string): AgentResult {
     this.logger.error(`Agent API 调用失败，会话: ${conversationId}`, error);
 
+    // 【优化】调用失败时打印错误栈帮助排查
+    if (error.stack) {
+      this.logger.error(`错误堆栈: ${error.stack}`);
+    }
+
+    const requestParams = (error as any).requestParams;
+    const apiKey = (error as any).apiKey;
+    const apiResponse = (error as any).apiResponse || (error as any).response;
+    const requestHeaders = (error as any).requestHeaders;
+
     // 1. 配置错误（必须抛出，这是开发问题）
     if (error instanceof AgentConfigException) {
-      return createErrorResult(
+      const errorResult = createErrorResult(
         {
           code: 'CONFIG_ERROR',
           message: error.message,
@@ -383,6 +393,12 @@ export class AgentService {
         },
         conversationId,
       );
+      // 【修复】将 requestParams、apiKey 和 apiResponse 附加到 error 上
+      (errorResult.error as any).requestParams = requestParams;
+      (errorResult.error as any).apiKey = apiKey;
+      (errorResult.error as any).response = apiResponse;
+      (errorResult.error as any).requestHeaders = requestHeaders;
+      return errorResult;
     }
 
     // 2. 认证失败 → 返回错误结果（需要立即修复 API Key）
@@ -390,7 +406,7 @@ export class AgentService {
       this.logger.error(
         `Agent API 认证失败 (${error.statusCode}): ${error.message}，会话: ${conversationId}`,
       );
-      return createErrorResult(
+      const errorResult = createErrorResult(
         {
           code: 'AUTH_ERROR',
           message: error.message,
@@ -402,6 +418,12 @@ export class AgentService {
         },
         conversationId,
       );
+      // 【修复】将 requestParams、apiKey 和 apiResponse 附加到 error 上，供飞书告警使用
+      (errorResult.error as any).requestParams = requestParams;
+      (errorResult.error as any).apiKey = apiKey;
+      (errorResult.error as any).response = apiResponse; // 保留原始响应
+      (errorResult.error as any).requestHeaders = requestHeaders;
+      return errorResult;
     }
 
     // 3. 上下文缺失 → 返回引导消息（降级）
@@ -409,7 +431,13 @@ export class AgentService {
       this.logger.warn(`上下文缺失，返回引导消息，会话: ${conversationId}`);
       const fallbackInfo = this.fallbackService.getFallbackInfo(FallbackScenario.CONTEXT_MISSING);
       const fallbackResponse = this.createFallbackResponse(fallbackInfo.message);
-      return createFallbackResult(fallbackResponse, fallbackInfo, conversationId);
+      const fallbackResult = createFallbackResult(fallbackResponse, fallbackInfo, conversationId);
+      // 【修复】附加 requestParams、apiKey 和 apiResponse
+      (fallbackResult as any).requestParams = requestParams;
+      (fallbackResult as any).apiKey = apiKey;
+      (fallbackResult as any).response = apiResponse;
+      (fallbackResult as any).requestHeaders = requestHeaders;
+      return fallbackResult;
     }
 
     // 4. 频率限制 → 返回等待消息（降级）
@@ -420,7 +448,13 @@ export class AgentService {
         error.retryAfter,
       );
       const fallbackResponse = this.createFallbackResponse(fallbackInfo.message);
-      return createFallbackResult(fallbackResponse, fallbackInfo, conversationId);
+      const fallbackResult = createFallbackResult(fallbackResponse, fallbackInfo, conversationId);
+      // 【修复】附加 requestParams、apiKey 和 apiResponse
+      (fallbackResult as any).requestParams = requestParams;
+      (fallbackResult as any).apiKey = apiKey;
+      (fallbackResult as any).response = apiResponse;
+      (fallbackResult as any).requestHeaders = requestHeaders;
+      return fallbackResult;
     }
 
     // 5. 网络错误 → 返回通用降级消息
@@ -430,7 +464,13 @@ export class AgentService {
       });
       const fallbackInfo = this.fallbackService.getFallbackInfo(FallbackScenario.NETWORK_ERROR);
       const fallbackResponse = this.createFallbackResponse(fallbackInfo.message);
-      return createFallbackResult(fallbackResponse, fallbackInfo, conversationId);
+      const fallbackResult = createFallbackResult(fallbackResponse, fallbackInfo, conversationId);
+      // 【修复】附加 requestParams、apiKey 和 apiResponse
+      (fallbackResult as any).requestParams = requestParams;
+      (fallbackResult as any).apiKey = apiKey;
+      (fallbackResult as any).response = apiResponse;
+      (fallbackResult as any).requestHeaders = requestHeaders;
+      return fallbackResult;
     }
 
     // 6. Agent API 异常 → 根据错误类型决定
@@ -440,14 +480,26 @@ export class AgentService {
         `Agent API 异常，返回降级消息: "${fallbackInfo.message}"，会话: ${conversationId}`,
       );
       const fallbackResponse = this.createFallbackResponse(fallbackInfo.message);
-      return createFallbackResult(fallbackResponse, fallbackInfo, conversationId);
+      const fallbackResult = createFallbackResult(fallbackResponse, fallbackInfo, conversationId);
+      // 【修复】附加 requestParams、apiKey 和 apiResponse
+      (fallbackResult as any).requestParams = requestParams;
+      (fallbackResult as any).apiKey = apiKey;
+      (fallbackResult as any).response = apiResponse;
+      (fallbackResult as any).requestHeaders = requestHeaders;
+      return fallbackResult;
     }
 
     // 7. 其他未知错误 → 返回通用降级消息
     this.logger.error(`未知错误，返回降级消息，会话: ${conversationId}`, error);
     const fallbackInfo = this.fallbackService.getFallbackInfo(FallbackScenario.NETWORK_ERROR);
     const fallbackResponse = this.createFallbackResponse(fallbackInfo.message);
-    return createFallbackResult(fallbackResponse, fallbackInfo, conversationId);
+    const fallbackResult = createFallbackResult(fallbackResponse, fallbackInfo, conversationId);
+    // 【修复】附加 requestParams、apiKey 和 apiResponse
+    (fallbackResult as any).requestParams = requestParams;
+    (fallbackResult as any).apiKey = apiKey;
+    (fallbackResult as any).response = apiResponse;
+    (fallbackResult as any).requestHeaders = requestHeaders;
+    return fallbackResult;
   }
 
   /**

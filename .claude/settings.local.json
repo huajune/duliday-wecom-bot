@@ -94,7 +94,9 @@
       "Bash(timeout 30 pnpm run start:dev:*)",
       "Bash(tee:*)",
       "Bash(pnpm test:*)",
-      "Bash(pnpm run test:cov:*)"
+      "Bash(pnpm run test:cov:*)",
+      "Bash(source:*)",
+      "Bash(time curl -s http://localhost:8080/agent/tools)"
     ],
     "deny": [
       "Bash(git restore:*)",

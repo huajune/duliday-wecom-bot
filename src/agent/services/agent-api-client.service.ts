@@ -68,6 +68,19 @@ export class AgentApiClientService {
       });
       return response;
     } catch (error) {
+      // 【优化】调用失败时记录会话ID
+      this.logger.error(`Agent API 调用失败，会话: ${conversationId}`);
+
+      // 【优化】将请求参数和 API Key 附加到错误对象，供飞书告警使用
+      (error as any).requestParams = request;
+      (error as any).apiKey = this.apiKey; // 附加 API Key（飞书告警会自动脱敏）
+      const headersClone = (error as any)?.config?.headers
+        ? { ...(error as any).config.headers }
+        : undefined;
+      if (headersClone) {
+        (error as any).requestHeaders = headersClone;
+      }
+
       // 转换异常
       throw this.convertError(error);
     }
@@ -196,21 +209,47 @@ export class AgentApiClientService {
    */
   private convertError(error: any): Error {
     const status = error.response?.status;
+    const requestParams = error.requestParams; // 保留请求参数
+    const apiKey = error.apiKey; // 保留 API Key
+    const requestHeaders = error.requestHeaders;
+    const originalResponse = error.response; // 保留原始响应
+
+    let convertedError: Error;
 
     // 401/403 认证失败
     if (status === 401 || status === 403) {
       const message =
         error.response?.data?.message || error.response?.data?.error || 'API Key 无效或已过期';
-      return new AgentAuthException(message, status);
+      const authException = new AgentAuthException(message, status);
+      authException.apiResponse = originalResponse; // 【修复】保留原始响应
+      convertedError = authException;
     }
-
     // 429 频率限制
-    if (status === 429) {
+    else if (status === 429) {
       const retryAfter = error.response.data?.details?.retryAfter || 60;
-      return new AgentRateLimitException(retryAfter, `请求频率过高，请${retryAfter}秒后重试`);
+      const rateLimitException = new AgentRateLimitException(
+        retryAfter,
+        `请求频率过高，请${retryAfter}秒后重试`,
+      );
+      rateLimitException.apiResponse = originalResponse; // 【修复】保留原始响应
+      convertedError = rateLimitException;
+    }
+    // 其他错误直接返回
+    else {
+      convertedError = error;
     }
 
-    // 其他错误直接返回
-    return error;
+    // 【优化】将请求参数和 API Key 附加到转换后的错误对象
+    if (requestParams) {
+      (convertedError as any).requestParams = requestParams;
+    }
+    if (apiKey) {
+      (convertedError as any).apiKey = apiKey;
+    }
+    if (requestHeaders) {
+      (convertedError as any).requestHeaders = requestHeaders;
+    }
+
+    return convertedError;
   }
 }
