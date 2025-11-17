@@ -177,6 +177,15 @@ export class AlertOrchestratorService {
    */
   async sendMetricAlert(context: MetricAlertContext): Promise<void> {
     try {
+      // 检查业务指标告警开关
+      const metricAlertsEnabled = this.configService.isMetricAlertsEnabled();
+      if (!metricAlertsEnabled) {
+        this.logger.debug(
+          `业务指标告警已禁用，跳过: ${context.metricName}=${context.currentValue}`,
+        );
+        return;
+      }
+
       const icon = this.severityService.getSeverityIcon(context.severity);
       const severityLabel = this.severityService.getSeverityLabel(context.severity);
 

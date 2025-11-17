@@ -94,6 +94,15 @@ export class AlertConfigService implements OnModuleInit {
       this.config.enabled = enabledEnv === 'true';
     }
 
+    // 业务指标告警开关
+    const metricAlertsEnabledEnv = this.configService.get<string>('ENABLE_METRIC_ALERTS');
+    if (metricAlertsEnabledEnv !== undefined) {
+      this.config.metricAlertsEnabled = metricAlertsEnabledEnv === 'true';
+    } else if (this.config.metricAlertsEnabled === undefined) {
+      // 如果未设置，默认为 true
+      this.config.metricAlertsEnabled = true;
+    }
+
     // 业务指标阈值覆盖
     const successRateWarning = this.configService.get<number>('ALERT_SUCCESS_RATE_WARNING');
     if (successRateWarning !== undefined) {
@@ -193,6 +202,13 @@ export class AlertConfigService implements OnModuleInit {
    */
   isEnabled(): boolean {
     return this.config.enabled;
+  }
+
+  /**
+   * 检查业务指标告警是否启用
+   */
+  isMetricAlertsEnabled(): boolean {
+    return this.config.metricAlertsEnabled !== false;
   }
 
   /**

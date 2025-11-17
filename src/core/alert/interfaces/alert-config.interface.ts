@@ -91,6 +91,7 @@ export interface MetricAlertConfig {
  */
 export interface AlertConfig {
   enabled: boolean; // 全局告警开关
+  metricAlertsEnabled?: boolean; // 业务指标告警开关（可选，默认 true）
   defaultSeverity: AlertSeverity; // 默认严重程度
   defaultThrottle: AlertThrottleConfig; // 默认限流配置
   rules: AlertRule[]; // 告警规则列表
