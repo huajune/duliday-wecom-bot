@@ -1,0 +1,65 @@
+{
+  "version": 1,
+  "savedAt": 1763363819815,
+  "detailRecords": [
+    {
+      "messageId": "f959b7ad4a382d052b7352fc391d07f4",
+      "chatId": "68e76ed39d6d3a463b62db49",
+      "userId": "1688852792312821",
+      "userName": "企业微信团队",
+      "receivedAt": 1763363807787,
+      "status": "failure",
+      "messagePreview": "The member 张颖 has quit the company. To join it aga",
+      "scenario": "candidate-consultation",
+      "aiStartAt": 1763363813064,
+      "queueDuration": 5277,
+      "aiEndAt": 1763363819814,
+      "aiDuration": 6750,
+      "error": "Converting circular structure to JSON\n    --> starting at object with constructor 'ClientRequest'\n    |     property 'res' -> object with constructor 'IncomingMessage'\n    --- property 'req' closes the circle",
+      "totalDuration": 12027
+    }
+  ],
+  "hourlyStats": [
+    {
+      "hour": "2025-11-17T07:00:00.000Z",
+      "messageCount": 1,
+      "successCount": 0,
+      "failureCount": 1,
+      "successRate": 0,
+      "avgDuration": 12027,
+      "minDuration": 12027,
+      "maxDuration": 12027,
+      "p50Duration": 12027,
+      "p95Duration": 12027,
+      "p99Duration": 12027,
+      "avgAiDuration": 6750,
+      "avgSendDuration": 0,
+      "activeUsers": 1,
+      "activeChats": 1
+    }
+  ],
+  "errorLogs": [
+    {
+      "messageId": "f959b7ad4a382d052b7352fc391d07f4",
+      "timestamp": 1763363819815,
+      "error": "Converting circular structure to JSON\n    --> starting at object with constructor 'ClientRequest'\n    |     property 'res' -> object with constructor 'IncomingMessage'\n    --- property 'req' closes the circle"
+    }
+  ],
+  "globalCounters": {
+    "totalMessages": 1,
+    "totalSuccess": 0,
+    "totalFailure": 1,
+    "totalAiDuration": 6750,
+    "totalSendDuration": 0,
+    "totalFallback": 0,
+    "totalFallbackSuccess": 0
+  },
+  "activeUsers": [
+    "1688852792312821"
+  ],
+  "activeChats": [
+    "68e76ed39d6d3a463b62db49"
+  ],
+  "currentProcessing": 0,
+  "peakProcessing": 1
+}

@@ -46,8 +46,8 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Run ESLint
-        run: pnpm run lint
+      - name: Run ESLint (read-only)
+        run: pnpm run lint:check
 
       - name: Run Prettier check
         run: pnpm exec prettier --check "src/**/*.ts"
@@ -160,12 +160,8 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Run tests
-        run: pnpm run test
-
-      - name: Generate coverage report
+      - name: Run tests with coverage
         run: pnpm run test:cov
-        continue-on-error: true
 
       - name: Upload coverage to artifacts
         if: always()

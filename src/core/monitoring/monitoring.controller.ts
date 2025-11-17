@@ -1,6 +1,17 @@
-import { Controller, Get, Post, HttpCode, Logger } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  HttpCode,
+  Logger,
+  Body,
+  Inject,
+  forwardRef,
+  Query,
+} from '@nestjs/common';
 import { MonitoringService } from './monitoring.service';
-import { DashboardData, MetricsData } from './interfaces/monitoring.interface';
+import { DashboardData, MetricsData, TimeRange } from './interfaces/monitoring.interface';
+import { MessageService } from '@wecom/message/message.service';
 
 /**
  * 监控控制器
@@ -10,16 +21,21 @@ import { DashboardData, MetricsData } from './interfaces/monitoring.interface';
 export class MonitoringController {
   private readonly logger = new Logger(MonitoringController.name);
 
-  constructor(private readonly monitoringService: MonitoringService) {}
+  constructor(
+    private readonly monitoringService: MonitoringService,
+    @Inject(forwardRef(() => MessageService))
+    private readonly messageService: MessageService,
+  ) {}
 
   /**
    * 获取仪表盘数据
-   * GET /monitoring/dashboard
+   * GET /monitoring/dashboard?range=today|week|month
    */
   @Get('dashboard')
-  getDashboard(): DashboardData {
-    this.logger.debug('获取仪表盘数据');
-    return this.monitoringService.getDashboardData();
+  getDashboard(@Query('range') range?: TimeRange): DashboardData {
+    const timeRange = range || 'today';
+    this.logger.debug(`获取仪表盘数据 [range=${timeRange}]`);
+    return this.monitoringService.getDashboardData(timeRange);
   }
 
   /**
@@ -53,6 +69,33 @@ export class MonitoringController {
     return {
       status: 'ok',
       timestamp: Date.now(),
+    };
+  }
+
+  /**
+   * 获取 AI 回复开关状态
+   * GET /monitoring/ai-reply-status
+   */
+  @Get('ai-reply-status')
+  getAiReplyStatus(): { enabled: boolean } {
+    this.logger.debug('获取 AI 回复开关状态');
+    return {
+      enabled: this.messageService.getAiReplyStatus(),
+    };
+  }
+
+  /**
+   * 切换 AI 回复开关
+   * POST /monitoring/toggle-ai-reply
+   */
+  @Post('toggle-ai-reply')
+  @HttpCode(200)
+  toggleAiReply(@Body('enabled') enabled: boolean): { enabled: boolean; message: string } {
+    this.logger.log(`切换 AI 回复开关: ${enabled}`);
+    const newStatus = this.messageService.toggleAiReply(enabled);
+    return {
+      enabled: newStatus,
+      message: `AI 自动回复功能已${newStatus ? '启用' : '禁用'}`,
     };
   }
 }

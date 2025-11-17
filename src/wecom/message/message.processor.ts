@@ -1,7 +1,12 @@
 import { Process, Processor, OnQueueFailed, OnQueueCompleted } from '@nestjs/bull';
 import { Logger } from '@nestjs/common';
 import { Job } from 'bull';
-import { AgentService, AgentConfigService } from '@agent';
+import {
+  AgentService,
+  ProfileLoaderService,
+  AgentConfigValidator,
+  AgentResultHelper,
+} from '@agent';
 import { MessageSenderService } from '../message-sender/message-sender.service';
 import { MessageType as SendMessageType } from '../message-sender/dto/send-message.dto';
 import { EnterpriseMessageCallbackDto } from './dto/message-callback.dto';
@@ -27,7 +32,8 @@ export class MessageProcessor {
 
   constructor(
     private readonly agentService: AgentService,
-    private readonly agentConfigService: AgentConfigService,
+    private readonly profileLoader: ProfileLoaderService,
+    private readonly configValidator: AgentConfigValidator,
     private readonly messageSenderService: MessageSenderService,
     // 注入新的子服务
     private readonly historyService: MessageHistoryService,
@@ -105,7 +111,7 @@ export class MessageProcessor {
     try {
       // 判断消息场景（复用 MessageParser）
       const scenario = MessageParser.determineScenario();
-      const agentProfile = this.agentConfigService.getProfile(scenario);
+      const agentProfile = this.profileLoader.getProfile(scenario);
 
       if (!agentProfile) {
         this.logger.error(`无法获取场景 ${scenario} 的 Agent 配置`);
@@ -113,9 +119,15 @@ export class MessageProcessor {
       }
 
       // 验证配置有效性
-      const validation = this.agentConfigService.validateProfile(agentProfile);
-      if (!validation.valid) {
-        this.logger.error(`Agent 配置验证失败: ${validation.errors.join(', ')}`);
+      try {
+        this.configValidator.validateRequiredFields(agentProfile);
+        const contextValidation = this.configValidator.validateContext(agentProfile.context);
+        if (!contextValidation.isValid) {
+          this.logger.error(`Agent 配置验证失败: ${contextValidation.errors.join(', ')}`);
+          return;
+        }
+      } catch (error) {
+        this.logger.error(`Agent 配置验证失败: ${error.message}`);
         return;
       }
 
@@ -127,7 +139,7 @@ export class MessageProcessor {
       this.historyService.addMessageToHistory(chatId, 'user', mergedContent);
 
       // 调用 Agent API 生成回复
-      const aiResponse = await this.agentService.chat({
+      const agentResult = await this.agentService.chat({
         conversationId: chatId,
         userMessage: mergedContent,
         historyMessages,
@@ -141,6 +153,19 @@ export class MessageProcessor {
         prune: agentProfile.prune,
         pruneOptions: agentProfile.pruneOptions,
       });
+
+      // 检查 Agent 调用结果
+      if (AgentResultHelper.isError(agentResult)) {
+        this.logger.error(`[Bull] Agent 调用失败:`, agentResult.error);
+        throw new Error(agentResult.error?.message || 'Agent 调用失败');
+      }
+
+      // 提取响应（优先使用 data，降级时使用 fallback）
+      const aiResponse = AgentResultHelper.getResponse(agentResult);
+      if (!aiResponse) {
+        this.logger.error(`[Bull] Agent 返回空响应`);
+        throw new Error('Agent 返回空响应');
+      }
 
       // 提取回复内容
       const replyContent = this.extractReplyContent(aiResponse);

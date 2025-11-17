@@ -1,84 +1,74 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { AxiosInstance, AxiosResponse } from 'axios';
-import { ApiResponse, ChatRequest, ChatResponse, SimpleMessage } from './dto/chat-request.dto';
-import { HttpClientFactory } from '@core/http';
+import { AxiosResponse } from 'axios';
+import {
+  ApiResponse,
+  ChatRequest,
+  ChatResponse,
+  SimpleMessage,
+  AgentResult,
+} from './utils/agent-types';
 import {
   AgentApiException,
   AgentConfigException,
   AgentContextMissingException,
   AgentRateLimitException,
-} from './exceptions/agent.exception';
-import { parseToolsFromEnv, getModelDisplayName } from './utils';
-import { AgentCacheService } from './agent-cache.service';
-import { AgentRegistryService } from './agent-registry.service';
+  AgentAuthException,
+} from './utils/agent-exceptions';
+import { getModelDisplayName } from './utils';
+import { AgentCacheService } from './services/agent-cache.service';
+import { AgentRegistryService } from './services/agent-registry.service';
+import { AgentFallbackService, FallbackScenario } from './services/agent-fallback.service';
+import { AgentApiClientService } from './services/agent-api-client.service';
+import { ProfileSanitizer, AgentProfile } from './utils/agent-profile-sanitizer';
+import { AgentLogger } from './utils/agent-logger';
+import {
+  createSuccessResult,
+  createFallbackResult,
+  createErrorResult,
+} from './utils/agent-result-helper';
 
 /**
  * Agent 服务（重构版）
- * 负责调用 Agent API 的 HTTP 接口，简化为纯 API 调用层
+ * 负责调用 Agent API 的核心业务逻辑
  *
  * 职责：
- * 1. HTTP 客户端管理
- * 2. API 调用封装（chat, getModels, getTools 等）
- * 3. 请求重试和错误处理
- * 4. Token 使用统计
+ * 1. 参数验证和预处理
+ * 2. 组装请求并调用 API
+ * 3. 处理响应和错误
+ * 4. 统一降级策略
  *
- * 不再负责：
- * - 模型/工具验证（委托给 AgentRegistryService）
- * - 响应缓存（委托给 AgentCacheService）
- * - 健康检查缓存（委托给 AgentConfigService）
+ * 已委托给其他服务：
+ * - API 调用和重试 → AgentApiClientService
+ * - 模型/工具验证 → AgentRegistryService
+ * - 缓存管理 → AgentCacheService
+ * - 降级策略 → AgentFallbackService
+ * - 配置验证和品牌配置监控 → AgentConfigService (在 getProfile 中处理)
+ * - 日志处理 → AgentLogger
  */
 @Injectable()
 export class AgentService {
   private readonly logger = new Logger(AgentService.name);
-  private readonly httpClient: AxiosInstance;
-  private readonly apiKey: string;
-  private readonly baseURL: string;
-  private readonly defaultModel: string;
-  private readonly timeout: number;
-  private readonly maxRetries: number = 3;
-
-  // 从环境变量读取的配置
-  private readonly configuredTools: string[];
+  private readonly agentLogger: AgentLogger;
 
   constructor(
     private readonly configService: ConfigService,
-    private readonly httpClientFactory: HttpClientFactory,
+    private readonly apiClient: AgentApiClientService,
     private readonly cacheService: AgentCacheService,
     private readonly registryService: AgentRegistryService,
+    private readonly fallbackService: AgentFallbackService,
   ) {
-    // 从环境变量读取配置（已在启动时验证，这里可以安全使用）
-    this.apiKey = this.configService.get<string>('AGENT_API_KEY')!;
-    this.baseURL = this.configService.get<string>('AGENT_API_BASE_URL')!;
-    this.defaultModel = this.configService.get<string>('AGENT_DEFAULT_MODEL')!;
-    this.timeout = this.configService.get<number>('AGENT_API_TIMEOUT')!;
+    // 初始化日志工具
+    this.agentLogger = new AgentLogger(this.logger, this.configService);
 
-    // 解析配置的工具列表
-    const toolsString = this.configService.get<string>('AGENT_ALLOWED_TOOLS', '');
-    this.configuredTools = parseToolsFromEnv(toolsString);
-
-    this.logger.log(`初始化 Agent API 客户端: ${this.baseURL}`);
-    this.logger.log(`默认模型: ${this.defaultModel}`);
-    this.logger.log(
-      `配置的工具: ${this.configuredTools.length > 0 ? this.configuredTools.join(', ') : '无'}`,
-    );
-    this.logger.log(`API 超时设置: ${this.timeout}ms`);
-
-    // 使用工厂创建 HTTP 客户端实例
-    this.httpClient = this.httpClientFactory.createWithBearerAuth(
-      {
-        baseURL: this.baseURL,
-        timeout: this.timeout,
-        logPrefix: '[Agent API]',
-        verbose: false,
-      },
-      this.apiKey,
-    );
+    // 注意：工具和模型配置现在统一由 AgentRegistryService 管理
+    this.logger.log('AgentService 已初始化（工具/模型由 RegistryService 统一管理）');
   }
 
   /**
    * 调用 /api/v1/chat 接口（非流式）
    * 支持完整的 API 契约参数
+   * @returns AgentResult 统一响应模型
    */
   async chat(params: {
     conversationId: string;
@@ -98,201 +88,24 @@ export class AgentService {
       preserveRecentMessages?: number;
     };
     validateOnly?: boolean;
-  }): Promise<ChatResponse> {
-    const {
-      conversationId,
-      userMessage,
-      historyMessages = [],
-      model: requestedModel,
-      systemPrompt,
-      promptType,
-      allowedTools,
-      context,
-      toolContext,
-      contextStrategy,
-      prune,
-      pruneOptions,
-      validateOnly,
-    } = params;
+  }): Promise<AgentResult> {
+    const { conversationId, historyMessages = [] } = params;
 
     try {
-      // 1. 验证用户消息不为空
-      if (!userMessage || userMessage.trim() === '') {
-        throw new AgentConfigException('用户消息内容不能为空');
-      }
+      // 1. 准备请求（验证 + 构建）
+      const preparedRequest = this.prepareRequest(params, conversationId, historyMessages);
 
-      // 2. 模型验证（委托给 RegistryService）
-      const validatedModel = this.registryService.validateModel(requestedModel);
-      if (requestedModel && requestedModel !== validatedModel) {
-        this.logger.warn(
-          `请求的模型 "${requestedModel}" 不可用，已回退到默认模型 "${validatedModel}"`,
-        );
-        this.logger.warn(`会话: ${conversationId}`);
-      } else if (validatedModel !== this.defaultModel && requestedModel) {
-        this.logger.log(
-          `使用模型: ${getModelDisplayName(validatedModel)}，会话: ${conversationId}`,
-        );
-      }
+      // 2. 执行请求（缓存协调 + API 调用）
+      const result = await this.executeRequest(preparedRequest, params, conversationId);
 
-      // 3. 工具验证（委托给 RegistryService）
-      const validatedTools = this.registryService.validateTools(allowedTools);
-      if (allowedTools && allowedTools.length > 0 && validatedTools.length === 0) {
-        this.logger.warn(`请求的 ${allowedTools.length} 个工具全部不可用，将不使用任何工具`);
-      }
+      // 3. 记录结果（日志 + 统计）
+      this.recordResult(result, conversationId);
 
-      // 4. 构建请求
-      const userMsg: SimpleMessage = { role: 'user', content: userMessage };
-      const chatRequest: ChatRequest = {
-        model: validatedModel,
-        messages: [...historyMessages, userMsg],
-        stream: false,
-      };
-
-      // 记录传递给 Agent API 的消息数量
-      this.logger.log(
-        `传递给 Agent API 的消息: ${chatRequest.messages.length} 条 (历史: ${historyMessages.length}, 当前: 1)`,
-      );
-
-      // 只添加有值的可选字段
-      if (systemPrompt) chatRequest.systemPrompt = systemPrompt;
-      if (promptType) chatRequest.promptType = promptType as any;
-      if (validatedTools && validatedTools.length > 0) chatRequest.allowedTools = validatedTools;
-      if (context && Object.keys(context).length > 0) chatRequest.context = context;
-      if (toolContext && Object.keys(toolContext).length > 0) chatRequest.toolContext = toolContext;
-      if (contextStrategy) chatRequest.contextStrategy = contextStrategy;
-      if (prune !== undefined) chatRequest.prune = prune;
-      if (pruneOptions) chatRequest.pruneOptions = pruneOptions;
-      if (validateOnly !== undefined) chatRequest.validateOnly = validateOnly;
-
-      // 打印完整的请求参数
-      this.logger.log(`========== Agent 请求参数 [${conversationId}] ==========`);
-      this.logger.log(`模型: ${chatRequest.model}`);
-      this.logger.log(`消息数量: ${chatRequest.messages.length}`);
-
-      // 打印聊天记录
-      this.logger.log(`\n聊天记录:`);
-      chatRequest.messages.forEach((msg, index) => {
-        // 提取消息内容（支持 SimpleMessage 和 UIMessage 两种格式）
-        let content: string;
-        if ('content' in msg) {
-          // SimpleMessage 格式
-          content = msg.content;
-        } else if ('parts' in msg) {
-          // UIMessage 格式
-          content = msg.parts.map((p) => p.text).join('');
-        } else {
-          content = JSON.stringify(msg);
-        }
-
-        const preview = content.substring(0, 100);
-        this.logger.log(
-          `  [${index + 1}] ${msg.role}: ${preview}${content.length > 100 ? '...' : ''}`,
-        );
-      });
-      this.logger.log('');
-
-      if (chatRequest.allowedTools && chatRequest.allowedTools.length > 0) {
-        this.logger.log(`允许的工具: [${chatRequest.allowedTools.join(', ')}]`);
-      }
-      if (chatRequest.context && Object.keys(chatRequest.context).length > 0) {
-        this.logger.log(`上下文参数: ${JSON.stringify(chatRequest.context.modelConfig, null, 2)}`);
-      }
-      this.logger.log('='.repeat(50));
-
-      // 5. 尝试从缓存获取响应（委托给 CacheService）
-      const cacheKey = this.cacheService.generateCacheKey({
-        model: validatedModel,
-        messages: chatRequest.messages,
-        tools: validatedTools,
-        context,
-        toolContext,
-        systemPrompt,
-        promptType,
-      });
-
-      const cached = await this.cacheService.get(cacheKey);
-      if (cached) {
-        this.logger.log(`命中缓存，会话: ${conversationId}`);
-        return cached;
-      }
-
-      // 6. 发送请求（带重试机制）
-      const response = await this.chatWithRetry(chatRequest, conversationId);
-
-      // 7. 提取 correlationId
-      const correlationId =
-        response.headers['x-correlation-id'] || response.data.correlationId || 'N/A';
-
-      // 8. 检查 API 响应是否成功
-      if (!response.data.success) {
-        const errorData = response.data as any;
-
-        this.logger.error(
-          `Agent API 返回失败，会话: ${conversationId}, correlationId: ${correlationId}`,
-          errorData,
-        );
-
-        // 处理上下文缺失错误
-        if (errorData.details?.missingContext && errorData.details?.tools) {
-          throw new AgentContextMissingException(
-            errorData.details.missingContext,
-            errorData.details.tools,
-          );
-        }
-
-        throw new AgentApiException(response.data.error || '未知错误', errorData.details);
-      }
-
-      const chatResponse = response.data.data;
-
-      // 9. 记录 correlationId 和使用统计
-      this.logger.log(`Agent API 成功，会话: ${conversationId}, correlationId: ${correlationId}`);
-
-      // 打印完整的 Agent 响应数据
-      this.logger.log(`========== Agent 响应数据 [${conversationId}] ==========`);
-      this.logger.log(JSON.stringify(chatResponse, null, 2));
-      this.logger.log('='.repeat(50));
-
-      this.logUsageStats(chatResponse, conversationId);
-
-      // 10. 缓存响应（委托给 CacheService）
-      // 基于实际使用的工具（而不是 allowedTools）决定是否缓存
-      if (
-        this.cacheService.shouldCache({
-          usedTools: chatResponse.tools?.used,
-          context,
-          toolContext,
-        })
-      ) {
-        await this.cacheService.set(cacheKey, chatResponse);
-      }
-
-      return chatResponse;
+      // 4. 返回成功结果
+      return createSuccessResult(result.data, undefined, result.fromCache);
     } catch (error) {
-      // 如果已经是我们的自定义异常，直接抛出
-      if (
-        error instanceof AgentApiException ||
-        error instanceof AgentConfigException ||
-        error instanceof AgentContextMissingException
-      ) {
-        throw error;
-      }
-
-      // 处理网络错误
-      if (error.code === 'ECONNREFUSED' || error.code === 'ETIMEDOUT') {
-        this.logger.error(`Agent API 连接失败，会话: ${conversationId}`, error);
-        throw new AgentApiException('无法连接到 Agent API 服务', {
-          code: error.code,
-          baseURL: this.baseURL,
-        });
-      }
-
-      // 其他未知错误
-      this.logger.error(`调用 /api/v1/chat 失败，会话: ${conversationId}`, error);
-      throw new AgentApiException(
-        error.message || '调用 Agent API 时发生未知错误',
-        error.response?.data,
-      );
+      // 统一错误处理
+      return this.handleChatError(error, conversationId);
     }
   }
 
@@ -302,30 +115,23 @@ export class AgentService {
    * @param userMessage 用户消息
    * @param profile Agent配置档案
    * @param overrides 覆盖配置档案的参数
+   * @returns AgentResult 统一响应模型
    */
   async chatWithProfile(
     conversationId: string,
     userMessage: string,
-    profile: {
-      model: string;
-      systemPrompt?: string;
-      promptType?: string;
-      allowedTools?: string[];
-      context?: any;
-      toolContext?: any;
-      contextStrategy?: 'error' | 'skip' | 'report';
-      prune?: boolean;
-      pruneOptions?: any;
-    },
-    overrides?: Partial<typeof profile>,
-  ): Promise<ChatResponse> {
-    // 合并配置档案和覆盖参数
-    const mergedConfig = { ...profile, ...overrides };
+    profile: AgentProfile,
+    overrides?: Partial<AgentProfile>,
+  ): Promise<AgentResult> {
+    // 1. 清洗和合并配置
+    const sanitized = ProfileSanitizer.merge(profile, overrides);
 
+    // 2. 调用 chat 方法
+    // 注意：品牌配置验证已在 AgentConfigService.getProfile() 中完成
     return this.chat({
       conversationId,
       userMessage,
-      ...mergedConfig,
+      ...sanitized,
     });
   }
 
@@ -333,90 +139,367 @@ export class AgentService {
    * 获取可用模型列表
    */
   async getModels() {
-    try {
-      this.logger.log('获取可用模型列表...');
-      const response = await this.httpClient.get('/models');
-      return response.data;
-    } catch (error) {
-      this.logger.error('获取模型列表失败:', error);
-      throw error;
-    }
+    return this.apiClient.getModels();
   }
 
   /**
    * 获取可用工具列表
    */
   async getTools() {
-    try {
-      this.logger.log('获取可用工具列表...');
-      const response = await this.httpClient.get('/tools');
-      return response.data;
-    } catch (error) {
-      this.logger.error('获取工具列表失败:', error);
-      throw error;
+    return this.apiClient.getTools();
+  }
+
+  // ========== 私有辅助方法 ==========
+
+  /**
+   * 准备请求（验证 + 构建）
+   * 职责：验证用户输入、模型和工具，构建最终的请求对象
+   */
+  private prepareRequest(
+    params: any,
+    conversationId: string,
+    historyMessages: SimpleMessage[],
+  ): { chatRequest: ChatRequest; validatedModel: string; validatedTools: string[] } {
+    const { userMessage } = params;
+
+    // 验证用户消息
+    this.validateUserMessage(userMessage);
+
+    // 验证和准备模型、工具
+    const validatedModel = this.registryService.validateModel(params.model);
+    const validatedTools = this.registryService.validateTools(params.allowedTools);
+
+    // 记录模型和工具信息
+    this.logModelAndTools(conversationId, validatedModel, validatedTools, params.model);
+
+    // 构建请求
+    const chatRequest = this.buildChatRequest({
+      ...params,
+      model: validatedModel,
+      allowedTools: validatedTools,
+      historyMessages,
+      userMessage,
+    });
+
+    // 记录请求日志
+    this.agentLogger.logRequest(conversationId, chatRequest);
+
+    return { chatRequest, validatedModel, validatedTools };
+  }
+
+  /**
+   * 执行请求（缓存协调 + API 调用）
+   * 职责：尝试从缓存获取，缓存未命中则调用 API
+   */
+  private async executeRequest(
+    preparedRequest: { chatRequest: ChatRequest; validatedModel: string; validatedTools: string[] },
+    params: any,
+    conversationId: string,
+  ): Promise<{ data: ChatResponse; fromCache: boolean }> {
+    const { chatRequest, validatedModel, validatedTools } = preparedRequest;
+
+    return await this.cacheService.fetchOrStore(
+      {
+        model: validatedModel,
+        messages: chatRequest.messages,
+        tools: validatedTools,
+        context: params.context,
+        toolContext: params.toolContext,
+        systemPrompt: params.systemPrompt,
+        promptType: params.promptType,
+        conversationId, // 【修复】添加 conversationId 避免不同会话缓存冲突
+      },
+      async () => {
+        // 缓存未命中，调用 API
+        const response = await this.apiClient.chat(chatRequest, conversationId);
+        return this.handleChatResponse(response, conversationId);
+      },
+      (response) => {
+        // 判断是否应该缓存
+        return this.cacheService.shouldCache({
+          usedTools: response.tools?.used,
+          context: params.context,
+          toolContext: params.toolContext,
+        });
+      },
+    );
+  }
+
+  /**
+   * 记录结果（日志 + 统计）
+   * 职责：记录响应日志和使用统计
+   */
+  private recordResult(
+    result: { data: ChatResponse; fromCache: boolean },
+    conversationId: string,
+  ): void {
+    // 记录响应日志
+    this.agentLogger.logResponse(conversationId, result.data);
+
+    // 记录使用统计
+    this.logUsageStats(result.data, conversationId);
+  }
+
+  /**
+   * 验证用户消息
+   */
+  private validateUserMessage(userMessage: string): void {
+    if (!userMessage || userMessage.trim() === '') {
+      throw new AgentConfigException('用户消息内容不能为空');
     }
   }
 
   /**
-   * 带重试机制的 chat 请求
-   * 实现指数退避策略
+   * 记录模型和工具信息
    */
-  private async chatWithRetry(
-    request: ChatRequest,
+  private logModelAndTools(
     conversationId: string,
-  ): Promise<AxiosResponse<ApiResponse<ChatResponse>>> {
-    let lastError: any;
-
-    for (let attempt = 0; attempt < this.maxRetries; attempt++) {
-      try {
-        const response = await this.httpClient.post<ApiResponse<ChatResponse>>('/chat', request);
-        return response;
-      } catch (error: any) {
-        lastError = error;
-
-        // 处理 429 频率限制错误
-        if (error.response?.status === 429) {
-          const retryAfter = error.response.data?.details?.retryAfter || 60;
-          this.logger.warn(
-            `请求频率过高，会话: ${conversationId}, ${retryAfter}秒后可重试 (尝试 ${attempt + 1}/${this.maxRetries})`,
-          );
-
-          // 如果是最后一次尝试，抛出特定异常
-          if (attempt === this.maxRetries - 1) {
-            throw new AgentRateLimitException(retryAfter, `请求频率过高，请${retryAfter}秒后重试`);
-          }
-
-          // 等待 retryAfter 时间
-          await this.sleep(retryAfter * 1000);
-          continue;
-        }
-
-        // 不重试的错误类型
-        if (
-          error.response?.status === 400 || // 参数错误
-          error.response?.status === 401 || // 认证失败
-          error.response?.status === 403 // 权限不足
-        ) {
-          this.logger.error(
-            `请求失败且不可重试，会话: ${conversationId}, 状态码: ${error.response.status}`,
-          );
-          throw error;
-        }
-
-        // 对于可重试的错误（5xx、网络错误等），使用指数退避
-        if (attempt < this.maxRetries - 1) {
-          const delay = Math.pow(2, attempt) * 1000; // 1s, 2s, 4s
-          this.logger.warn(
-            `请求失败，${delay}ms后重试，会话: ${conversationId} (尝试 ${attempt + 1}/${this.maxRetries})`,
-          );
-          await this.sleep(delay);
-        }
-      }
+    validatedModel: string,
+    validatedTools: string[],
+    requestedModel?: string,
+  ): void {
+    if (requestedModel && requestedModel !== validatedModel) {
+      this.logger.warn(
+        `请求的模型 "${requestedModel}" 不可用，已回退到默认模型 "${validatedModel}"`,
+      );
+      this.logger.warn(`会话: ${conversationId}`);
+    } else if (validatedModel !== this.registryService.getConfiguredModel() && requestedModel) {
+      this.logger.log(`使用模型: ${getModelDisplayName(validatedModel)}，会话: ${conversationId}`);
     }
 
-    // 所有重试都失败
-    this.logger.error(`所有重试均失败，会话: ${conversationId}`, lastError);
-    throw lastError;
+    this.logger.log(
+      `传递给 Agent API 的消息: ${validatedTools.length} 个工具, 会话: ${conversationId}`,
+    );
+  }
+
+  /**
+   * 构建聊天请求
+   */
+  private buildChatRequest(params: {
+    model: string;
+    userMessage: string;
+    historyMessages: SimpleMessage[];
+    systemPrompt?: string;
+    promptType?: string;
+    allowedTools?: string[];
+    context?: any;
+    toolContext?: any;
+    contextStrategy?: 'error' | 'skip' | 'report';
+    prune?: boolean;
+    pruneOptions?: any;
+    validateOnly?: boolean;
+  }): ChatRequest {
+    const userMsg: SimpleMessage = { role: 'user', content: params.userMessage };
+    const chatRequest: ChatRequest = {
+      model: params.model,
+      messages: [...params.historyMessages, userMsg],
+      stream: false,
+    };
+
+    // 只添加有值的可选字段
+    if (params.systemPrompt) chatRequest.systemPrompt = params.systemPrompt;
+    if (params.promptType) chatRequest.promptType = params.promptType as any;
+    if (params.allowedTools && params.allowedTools.length > 0) {
+      chatRequest.allowedTools = params.allowedTools;
+    }
+    if (params.context && Object.keys(params.context).length > 0) {
+      chatRequest.context = params.context;
+
+      // 调试日志：检查 context 中的 dulidayToken
+      if ('dulidayToken' in params.context) {
+        const tokenLength = params.context.dulidayToken
+          ? String(params.context.dulidayToken).length
+          : 0;
+        this.logger.debug(
+          `✅ buildChatRequest: context 中包含 dulidayToken (长度: ${tokenLength})，将传递给 Agent API`,
+        );
+      } else {
+        this.logger.warn('⚠️ buildChatRequest: context 中未找到 dulidayToken');
+      }
+    }
+    if (params.toolContext && Object.keys(params.toolContext).length > 0) {
+      chatRequest.toolContext = params.toolContext;
+    }
+    if (params.contextStrategy) chatRequest.contextStrategy = params.contextStrategy;
+    if (params.prune !== undefined) chatRequest.prune = params.prune;
+    if (params.pruneOptions) chatRequest.pruneOptions = params.pruneOptions;
+    if (params.validateOnly !== undefined) chatRequest.validateOnly = params.validateOnly;
+
+    return chatRequest;
+  }
+
+  /**
+   * 处理聊天响应
+   */
+  private handleChatResponse(
+    response: AxiosResponse<ApiResponse<ChatResponse>>,
+    conversationId: string,
+  ): ChatResponse {
+    // 提取 correlationId
+    const correlationId =
+      response.headers['x-correlation-id'] || response.data.correlationId || 'N/A';
+
+    // 检查 API 响应是否成功
+    if (!response.data.success) {
+      const errorData = response.data as any;
+
+      this.logger.error(
+        `Agent API 返回失败，会话: ${conversationId}, correlationId: ${correlationId}`,
+        errorData,
+      );
+
+      // 处理上下文缺失错误
+      if (errorData.details?.missingContext && errorData.details?.tools) {
+        throw new AgentContextMissingException(
+          errorData.details.missingContext,
+          errorData.details.tools,
+        );
+      }
+
+      throw new AgentApiException(response.data.error || '未知错误', errorData.details);
+    }
+
+    const chatResponse = response.data.data;
+
+    // 记录 correlationId
+    this.logger.log(`Agent API 成功，会话: ${conversationId}, correlationId: ${correlationId}`);
+
+    return chatResponse;
+  }
+
+  /**
+   * 处理聊天错误（统一降级策略）
+   */
+  private handleChatError(error: any, conversationId: string): AgentResult {
+    this.logger.error(`Agent API 调用失败，会话: ${conversationId}`, error);
+
+    // 【优化】调用失败时打印错误栈帮助排查
+    if (error.stack) {
+      this.logger.error(`错误堆栈: ${error.stack}`);
+    }
+
+    const requestParams = (error as any).requestParams;
+    const apiKey = (error as any).apiKey;
+    const apiResponse = (error as any).apiResponse || (error as any).response;
+    const requestHeaders = (error as any).requestHeaders;
+
+    // 1. 配置错误（必须抛出，这是开发问题）
+    if (error instanceof AgentConfigException) {
+      const errorResult = createErrorResult(
+        {
+          code: 'CONFIG_ERROR',
+          message: error.message,
+          retryable: false,
+        },
+        conversationId,
+      );
+      // 【修复】将 requestParams、apiKey 和 apiResponse 附加到 error 上
+      (errorResult.error as any).requestParams = requestParams;
+      (errorResult.error as any).apiKey = apiKey;
+      (errorResult.error as any).response = apiResponse;
+      (errorResult.error as any).requestHeaders = requestHeaders;
+      return errorResult;
+    }
+
+    // 2. 认证失败 → 返回错误结果（需要立即修复 API Key）
+    if (error instanceof AgentAuthException) {
+      this.logger.error(
+        `Agent API 认证失败 (${error.statusCode}): ${error.message}，会话: ${conversationId}`,
+      );
+      const errorResult = createErrorResult(
+        {
+          code: 'AUTH_ERROR',
+          message: error.message,
+          retryable: false,
+          details: {
+            statusCode: error.statusCode,
+            hint: '请检查 AGENT_API_KEY 环境变量是否正确配置',
+          },
+        },
+        conversationId,
+      );
+      // 【修复】将 requestParams、apiKey 和 apiResponse 附加到 error 上，供飞书告警使用
+      (errorResult.error as any).requestParams = requestParams;
+      (errorResult.error as any).apiKey = apiKey;
+      (errorResult.error as any).response = apiResponse; // 保留原始响应
+      (errorResult.error as any).requestHeaders = requestHeaders;
+      return errorResult;
+    }
+
+    // 3. 上下文缺失 → 返回引导消息（降级）
+    if (error instanceof AgentContextMissingException) {
+      this.logger.warn(`上下文缺失，返回引导消息，会话: ${conversationId}`);
+      const fallbackInfo = this.fallbackService.getFallbackInfo(FallbackScenario.CONTEXT_MISSING);
+      const fallbackResponse = this.createFallbackResponse(fallbackInfo.message);
+      const fallbackResult = createFallbackResult(fallbackResponse, fallbackInfo, conversationId);
+      // 【修复】附加 requestParams、apiKey 和 apiResponse
+      (fallbackResult as any).requestParams = requestParams;
+      (fallbackResult as any).apiKey = apiKey;
+      (fallbackResult as any).response = apiResponse;
+      (fallbackResult as any).requestHeaders = requestHeaders;
+      return fallbackResult;
+    }
+
+    // 4. 频率限制 → 返回等待消息（降级）
+    if (error instanceof AgentRateLimitException) {
+      this.logger.warn(`请求频率受限，返回等待消息，会话: ${conversationId}`);
+      const fallbackInfo = this.fallbackService.getFallbackInfo(
+        FallbackScenario.RATE_LIMIT,
+        error.retryAfter,
+      );
+      const fallbackResponse = this.createFallbackResponse(fallbackInfo.message);
+      const fallbackResult = createFallbackResult(fallbackResponse, fallbackInfo, conversationId);
+      // 【修复】附加 requestParams、apiKey 和 apiResponse
+      (fallbackResult as any).requestParams = requestParams;
+      (fallbackResult as any).apiKey = apiKey;
+      (fallbackResult as any).response = apiResponse;
+      (fallbackResult as any).requestHeaders = requestHeaders;
+      return fallbackResult;
+    }
+
+    // 5. 网络错误 → 返回通用降级消息
+    if (error.code === 'ECONNREFUSED' || error.code === 'ETIMEDOUT') {
+      this.logger.error(`网络连接失败，返回降级消息，会话: ${conversationId}`, {
+        code: error.code,
+      });
+      const fallbackInfo = this.fallbackService.getFallbackInfo(FallbackScenario.NETWORK_ERROR);
+      const fallbackResponse = this.createFallbackResponse(fallbackInfo.message);
+      const fallbackResult = createFallbackResult(fallbackResponse, fallbackInfo, conversationId);
+      // 【修复】附加 requestParams、apiKey 和 apiResponse
+      (fallbackResult as any).requestParams = requestParams;
+      (fallbackResult as any).apiKey = apiKey;
+      (fallbackResult as any).response = apiResponse;
+      (fallbackResult as any).requestHeaders = requestHeaders;
+      return fallbackResult;
+    }
+
+    // 6. Agent API 异常 → 根据错误类型决定
+    if (error instanceof AgentApiException) {
+      const fallbackInfo = this.fallbackService.getFallbackInfo(FallbackScenario.AGENT_API_ERROR);
+      this.logger.warn(
+        `Agent API 异常，返回降级消息: "${fallbackInfo.message}"，会话: ${conversationId}`,
+      );
+      const fallbackResponse = this.createFallbackResponse(fallbackInfo.message);
+      const fallbackResult = createFallbackResult(fallbackResponse, fallbackInfo, conversationId);
+      // 【修复】附加 requestParams、apiKey 和 apiResponse
+      (fallbackResult as any).requestParams = requestParams;
+      (fallbackResult as any).apiKey = apiKey;
+      (fallbackResult as any).response = apiResponse;
+      (fallbackResult as any).requestHeaders = requestHeaders;
+      return fallbackResult;
+    }
+
+    // 7. 其他未知错误 → 返回通用降级消息
+    this.logger.error(`未知错误，返回降级消息，会话: ${conversationId}`, error);
+    const fallbackInfo = this.fallbackService.getFallbackInfo(FallbackScenario.NETWORK_ERROR);
+    const fallbackResponse = this.createFallbackResponse(fallbackInfo.message);
+    const fallbackResult = createFallbackResult(fallbackResponse, fallbackInfo, conversationId);
+    // 【修复】附加 requestParams、apiKey 和 apiResponse
+    (fallbackResult as any).requestParams = requestParams;
+    (fallbackResult as any).apiKey = apiKey;
+    (fallbackResult as any).response = apiResponse;
+    (fallbackResult as any).requestHeaders = requestHeaders;
+    return fallbackResult;
   }
 
   /**
@@ -446,16 +529,35 @@ export class AgentService {
         );
       }
     }
-
-    // 可以在这里添加监控指标上报逻辑
-    // 例如：this.metricsService.recordTokenUsage(usage);
-    // 例如：this.metricsService.recordToolUsage(tools);
   }
 
   /**
-   * 延迟辅助函数
+   * 创建降级响应
+   * @param fallbackMessage 降级消息文本
+   * @returns 模拟的 ChatResponse
    */
-  private sleep(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms));
+  private createFallbackResponse(fallbackMessage: string): ChatResponse {
+    return {
+      messages: [
+        {
+          role: 'assistant',
+          parts: [
+            {
+              type: 'text',
+              text: fallbackMessage,
+            },
+          ],
+        },
+      ],
+      usage: {
+        inputTokens: 0,
+        outputTokens: 0,
+        totalTokens: 0,
+      },
+      tools: {
+        used: [],
+        skipped: [],
+      },
+    };
   }
 }

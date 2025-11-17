@@ -23,15 +23,24 @@ export class MessageSplitter {
       const trimmedSegment = segment.trim();
       if (!trimmedSegment) continue;
 
-      // 按"～"拆分，保留"～"在前一个片段的末尾
-      const tildeSegments = trimmedSegment.split(/(?<=～)/);
+      // 按"～"拆分，但保留数字范围中的～（如 22～24k）
+      // 使用负向前瞻：只拆分后面不是数字的～
+      const tildeSegments = trimmedSegment.split(/～(?!\d)/);
       allSegments.push(...tildeSegments);
     }
 
-    // 过滤掉空片段和只包含空白字符的片段
+    // 过滤掉空片段和只包含空白字符的片段，清理分隔符
     const nonEmptySegments = allSegments
       .map((segment) => segment.trim())
-      .filter((segment) => segment.length > 0);
+      .filter((segment) => segment.length > 0)
+      .map((segment) => {
+        // 删除末尾的～分隔符
+        segment = segment.replace(/～+$/g, '');
+        // 删除所有的*符号
+        segment = segment.replace(/\*/g, '');
+        return segment.trim();
+      })
+      .filter((segment) => segment.length > 0); // 再次过滤，去掉只剩下特殊符号的片段
 
     return nonEmptySegments;
   }

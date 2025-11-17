@@ -8,6 +8,7 @@ import { AgentModule } from './agent';
 import { WecomModule } from './wecom/wecom.module';
 import { SpongeModule } from './sponge/sponge.module';
 import { AnalyticsModule } from './analytics/analytics.module';
+import { validate } from './core/config/env.validation';
 
 /**
  * 应用根模块
@@ -39,6 +40,7 @@ import { AnalyticsModule } from './analytics/analytics.module';
         '.env',
       ],
       expandVariables: true,
+      validate, // 启用环境变量验证，确保所有必需配置在启动时加载
     }),
 
     // ==================== 核心层 (Core Layer) ====================

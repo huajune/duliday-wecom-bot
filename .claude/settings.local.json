@@ -58,8 +58,9 @@
       "Bash(git ls-tree:*)",
       "Bash(git pull:*)",
       "Bash(git fsck:*)",
-      "Bash(.claude/scripts/auto-stage-files.sh)",
-      "Bash(.claude/scripts/check-modified-files.sh)",
+      "Bash(.claude/hooks/auto-stage-files.sh)",
+      "Bash(.claude/hooks/check-modified-files.sh)",
+      "Bash(.claude/hooks/session-start.sh)",
       "Bash(git rm:*)",
       "Bash(code --list-extensions:*)",
       "Bash(cursor --list-extensions)",
@@ -83,7 +84,25 @@
       "Bash(pnpm exec prettier:*)",
       "Bash(git rev-parse:*)",
       "Bash(xargs:*)",
-      "Bash(/tmp/ai-code-review.yml.backup)"
+      "Bash(/tmp/ai-code-review.yml.backup)",
+      "Bash(/tmp/original-ai-review.yml)",
+      "Bash(.github/workflows/version-changelog.yml)",
+      "Bash(gh api:*)",
+      "Bash(pnpm run lint:check:*)",
+      "Bash(NODE_ENV=production node:*)",
+      "Bash(pnpm run start:prod:*)",
+      "Bash(timeout 30 pnpm run start:dev:*)",
+      "Bash(tee:*)",
+      "Bash(pnpm test:*)",
+      "Bash(pnpm run test:cov:*)",
+      "Bash(source:*)",
+      "Bash(time curl -s http://localhost:8080/agent/tools)",
+      "Bash(ipconfig getifaddr:*)",
+      "Bash(timeout 10 pnpm run start:dev:*)",
+      "Bash(NODE_ENV=development node -e \"\nconst { execSync } = require(''''child_process'''');\ntry {\n  const output = execSync(''''pnpm run start:dev'''', { \n    timeout: 8000,\n    encoding: ''''utf-8'''',\n    stdio: ''''pipe''''\n  });\n  console.log(output);\n} catch (error) {\n  console.log(error.stdout || '''''''');\n  console.log(''''启动测试完成（超时为正常现象）'''');\n}\n\")",
+      "Bash(/dev/null)",
+      "Bash(./scripts/test-alerts.sh:*)",
+      "Bash(storage/monitoring-data.json)"
     ],
     "deny": [
       "Bash(git restore:*)",
@@ -106,6 +125,17 @@
     ]
   },
   "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/session-start.sh",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
     "PostToolUse": [
       {
         "matcher": "Write",
@@ -117,7 +147,7 @@
           },
           {
             "type": "command",
-            "command": ".claude/scripts/auto-stage-files.sh",
+            "command": ".claude/hooks/auto-stage-files.sh",
             "timeout": 10
           }
         ]
@@ -132,7 +162,7 @@
           },
           {
             "type": "command",
-            "command": ".claude/scripts/auto-stage-files.sh",
+            "command": ".claude/hooks/auto-stage-files.sh",
             "timeout": 10
           }
         ]
@@ -143,7 +173,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/scripts/check-modified-files.sh",
+            "command": ".claude/hooks/check-modified-files.sh",
             "timeout": 10
           }
         ]

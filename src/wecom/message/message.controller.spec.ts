@@ -2,7 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { MessageController } from './message.controller';
 import { MessageService } from './message.service';
 import { MessageType, ContactType, MessageSource } from './dto/message-callback.dto';
-import { AgentService, AgentConfigService } from '@agent';
+import { AgentService } from '@agent';
 
 describe('MessageController', () => {
   let controller: MessageController;
@@ -17,11 +17,6 @@ describe('MessageController', () => {
     chat: jest.fn(),
   };
 
-  const mockAgentConfigService = {
-    getProfile: jest.fn(),
-    validateProfile: jest.fn(),
-  };
-
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [MessageController],
@@ -33,10 +28,6 @@ describe('MessageController', () => {
         {
           provide: AgentService,
           useValue: mockAgentService,
-        },
-        {
-          provide: AgentConfigService,
-          useValue: mockAgentConfigService,
         },
       ],
     }).compile();

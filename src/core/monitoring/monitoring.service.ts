@@ -1,18 +1,32 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import {
   MessageProcessingRecord,
   HourlyStats,
   DashboardData,
   MetricsData,
+  MonitoringMetadata,
+  ScenarioUsageMetric,
+  ToolUsageMetric,
+  MonitoringSnapshot,
+  MonitoringErrorLog,
+  MonitoringGlobalCounters,
+  ResponseMinuteTrendPoint,
+  AlertTrendPoint,
+  AlertTypeMetric,
+  TimeRange,
 } from './interfaces/monitoring.interface';
+import { AlertErrorType } from '@core/alert/types';
+import { MonitoringSnapshotService } from './monitoring-snapshot.service';
 
 /**
  * 监控服务
  * 负责收集、存储和统计消息处理数据
  */
 @Injectable()
-export class MonitoringService {
+export class MonitoringService implements OnModuleInit {
   private readonly logger = new Logger(MonitoringService.name);
+  private readonly DEFAULT_WINDOW_HOURS = 24;
+  private readonly SNAPSHOT_VERSION = 1;
 
   // 配置
   private readonly MAX_DETAIL_RECORDS = 1000; // 最多保存1000条详细记录
@@ -24,26 +38,18 @@ export class MonitoringService {
   private hourlyStatsMap = new Map<string, HourlyStats>(); // 按小时聚合
 
   // 全局计数器
-  private globalCounters = {
-    totalMessages: 0,
-    totalSuccess: 0,
-    totalFailure: 0,
-    totalAiDuration: 0,
-    totalSendDuration: 0,
-  };
+  private globalCounters: MonitoringGlobalCounters = this.createDefaultCounters();
 
   // 错误日志
-  private errorLogs: Array<{
-    messageId: string;
-    timestamp: number;
-    error: string;
-  }> = [];
+  private errorLogs: MonitoringErrorLog[] = [];
 
   // 活跃用户和会话（用于去重统计）
   private activeUsersSet = new Set<string>();
   private activeChatsSet = new Set<string>();
+  private currentProcessing = 0;
+  private peakProcessing = 0;
 
-  constructor() {
+  constructor(private readonly snapshotService: MonitoringSnapshotService) {
     // 定期清理过期数据（每小时执行一次）
     setInterval(
       () => {
@@ -55,6 +61,10 @@ export class MonitoringService {
     this.logger.log('监控服务已启动');
   }
 
+  async onModuleInit(): Promise<void> {
+    await this.restoreFromSnapshot();
+  }
+
   /**
    * 记录消息接收
    */
@@ -64,6 +74,7 @@ export class MonitoringService {
     userId?: string,
     userName?: string,
     messageContent?: string,
+    metadata?: MonitoringMetadata,
   ): void {
     const record: MessageProcessingRecord = {
       messageId,
@@ -73,6 +84,7 @@ export class MonitoringService {
       receivedAt: Date.now(),
       status: 'processing',
       messagePreview: messageContent ? messageContent.substring(0, 50) : undefined,
+      scenario: metadata?.scenario,
     };
 
     this.addRecord(record);
@@ -81,8 +93,11 @@ export class MonitoringService {
     // 记录活跃用户和会话
     if (userId) this.activeUsersSet.add(userId);
     if (chatId) this.activeChatsSet.add(chatId);
+    this.currentProcessing++;
+    this.peakProcessing = Math.max(this.peakProcessing, this.currentProcessing);
 
-    this.logger.debug(`记录消息接收 [${messageId}]`);
+    this.logger.debug(`记录消息接收 [${messageId}], scenario=${metadata?.scenario ?? 'unknown'}`);
+    this.persistSnapshot();
   }
 
   /**
@@ -92,7 +107,9 @@ export class MonitoringService {
     const record = this.findRecord(messageId);
     if (record) {
       record.aiStartAt = Date.now();
-      this.logger.debug(`记录 AI 开始处理 [${messageId}]`);
+      record.queueDuration = record.aiStartAt - record.receivedAt;
+      this.logger.debug(`记录 AI 开始处理 [${messageId}], queue=${record.queueDuration ?? 0}ms`);
+      this.persistSnapshot();
     }
   }
 
@@ -106,6 +123,7 @@ export class MonitoringService {
       record.aiDuration = record.aiEndAt - record.aiStartAt;
       this.globalCounters.totalAiDuration += record.aiDuration;
       this.logger.debug(`记录 AI 完成处理 [${messageId}], 耗时: ${record.aiDuration}ms`);
+      this.persistSnapshot();
     }
   }
 
@@ -117,6 +135,7 @@ export class MonitoringService {
     if (record) {
       record.sendStartAt = Date.now();
       this.logger.debug(`记录消息发送开始 [${messageId}]`);
+      this.persistSnapshot();
     }
   }
 
@@ -130,36 +149,82 @@ export class MonitoringService {
       record.sendDuration = record.sendEndAt - record.sendStartAt;
       this.globalCounters.totalSendDuration += record.sendDuration;
       this.logger.debug(`记录消息发送完成 [${messageId}], 耗时: ${record.sendDuration}ms`);
+      this.persistSnapshot();
     }
   }
 
   /**
    * 记录消息处理成功
    */
-  recordSuccess(messageId: string): void {
+  recordSuccess(
+    messageId: string,
+    metadata?: MonitoringMetadata & { fallbackSuccess?: boolean },
+  ): void {
     const record = this.findRecord(messageId);
     if (record) {
       record.status = 'success';
       record.totalDuration = Date.now() - record.receivedAt;
+      record.scenario = metadata?.scenario || record.scenario;
+      record.tools = metadata?.tools || record.tools;
+      record.tokenUsage = metadata?.tokenUsage ?? record.tokenUsage;
+      record.replyPreview = metadata?.replyPreview ?? record.replyPreview;
+      record.replySegments = metadata?.replySegments ?? record.replySegments;
+      record.isFallback = metadata?.isFallback ?? record.isFallback;
+      record.fallbackSuccess = metadata?.fallbackSuccess ?? record.fallbackSuccess;
+
       this.globalCounters.totalSuccess++;
+      this.currentProcessing = Math.max(this.currentProcessing - 1, 0);
+
+      // 更新降级统计
+      if (record.isFallback) {
+        this.globalCounters.totalFallback++;
+        if (record.fallbackSuccess) {
+          this.globalCounters.totalFallbackSuccess++;
+        }
+      }
 
       // 更新小时级别统计
       this.updateHourlyStats(record);
 
-      this.logger.log(`消息处理成功 [${messageId}], 总耗时: ${record.totalDuration}ms`);
+      this.logger.log(
+        `消息处理成功 [${messageId}], 总耗时: ${record.totalDuration}ms, scenario=${
+          record.scenario || 'unknown'
+        }, fallback=${record.isFallback ? 'true' : 'false'}`,
+      );
+      this.persistSnapshot();
     }
   }
 
   /**
    * 记录消息处理失败
    */
-  recordFailure(messageId: string, error: string): void {
+  recordFailure(
+    messageId: string,
+    error: string,
+    metadata?: MonitoringMetadata & { fallbackSuccess?: boolean },
+  ): void {
     const record = this.findRecord(messageId);
     if (record) {
       record.status = 'failure';
       record.error = error;
       record.totalDuration = Date.now() - record.receivedAt;
+      record.scenario = metadata?.scenario || record.scenario;
+      record.tools = metadata?.tools || record.tools;
+      record.tokenUsage = metadata?.tokenUsage ?? record.tokenUsage;
+      record.replySegments = metadata?.replySegments ?? record.replySegments;
+      record.isFallback = metadata?.isFallback ?? record.isFallback;
+      record.fallbackSuccess = metadata?.fallbackSuccess ?? record.fallbackSuccess;
+
       this.globalCounters.totalFailure++;
+      this.currentProcessing = Math.max(this.currentProcessing - 1, 0);
+
+      // 更新降级统计
+      if (record.isFallback) {
+        this.globalCounters.totalFallback++;
+        if (record.fallbackSuccess) {
+          this.globalCounters.totalFallbackSuccess++;
+        }
+      }
 
       // 添加到错误日志
       this.addErrorLog(messageId, error);
@@ -167,41 +232,116 @@ export class MonitoringService {
       // 更新小时级别统计
       this.updateHourlyStats(record);
 
-      this.logger.error(`消息处理失败 [${messageId}]: ${error}`);
+      this.logger.error(
+        `消息处理失败 [${messageId}]: ${error}, scenario=${record.scenario || 'unknown'}, fallback=${record.isFallback ? 'true' : 'false'}`,
+      );
+      this.persistSnapshot();
     }
   }
 
   /**
    * 获取仪表盘数据
+   * @param timeRange 时间范围：today/week/month
    */
-  getDashboardData(): DashboardData {
-    const successRate =
-      this.globalCounters.totalMessages > 0
-        ? (this.globalCounters.totalSuccess / this.globalCounters.totalMessages) * 100
-        : 0;
+  getDashboardData(timeRange: TimeRange = 'today'): DashboardData {
+    // 根据时间范围过滤记录
+    const currentRecords = this.filterRecordsByTimeRange(this.detailRecords, timeRange);
+    const previousRecords = this.getPreviousRangeRecords(timeRange);
 
-    const avgDuration = this.calculateAverageDuration();
+    // 计算当前时间范围的聚合数据
+    const currentStats = this.aggregateRecords(currentRecords);
+    const previousStats = this.aggregateRecords(previousRecords);
+
+    // 计算增长率
+    const overviewDelta = {
+      totalMessages: this.calculatePercentChange(
+        currentStats.totalMessages,
+        previousStats.totalMessages,
+      ),
+      successRate: this.calculatePercentChange(currentStats.successRate, previousStats.successRate),
+      avgDuration: this.calculatePercentChange(currentStats.avgDuration, previousStats.avgDuration),
+      activeUsers: this.calculatePercentChange(currentStats.activeUsers, previousStats.activeUsers),
+    };
+
+    // 计算降级统计
+    const currentFallback = this.calculateFallbackStats(currentRecords);
+    const previousFallback = this.calculateFallbackStats(previousRecords);
+    const fallbackDelta = {
+      totalCount: this.calculatePercentChange(
+        currentFallback.totalCount,
+        previousFallback.totalCount,
+      ),
+      successRate: this.calculatePercentChange(
+        currentFallback.successRate,
+        previousFallback.successRate,
+      ),
+    };
+
     const recentMessages = this.getRecentMessages(50);
-    const processingCount = this.detailRecords.filter((r) => r.status === 'processing').length;
+    const processingCount = this.currentProcessing;
 
-    // 获取最近24小时的统计
-    const last24Hours = this.getHourlyStatsRange(24);
+    // 获取小时级别统计
+    const hourlyStats = this.getHourlyStatsForRange(timeRange);
+    const previousHourlyStats = this.getHourlyStatsForPreviousRange(timeRange);
+
+    const windowMs = this.DEFAULT_WINDOW_HOURS * 60 * 60 * 1000;
+    const now = Date.now();
+    const alertsLast24h = this.errorLogs.filter((log) => now - log.timestamp <= windowMs).length;
 
     return {
+      timeRange,
+      lastWindowHours: this.DEFAULT_WINDOW_HOURS,
       overview: {
-        totalMessages: this.globalCounters.totalMessages,
-        successCount: this.globalCounters.totalSuccess,
-        failureCount: this.globalCounters.totalFailure,
-        successRate: parseFloat(successRate.toFixed(2)),
-        avgDuration: parseFloat(avgDuration.toFixed(2)),
-        activeUsers: this.activeUsersSet.size,
-        activeChats: this.activeChatsSet.size,
+        totalMessages: currentStats.totalMessages,
+        successCount: currentStats.successCount,
+        failureCount: currentStats.failureCount,
+        successRate: parseFloat(currentStats.successRate.toFixed(2)),
+        avgDuration: parseFloat(currentStats.avgDuration.toFixed(2)),
+        activeUsers: currentStats.activeUsers,
+        activeChats: currentStats.activeChats,
+      },
+      overviewDelta,
+      fallback: {
+        totalCount: currentFallback.totalCount,
+        successCount: currentFallback.successCount,
+        successRate: parseFloat(currentFallback.successRate.toFixed(2)),
+        affectedUsers: currentFallback.affectedUsers,
+      },
+      fallbackDelta,
+      business: this.calculateBusinessMetrics(currentRecords),
+      businessDelta: this.calculateBusinessMetricsDelta(currentRecords, previousRecords),
+      usage: {
+        tools: this.buildToolUsageMetrics(currentRecords),
+        scenarios: this.buildScenarioUsageMetrics(currentRecords),
+      },
+      queue: {
+        currentProcessing: processingCount,
+        peakProcessing: this.peakProcessing,
+        avgQueueDuration: this.calculateAverageQueueDuration(currentRecords),
+      },
+      alertsSummary: {
+        total: this.errorLogs.length,
+        last24Hours: alertsLast24h,
+        byType: this.buildAlertTypeMetrics(),
       },
       trends: {
-        hourly: last24Hours,
+        hourly: hourlyStats,
+        previous: previousHourlyStats.length > 0 ? previousHourlyStats : undefined,
       },
+      responseTrend:
+        timeRange === 'today'
+          ? this.buildResponseMinuteTrend(currentRecords)
+          : this.buildResponseDayTrend(currentRecords),
+      alertTrend:
+        timeRange === 'today'
+          ? this.buildAlertMinuteTrend(this.filterErrorLogsByTimeRange(timeRange))
+          : this.buildAlertDayTrend(this.filterErrorLogsByTimeRange(timeRange)),
+      businessTrend:
+        timeRange === 'today'
+          ? this.buildBusinessMetricMinuteTrend(currentRecords)
+          : this.buildBusinessMetricDayTrend(currentRecords),
       recentMessages,
-      recentErrors: this.errorLogs.slice(-20),
+      recentErrors: this.errorLogs.slice(-20).reverse(),
       realtime: {
         processingCount,
         lastMessageTime: recentMessages.length > 0 ? recentMessages[0].receivedAt : undefined,
@@ -227,6 +367,385 @@ export class MonitoringService {
     };
   }
 
+  private aggregateWindowStats(stats: HourlyStats[]): {
+    messages: number;
+    success: number;
+    failure: number;
+    successRate: number;
+    avgDuration: number;
+    activeUsers: number;
+  } {
+    if (stats.length === 0) {
+      return {
+        messages: 0,
+        success: 0,
+        failure: 0,
+        successRate: 0,
+        avgDuration: 0,
+        activeUsers: this.activeUsersSet.size,
+      };
+    }
+
+    const messages = stats.reduce((acc, item) => acc + item.messageCount, 0);
+    const success = stats.reduce((acc, item) => acc + item.successCount, 0);
+    const failure = stats.reduce((acc, item) => acc + item.failureCount, 0);
+    const weightedDuration =
+      messages > 0
+        ? stats.reduce((acc, item) => acc + item.avgDuration * item.messageCount, 0) / messages
+        : 0;
+    const activeUsers = Math.max(...stats.map((item) => item.activeUsers), 0);
+
+    return {
+      messages,
+      success,
+      failure,
+      successRate: messages > 0 ? (success / messages) * 100 : 0,
+      avgDuration: weightedDuration,
+      activeUsers,
+    };
+  }
+
+  private calculatePercentChange(current: number, previous: number): number {
+    if (previous === 0) {
+      return current === 0 ? 0 : 100;
+    }
+    return parseFloat((((current - previous) / previous) * 100).toFixed(2));
+  }
+
+  /**
+   * 构建工具使用统计
+   */
+  private buildToolUsageMetrics(records: MessageProcessingRecord[]): ToolUsageMetric[] {
+    const toolMap = new Map<string, number>();
+
+    for (const record of records) {
+      if (!record.tools || record.tools.length === 0) continue;
+      for (const tool of record.tools) {
+        toolMap.set(tool, (toolMap.get(tool) || 0) + 1);
+      }
+    }
+
+    const total = Array.from(toolMap.values()).reduce((acc, val) => acc + val, 0);
+    if (total === 0) {
+      return [];
+    }
+
+    return Array.from(toolMap.entries())
+      .map(([name, count]) => ({
+        name,
+        total: count,
+        percentage: parseFloat(((count / total) * 100).toFixed(1)),
+      }))
+      .sort((a, b) => b.total - a.total);
+  }
+
+  /**
+   * 构建场景使用统计
+   */
+  private buildScenarioUsageMetrics(records: MessageProcessingRecord[]): ScenarioUsageMetric[] {
+    const map = new Map<string, number>();
+
+    for (const record of records) {
+      if (!record.scenario) continue;
+      map.set(record.scenario, (map.get(record.scenario) || 0) + 1);
+    }
+
+    const total = Array.from(map.values()).reduce((acc, value) => acc + value, 0);
+    if (total === 0) {
+      return [];
+    }
+
+    return Array.from(map.entries())
+      .map(([name, count]) => ({
+        name,
+        total: count,
+        percentage: parseFloat(((count / total) * 100).toFixed(1)),
+      }))
+      .sort((a, b) => b.total - a.total);
+  }
+
+  /**
+   * 构建告警类型统计
+   */
+  private buildAlertTypeMetrics(): AlertTypeMetric[] {
+    const typeMap = new Map<AlertErrorType | 'unknown', number>();
+
+    // 统计所有错误日志中的告警类型
+    for (const log of this.errorLogs) {
+      const type = log.alertType || 'unknown';
+      typeMap.set(type, (typeMap.get(type) || 0) + 1);
+    }
+
+    // 也统计失败记录中的告警类型
+    for (const record of this.detailRecords) {
+      if (record.status === 'failure' && record.alertType) {
+        const type = record.alertType;
+        typeMap.set(type, (typeMap.get(type) || 0) + 1);
+      }
+    }
+
+    const total = Array.from(typeMap.values()).reduce((acc, value) => acc + value, 0);
+    if (total === 0) {
+      return [];
+    }
+
+    return Array.from(typeMap.entries())
+      .map(([type, count]) => ({
+        type,
+        count,
+        percentage: parseFloat(((count / total) * 100).toFixed(1)),
+      }))
+      .sort((a, b) => b.count - a.count);
+  }
+
+  /**
+   * 计算平均排队时间
+   */
+  private calculateAverageQueueDuration(records: MessageProcessingRecord[]): number {
+    const durations = records
+      .filter((record) => typeof record.queueDuration === 'number')
+      .map((record) => record.queueDuration || 0);
+
+    if (durations.length === 0) {
+      return 0;
+    }
+
+    const total = durations.reduce((acc, value) => acc + value, 0);
+    return parseFloat((total / durations.length).toFixed(2));
+  }
+
+  private buildResponseMinuteTrend(records: MessageProcessingRecord[]): ResponseMinuteTrendPoint[] {
+    const buckets = new Map<string, { durations: number[]; success: number; total: number }>();
+
+    for (const record of records) {
+      if (record.status === 'processing' || record.totalDuration === undefined) {
+        continue;
+      }
+
+      const minuteKey = this.getMinuteKey(record.receivedAt);
+      const bucket = buckets.get(minuteKey) || { durations: [], success: 0, total: 0 };
+      bucket.durations.push(record.totalDuration || 0);
+      bucket.total += 1;
+      if (record.status === 'success') {
+        bucket.success += 1;
+      }
+      buckets.set(minuteKey, bucket);
+    }
+
+    return Array.from(buckets.entries())
+      .sort((a, b) => new Date(a[0]).getTime() - new Date(b[0]).getTime())
+      .map(([minute, bucket]) => ({
+        minute,
+        avgDuration:
+          bucket.durations.length > 0
+            ? parseFloat(
+                (
+                  bucket.durations.reduce((sum, value) => sum + value, 0) / bucket.durations.length
+                ).toFixed(2),
+              )
+            : 0,
+        messageCount: bucket.total,
+        successRate:
+          bucket.total > 0 ? parseFloat(((bucket.success / bucket.total) * 100).toFixed(2)) : 0,
+      }));
+  }
+
+  private buildAlertMinuteTrend(logs: MonitoringErrorLog[]): AlertTrendPoint[] {
+    const buckets = new Map<string, number>();
+
+    for (const log of logs) {
+      const minuteKey = this.getMinuteKey(log.timestamp);
+      buckets.set(minuteKey, (buckets.get(minuteKey) || 0) + 1);
+    }
+
+    return Array.from(buckets.entries())
+      .sort((a, b) => new Date(a[0]).getTime() - new Date(b[0]).getTime())
+      .map(([minute, count]) => ({ minute, count }));
+  }
+
+  private buildResponseDayTrend(records: MessageProcessingRecord[]): ResponseMinuteTrendPoint[] {
+    const buckets = new Map<string, { durations: number[]; success: number; total: number }>();
+
+    for (const record of records) {
+      if (record.status === 'processing' || record.totalDuration === undefined) {
+        continue;
+      }
+
+      const dayKey = this.getDayKey(record.receivedAt);
+      const bucket = buckets.get(dayKey) || { durations: [], success: 0, total: 0 };
+      bucket.durations.push(record.totalDuration || 0);
+      bucket.total += 1;
+      if (record.status === 'success') {
+        bucket.success += 1;
+      }
+      buckets.set(dayKey, bucket);
+    }
+
+    return Array.from(buckets.entries())
+      .sort((a, b) => new Date(a[0]).getTime() - new Date(b[0]).getTime())
+      .map(([minute, bucket]) => ({
+        minute,
+        avgDuration:
+          bucket.durations.length > 0
+            ? parseFloat(
+                (
+                  bucket.durations.reduce((sum, value) => sum + value, 0) / bucket.durations.length
+                ).toFixed(2),
+              )
+            : 0,
+        messageCount: bucket.total,
+        successRate:
+          bucket.total > 0 ? parseFloat(((bucket.success / bucket.total) * 100).toFixed(2)) : 0,
+      }));
+  }
+
+  private buildAlertDayTrend(logs: MonitoringErrorLog[]): AlertTrendPoint[] {
+    const buckets = new Map<string, number>();
+
+    for (const log of logs) {
+      const dayKey = this.getDayKey(log.timestamp);
+      buckets.set(dayKey, (buckets.get(dayKey) || 0) + 1);
+    }
+
+    return Array.from(buckets.entries())
+      .sort((a, b) => new Date(a[0]).getTime() - new Date(b[0]).getTime())
+      .map(([minute, count]) => ({ minute, count }));
+  }
+
+  /**
+   * 构建业务指标分钟级趋势（今日）
+   */
+  private buildBusinessMetricMinuteTrend(
+    records: MessageProcessingRecord[],
+  ): import('./interfaces/monitoring.interface').BusinessMetricTrendPoint[] {
+    const buckets = new Map<
+      string,
+      {
+        users: Set<string>;
+        bookingAttempts: number;
+        successfulBookings: number;
+      }
+    >();
+
+    for (const record of records) {
+      const minuteKey = this.getMinuteKey(record.receivedAt);
+      const bucket = buckets.get(minuteKey) || {
+        users: new Set<string>(),
+        bookingAttempts: 0,
+        successfulBookings: 0,
+      };
+
+      // 统计活跃用户
+      if (record.userId) {
+        bucket.users.add(record.userId);
+      }
+
+      // 统计预约尝试
+      const isBookingAttempt = record.tools && record.tools.includes('duliday_interview_booking');
+      if (isBookingAttempt) {
+        bucket.bookingAttempts += 1;
+        // 注意：这里使用 status 作为预约成功的判断是不准确的
+        // status='success' 只表示消息处理成功，不代表预约成功
+        // TODO: 需要从工具执行结果或 AI 响应中提取真实的预约结果
+        if (record.status === 'success') {
+          bucket.successfulBookings += 1;
+        }
+      }
+
+      buckets.set(minuteKey, bucket);
+    }
+
+    return Array.from(buckets.entries())
+      .sort((a, b) => new Date(a[0]).getTime() - new Date(b[0]).getTime())
+      .map(([minute, bucket]) => {
+        const consultations = bucket.users.size;
+        const bookingAttempts = bucket.bookingAttempts;
+        const successfulBookings = bucket.successfulBookings;
+        const conversionRate =
+          consultations > 0 ? parseFloat(((bookingAttempts / consultations) * 100).toFixed(2)) : 0;
+        const bookingSuccessRate =
+          bookingAttempts > 0
+            ? parseFloat(((successfulBookings / bookingAttempts) * 100).toFixed(2))
+            : 0;
+
+        return {
+          minute,
+          consultations,
+          bookingAttempts,
+          successfulBookings,
+          conversionRate,
+          bookingSuccessRate,
+        };
+      });
+  }
+
+  /**
+   * 构建业务指标天级趋势（本周/本月）
+   */
+  private buildBusinessMetricDayTrend(
+    records: MessageProcessingRecord[],
+  ): import('./interfaces/monitoring.interface').BusinessMetricTrendPoint[] {
+    const buckets = new Map<
+      string,
+      {
+        users: Set<string>;
+        bookingAttempts: number;
+        successfulBookings: number;
+      }
+    >();
+
+    for (const record of records) {
+      const dayKey = this.getDayKey(record.receivedAt);
+      const bucket = buckets.get(dayKey) || {
+        users: new Set<string>(),
+        bookingAttempts: 0,
+        successfulBookings: 0,
+      };
+
+      // 统计活跃用户
+      if (record.userId) {
+        bucket.users.add(record.userId);
+      }
+
+      // 统计预约尝试
+      const isBookingAttempt = record.tools && record.tools.includes('duliday_interview_booking');
+      if (isBookingAttempt) {
+        bucket.bookingAttempts += 1;
+        // 注意：这里使用 status 作为预约成功的判断是不准确的
+        // status='success' 只表示消息处理成功，不代表预约成功
+        // TODO: 需要从工具执行结果或 AI 响应中提取真实的预约结果
+        if (record.status === 'success') {
+          bucket.successfulBookings += 1;
+        }
+      }
+
+      buckets.set(dayKey, bucket);
+    }
+
+    return Array.from(buckets.entries())
+      .sort((a, b) => new Date(a[0]).getTime() - new Date(b[0]).getTime())
+      .map(([minute, bucket]) => {
+        const consultations = bucket.users.size;
+        const bookingAttempts = bucket.bookingAttempts;
+        const successfulBookings = bucket.successfulBookings;
+        const conversionRate =
+          consultations > 0 ? parseFloat(((bookingAttempts / consultations) * 100).toFixed(2)) : 0;
+        const bookingSuccessRate =
+          bookingAttempts > 0
+            ? parseFloat(((successfulBookings / bookingAttempts) * 100).toFixed(2))
+            : 0;
+
+        return {
+          minute,
+          consultations,
+          bookingAttempts,
+          successfulBookings,
+          conversionRate,
+          bookingSuccessRate,
+        };
+      });
+  }
+
   /**
    * 清空所有数据
    */
@@ -236,14 +755,11 @@ export class MonitoringService {
     this.errorLogs = [];
     this.activeUsersSet.clear();
     this.activeChatsSet.clear();
-    this.globalCounters = {
-      totalMessages: 0,
-      totalSuccess: 0,
-      totalFailure: 0,
-      totalAiDuration: 0,
-      totalSendDuration: 0,
-    };
+    this.currentProcessing = 0;
+    this.peakProcessing = 0;
+    this.globalCounters = this.createDefaultCounters();
     this.logger.log('所有监控数据已清空');
+    this.persistSnapshot();
   }
 
   // ========== 私有方法 ==========
@@ -373,6 +889,18 @@ export class MonitoringService {
     return date.toISOString();
   }
 
+  private getMinuteKey(timestamp: number): string {
+    const date = new Date(timestamp);
+    date.setSeconds(0, 0);
+    return date.toISOString();
+  }
+
+  private getDayKey(timestamp: number): string {
+    const date = new Date(timestamp);
+    date.setHours(0, 0, 0, 0);
+    return date.toISOString();
+  }
+
   /**
    * 获取最近 N 条消息
    */
@@ -390,20 +918,6 @@ export class MonitoringService {
     return Array.from(this.hourlyStatsMap.values())
       .filter((stats) => new Date(stats.hour).getTime() >= startTime)
       .sort((a, b) => new Date(a.hour).getTime() - new Date(b.hour).getTime());
-  }
-
-  /**
-   * 计算平均耗时
-   */
-  private calculateAverageDuration(): number {
-    const completedRecords = this.detailRecords.filter(
-      (r) => r.status !== 'processing' && r.totalDuration !== undefined,
-    );
-
-    if (completedRecords.length === 0) return 0;
-
-    const totalDuration = completedRecords.reduce((sum, r) => sum + (r.totalDuration || 0), 0);
-    return totalDuration / completedRecords.length;
   }
 
   /**
@@ -460,6 +974,7 @@ export class MonitoringService {
 
     if (keysToDelete.length > 0) {
       this.logger.log(`清理了 ${keysToDelete.length} 条过期统计数据`);
+      this.persistSnapshot();
     }
   }
 
@@ -479,5 +994,412 @@ export class MonitoringService {
     if (sortedNumbers.length === 0) return 0;
     const index = Math.ceil(sortedNumbers.length * percentile) - 1;
     return sortedNumbers[Math.max(0, index)];
+  }
+
+  private createDefaultCounters(): MonitoringGlobalCounters {
+    return {
+      totalMessages: 0,
+      totalSuccess: 0,
+      totalFailure: 0,
+      totalAiDuration: 0,
+      totalSendDuration: 0,
+      totalFallback: 0,
+      totalFallbackSuccess: 0,
+    };
+  }
+
+  /**
+   * 根据时间范围过滤记录
+   */
+  private filterRecordsByTimeRange(
+    records: MessageProcessingRecord[],
+    range: TimeRange,
+  ): MessageProcessingRecord[] {
+    let cutoffTime: number;
+
+    switch (range) {
+      case 'today':
+        // 本日 00:00:00
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        cutoffTime = today.getTime();
+        break;
+      case 'week':
+        // 本周一 00:00:00
+        const weekStart = new Date();
+        const dayOfWeek = weekStart.getDay();
+        const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+        weekStart.setDate(weekStart.getDate() - daysToMonday);
+        weekStart.setHours(0, 0, 0, 0);
+        cutoffTime = weekStart.getTime();
+        break;
+      case 'month':
+        // 本月1号 00:00:00
+        const monthStart = new Date();
+        monthStart.setDate(1);
+        monthStart.setHours(0, 0, 0, 0);
+        cutoffTime = monthStart.getTime();
+        break;
+      default:
+        return records;
+    }
+
+    return records.filter((r) => r.receivedAt >= cutoffTime);
+  }
+
+  /**
+   * 获取前一时间范围的记录（用于对比）
+   */
+  private getPreviousRangeRecords(range: TimeRange): MessageProcessingRecord[] {
+    let startTime: number;
+    let endTime: number;
+
+    switch (range) {
+      case 'today':
+        // 昨日 00:00:00 ~ 23:59:59
+        const yesterday = new Date();
+        yesterday.setDate(yesterday.getDate() - 1);
+        yesterday.setHours(0, 0, 0, 0);
+        startTime = yesterday.getTime();
+        yesterday.setHours(23, 59, 59, 999);
+        endTime = yesterday.getTime();
+        break;
+      case 'week':
+        // 上周一 00:00:00 ~ 上周日 23:59:59
+        const lastWeekStart = new Date();
+        const dayOfWeek = lastWeekStart.getDay();
+        const daysToLastMonday = dayOfWeek === 0 ? 13 : dayOfWeek + 6;
+        lastWeekStart.setDate(lastWeekStart.getDate() - daysToLastMonday);
+        lastWeekStart.setHours(0, 0, 0, 0);
+        startTime = lastWeekStart.getTime();
+        const lastWeekEnd = new Date(lastWeekStart);
+        lastWeekEnd.setDate(lastWeekEnd.getDate() + 6);
+        lastWeekEnd.setHours(23, 59, 59, 999);
+        endTime = lastWeekEnd.getTime();
+        break;
+      case 'month':
+        // 上月1号 00:00:00 ~ 上月最后一天 23:59:59
+        const lastMonthStart = new Date();
+        lastMonthStart.setMonth(lastMonthStart.getMonth() - 1);
+        lastMonthStart.setDate(1);
+        lastMonthStart.setHours(0, 0, 0, 0);
+        startTime = lastMonthStart.getTime();
+        const lastMonthEnd = new Date(lastMonthStart);
+        lastMonthEnd.setMonth(lastMonthEnd.getMonth() + 1);
+        lastMonthEnd.setDate(0);
+        lastMonthEnd.setHours(23, 59, 59, 999);
+        endTime = lastMonthEnd.getTime();
+        break;
+      default:
+        return [];
+    }
+
+    return this.detailRecords.filter((r) => r.receivedAt >= startTime && r.receivedAt <= endTime);
+  }
+
+  /**
+   * 根据时间范围过滤错误日志
+   */
+  private filterErrorLogsByTimeRange(range: TimeRange): MonitoringErrorLog[] {
+    let cutoffTime: number;
+
+    switch (range) {
+      case 'today':
+        // 本日 00:00:00
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        cutoffTime = today.getTime();
+        break;
+      case 'week':
+        // 本周一 00:00:00
+        const weekStart = new Date();
+        const dayOfWeek = weekStart.getDay();
+        const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+        weekStart.setDate(weekStart.getDate() - daysToMonday);
+        weekStart.setHours(0, 0, 0, 0);
+        cutoffTime = weekStart.getTime();
+        break;
+      case 'month':
+        // 本月1号 00:00:00
+        const monthStart = new Date();
+        monthStart.setDate(1);
+        monthStart.setHours(0, 0, 0, 0);
+        cutoffTime = monthStart.getTime();
+        break;
+      default:
+        return this.errorLogs;
+    }
+
+    return this.errorLogs.filter((log) => log.timestamp >= cutoffTime);
+  }
+
+  /**
+   * 聚合记录数据
+   */
+  private aggregateRecords(records: MessageProcessingRecord[]): {
+    totalMessages: number;
+    successCount: number;
+    failureCount: number;
+    successRate: number;
+    avgDuration: number;
+    activeUsers: number;
+    activeChats: number;
+  } {
+    if (records.length === 0) {
+      return {
+        totalMessages: 0,
+        successCount: 0,
+        failureCount: 0,
+        successRate: 0,
+        avgDuration: 0,
+        activeUsers: 0,
+        activeChats: 0,
+      };
+    }
+
+    const successRecords = records.filter((r) => r.status === 'success');
+    const failureRecords = records.filter((r) => r.status === 'failure');
+
+    const completedRecords = records.filter(
+      (r) => r.status !== 'processing' && r.totalDuration !== undefined,
+    );
+
+    const avgDuration =
+      completedRecords.length > 0
+        ? completedRecords.reduce((sum, r) => sum + (r.totalDuration || 0), 0) /
+          completedRecords.length
+        : 0;
+
+    const activeUsers = new Set(records.filter((r) => r.userId).map((r) => r.userId!)).size;
+    const activeChats = new Set(records.map((r) => r.chatId)).size;
+
+    return {
+      totalMessages: records.length,
+      successCount: successRecords.length,
+      failureCount: failureRecords.length,
+      successRate: records.length > 0 ? (successRecords.length / records.length) * 100 : 0,
+      avgDuration,
+      activeUsers,
+      activeChats,
+    };
+  }
+
+  /**
+   * 计算降级统计
+   */
+  private calculateFallbackStats(records: MessageProcessingRecord[]): {
+    totalCount: number;
+    successCount: number;
+    successRate: number;
+    affectedUsers: number;
+  } {
+    const fallbackRecords = records.filter((r) => r.isFallback);
+
+    if (fallbackRecords.length === 0) {
+      return {
+        totalCount: 0,
+        successCount: 0,
+        successRate: 0,
+        affectedUsers: 0,
+      };
+    }
+
+    const successCount = fallbackRecords.filter((r) => r.fallbackSuccess).length;
+    const affectedUsers = new Set(fallbackRecords.filter((r) => r.userId).map((r) => r.userId!))
+      .size;
+
+    return {
+      totalCount: fallbackRecords.length,
+      successCount,
+      successRate: (successCount / fallbackRecords.length) * 100,
+      affectedUsers,
+    };
+  }
+
+  /**
+   * 计算业务指标
+   * TODO: 后续需要实现具体的埋点计数逻辑
+   */
+  private calculateBusinessMetrics(records: MessageProcessingRecord[]): {
+    consultations: {
+      total: number;
+      new: number;
+    };
+    bookings: {
+      attempts: number;
+      successful: number;
+      failed: number;
+      successRate: number;
+    };
+    conversion: {
+      consultationToBooking: number;
+    };
+  } {
+    // 当前返回占位符数据（placeholder）
+    // 后续需要根据实际业务逻辑实现：
+    // 1. 从 MessageProcessingRecord 中识别咨询用户（可能通过 scenario 或 tools）
+    // 2. 从工具调用中统计面试预约次数（duliday_interview_booking）
+    // 3. 从响应中判断预约是否成功
+
+    // 占位符实现：根据现有数据模拟
+    const uniqueUsers = new Set(records.filter((r) => r.userId).map((r) => r.userId!)).size;
+
+    // 统计使用了面试预约工具的记录
+    const bookingRecords = records.filter(
+      (r) => r.tools && r.tools.includes('duliday_interview_booking'),
+    );
+    const successfulBookings = bookingRecords.filter((r) => r.status === 'success').length;
+    const failedBookings = bookingRecords.filter((r) => r.status === 'failure').length;
+
+    return {
+      consultations: {
+        total: uniqueUsers, // 临时：使用活跃用户数作为咨询人数
+        new: uniqueUsers, // 临时：等同于 total（需要后续实现新老用户区分）
+      },
+      bookings: {
+        attempts: bookingRecords.length,
+        successful: successfulBookings,
+        failed: failedBookings,
+        successRate:
+          bookingRecords.length > 0
+            ? parseFloat(((successfulBookings / bookingRecords.length) * 100).toFixed(2))
+            : 0,
+      },
+      conversion: {
+        consultationToBooking:
+          uniqueUsers > 0
+            ? parseFloat(((bookingRecords.length / uniqueUsers) * 100).toFixed(2))
+            : 0,
+      },
+    };
+  }
+
+  /**
+   * 计算业务指标增长
+   * TODO: 后续需要实现具体的对比逻辑
+   */
+  private calculateBusinessMetricsDelta(
+    currentRecords: MessageProcessingRecord[],
+    previousRecords: MessageProcessingRecord[],
+  ): {
+    consultations: number;
+    bookingAttempts: number;
+    bookingSuccessRate: number;
+  } {
+    const current = this.calculateBusinessMetrics(currentRecords);
+    const previous = this.calculateBusinessMetrics(previousRecords);
+
+    return {
+      consultations: this.calculatePercentChange(
+        current.consultations.total,
+        previous.consultations.total,
+      ),
+      bookingAttempts: this.calculatePercentChange(
+        current.bookings.attempts,
+        previous.bookings.attempts,
+      ),
+      bookingSuccessRate: this.calculatePercentChange(
+        current.bookings.successRate,
+        previous.bookings.successRate,
+      ),
+    };
+  }
+
+  /**
+   * 获取指定时间范围的小时统计
+   */
+  private getHourlyStatsForRange(range: TimeRange): HourlyStats[] {
+    const records = this.filterRecordsByTimeRange(this.detailRecords, range);
+    if (records.length === 0) {
+      return [];
+    }
+
+    const startTime = Math.min(...records.map((r) => r.receivedAt));
+    const now = Date.now();
+    const hours = Math.ceil((now - startTime) / (60 * 60 * 1000));
+
+    return this.getHourlyStatsRange(Math.max(hours, 1));
+  }
+
+  /**
+   * 获取前一时间范围的小时统计
+   */
+  private getHourlyStatsForPreviousRange(range: TimeRange): HourlyStats[] {
+    const previousRecords = this.getPreviousRangeRecords(range);
+    if (previousRecords.length === 0) {
+      return [];
+    }
+
+    // 这里返回空数组，因为 hourlyStatsMap 只保存最近的数据
+    // 如果需要完整的历史对比，需要持久化到数据库
+    return [];
+  }
+
+  private persistSnapshot(): void {
+    this.snapshotService.saveSnapshot(this.buildSnapshotPayload());
+  }
+
+  private buildSnapshotPayload(): MonitoringSnapshot {
+    return {
+      version: this.SNAPSHOT_VERSION,
+      savedAt: Date.now(),
+      detailRecords: this.detailRecords.map((record) => ({
+        ...record,
+        tools: record.tools ? [...record.tools] : undefined,
+      })),
+      hourlyStats: Array.from(this.hourlyStatsMap.values()).map((stats) => ({ ...stats })),
+      errorLogs: this.errorLogs.map((log) => ({ ...log })),
+      globalCounters: { ...this.globalCounters },
+      activeUsers: Array.from(this.activeUsersSet),
+      activeChats: Array.from(this.activeChatsSet),
+      currentProcessing: this.currentProcessing,
+      peakProcessing: this.peakProcessing,
+    };
+  }
+
+  private async restoreFromSnapshot(): Promise<void> {
+    const snapshot = await this.snapshotService.readSnapshot();
+    if (!snapshot) {
+      return;
+    }
+
+    if (snapshot.version !== this.SNAPSHOT_VERSION) {
+      this.logger.warn(
+        `监控快照版本不匹配（当前: ${snapshot.version}, 预期: ${this.SNAPSHOT_VERSION}），将使用最新结构重建`,
+      );
+    }
+
+    this.applySnapshot(snapshot);
+    this.logger.log(
+      `已从监控快照恢复数据: records=${this.detailRecords.length}, hourlyStats=${this.hourlyStatsMap.size}`,
+    );
+  }
+
+  private applySnapshot(snapshot: MonitoringSnapshot): void {
+    const detailRecords = snapshot.detailRecords || [];
+    this.detailRecords = detailRecords.slice(-this.MAX_DETAIL_RECORDS).map((record) => ({
+      ...record,
+      tools: record.tools ? [...record.tools] : undefined,
+    }));
+
+    const hourlyStats = snapshot.hourlyStats || [];
+    this.hourlyStatsMap = new Map(
+      hourlyStats
+        .sort((a, b) => new Date(a.hour).getTime() - new Date(b.hour).getTime())
+        .slice(-this.MAX_HOURLY_STATS)
+        .map((stats) => [stats.hour, { ...stats }]),
+    );
+
+    const errorLogs = snapshot.errorLogs || [];
+    this.errorLogs = errorLogs.slice(-this.MAX_ERROR_LOGS).map((log) => ({ ...log }));
+
+    this.globalCounters = snapshot.globalCounters
+      ? { ...snapshot.globalCounters }
+      : this.createDefaultCounters();
+
+    this.activeUsersSet = new Set(snapshot.activeUsers || []);
+    this.activeChatsSet = new Set(snapshot.activeChats || []);
+    this.currentProcessing = snapshot.currentProcessing ?? 0;
+    this.peakProcessing = snapshot.peakProcessing ?? 0;
   }
 }

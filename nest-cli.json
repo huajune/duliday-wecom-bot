@@ -7,8 +7,19 @@
     "tsConfigPath": "tsconfig.json",
     "assets": [
       {
-        "include": "agent/context/**/*",
-        "outDir": "dist"
+        "include": "**/*.json",
+        "exclude": "**/node_modules/**",
+        "watchAssets": true
+      },
+      {
+        "include": "**/*.md",
+        "exclude": "**/node_modules/**",
+        "watchAssets": true
+      },
+      {
+        "include": "../public/**/*",
+        "outDir": "dist",
+        "watchAssets": true
       }
     ],
     "watchAssets": true

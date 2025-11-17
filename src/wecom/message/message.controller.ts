@@ -7,7 +7,7 @@ import {
   MessageSource,
   EnterpriseMessageCallbackDto,
 } from './dto/message-callback.dto';
-import { AgentService, AgentConfigService } from '@agent';
+import { AgentService } from '@agent';
 
 /**
  * 消息处理控制器
@@ -22,7 +22,6 @@ export class MessageController {
   constructor(
     private readonly messageService: MessageService,
     private readonly agentService: AgentService,
-    private readonly agentConfigService: AgentConfigService,
   ) {}
 
   /**

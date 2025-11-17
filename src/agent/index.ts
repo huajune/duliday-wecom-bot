@@ -1,6 +1,26 @@
+// 公共接口导出
 export * from './agent.module';
 export * from './agent.service';
-export * from './agent-config.service';
-export * from './interfaces';
-export * from './dto/chat-request.dto';
-export * from './exceptions/agent.exception';
+export * from './utils/agent-enums'; // 枚举单独导出
+export * from './utils/agent-types';
+export * from './utils/agent-exceptions';
+
+// 导出常用的服务供其他模块使用
+export { ProfileLoaderService } from './services/agent-profile-loader.service';
+export { BrandConfigService } from './services/brand-config.service';
+export { AgentConfigValidator } from './utils/agent-validator';
+
+// 导出辅助工具
+export {
+  AgentResultHelper,
+  createSuccessResult,
+  createFallbackResult,
+  createErrorResult,
+} from './utils/agent-result-helper';
+
+// 内部服务通过 AgentModule 依赖注入，不对外暴露：
+// - AgentApiClientService
+// - AgentCacheService
+// - AgentFallbackService
+// - AgentRegistryService
+// - BrandConfigMonitor

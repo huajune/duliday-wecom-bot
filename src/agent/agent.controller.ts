@@ -4,16 +4,19 @@ import {
   Post,
   Body,
   Logger,
-  Query,
+  Param,
   HttpException,
   HttpStatus,
 } from '@nestjs/common';
 import { AgentService } from './agent.service';
-import { AgentConfigService } from './agent-config.service';
-import { AgentRegistryService } from './agent-registry.service';
-import { AgentCacheService } from './agent-cache.service';
+import { AgentRegistryService } from './services/agent-registry.service';
+import { AgentCacheService } from './services/agent-cache.service';
+import { ProfileLoaderService } from './services/agent-profile-loader.service';
+import { BrandConfigService } from './services/brand-config.service';
+import { AgentConfigValidator } from './utils/agent-validator';
 import { ConfigService } from '@nestjs/config';
 import { RawResponse } from '@/core';
+import { FeiShuAlertService } from '@/core/alert/feishu-alert.service';
 
 @Controller('agent')
 export class AgentController {
@@ -21,10 +24,13 @@ export class AgentController {
 
   constructor(
     private readonly agentService: AgentService,
-    private readonly agentConfigService: AgentConfigService,
+    private readonly profileLoader: ProfileLoaderService,
+    private readonly brandConfig: BrandConfigService,
+    private readonly validator: AgentConfigValidator,
     private readonly registryService: AgentRegistryService,
     private readonly cacheService: AgentCacheService,
     private readonly configService: ConfigService,
+    private readonly feiShuAlertService: FeiShuAlertService,
   ) {}
 
   /**
@@ -34,15 +40,30 @@ export class AgentController {
   @Get('health')
   async healthCheck() {
     const healthStatus = this.registryService.getHealthStatus();
-    const isHealthy = healthStatus.models.configuredAvailable && healthStatus.tools.allAvailable;
+    const brandConfigStatus = await this.brandConfig.getBrandConfigStatus();
 
-    // 返回自定义格式的健康状态（拦截器会识别并保持原样）
+    const isModelHealthy = healthStatus.models.configuredAvailable;
+    const isToolHealthy = healthStatus.tools.allAvailable;
+    const isBrandConfigHealthy = brandConfigStatus.available && brandConfigStatus.synced;
+
+    // 整体健康状态：模型、工具和品牌配置都必须正常
+    const isHealthy = isModelHealthy && isToolHealthy && isBrandConfigHealthy;
+
+    // 返回自定义格式的健康状态（只包含状态信息，不暴露敏感数据）
     return {
       success: true,
       data: {
         status: isHealthy ? 'healthy' : 'degraded',
-        message: isHealthy ? 'Agent 服务正常' : 'Agent 服务运行中（部分功能降级）',
+        message: isHealthy ? 'Agent 服务正常' : '⚠️ Agent 服务运行中（部分功能降级）',
         ...healthStatus,
+        brandConfig: {
+          available: brandConfigStatus.available,
+          synced: brandConfigStatus.synced,
+          hasBrandData: brandConfigStatus.hasBrandData,
+          hasReplyPrompts: brandConfigStatus.hasReplyPrompts,
+          lastRefreshTime: brandConfigStatus.lastRefreshTime,
+          // 不返回完整的品牌配置数据，避免暴露敏感信息
+        },
       },
     };
   }
@@ -54,6 +75,64 @@ export class AgentController {
   @Get('health/quick')
   async quickHealthCheck() {
     return this.registryService.getHealthStatus();
+  }
+
+  /**
+   * 上游 API 连通性检查（实际调用 Agent API 测试可达性）
+   * GET /agent/health/upstream
+   *
+   * 用途：
+   * - 监控上游 Agent API 是否可达
+   * - 检测 DNS 解析和网络连接问题
+   * - 可配合外部监控服务使用（如 UptimeRobot）
+   */
+  @Get('health/upstream')
+  async checkUpstreamHealth() {
+    const startTime = Date.now();
+
+    try {
+      // 尝试获取模型列表来测试上游 API 连通性
+      await this.agentService.getModels();
+      const responseTime = Date.now() - startTime;
+
+      return {
+        status: 'healthy',
+        upstreamApi: 'reachable',
+        message: '上游 Agent API 连接正常',
+        responseTime: `${responseTime}ms`,
+        timestamp: new Date().toISOString(),
+      };
+    } catch (error) {
+      const responseTime = Date.now() - startTime;
+
+      // 判断错误类型
+      const isDnsError =
+        error.message?.includes('EAI_AGAIN') || error.message?.includes('getaddrinfo');
+      const isTimeoutError = error.message?.includes('timeout') || error.code === 'ETIMEDOUT';
+      const isConnectionError =
+        error.message?.includes('ECONNREFUSED') || error.message?.includes('Cannot connect');
+
+      return {
+        status: 'degraded',
+        upstreamApi: 'unreachable',
+        message: '⚠️ 上游 Agent API 连接失败',
+        error: {
+          message: error.message,
+          type: isDnsError
+            ? 'DNS_ERROR'
+            : isTimeoutError
+              ? 'TIMEOUT'
+              : isConnectionError
+                ? 'CONNECTION_ERROR'
+                : 'UNKNOWN',
+          isDnsError,
+          isTimeoutError,
+          isConnectionError,
+        },
+        responseTime: `${responseTime}ms`,
+        timestamp: new Date().toISOString(),
+      };
+    }
   }
 
   /**
@@ -94,8 +173,70 @@ export class AgentController {
    */
   @Post('health/refresh')
   async refreshHealth() {
-    await this.registryService.refresh();
-    return this.registryService.getHealthStatus();
+    try {
+      this.logger.log('手动触发刷新 Agent 注册表');
+      await this.registryService.refresh();
+      const healthStatus = this.registryService.getHealthStatus();
+
+      this.logger.log('注册表刷新成功');
+      return {
+        success: true,
+        message: '注册表刷新成功',
+        data: healthStatus,
+      };
+    } catch (error) {
+      this.logger.error('注册表刷新失败:', error);
+
+      // 发送飞书告警
+      this.feiShuAlertService
+        .sendAgentApiFailureAlert(
+          error,
+          'agent-registry',
+          'refresh models/tools',
+          '/agent/health/refresh',
+          {
+            errorType: 'agent',
+          },
+        )
+        .catch((alertError) => {
+          this.logger.error(`飞书告警发送失败: ${alertError.message}`);
+        });
+
+      throw new HttpException(
+        {
+          success: false,
+          message: '注册表刷新失败',
+          error: error.message,
+        },
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  /**
+   * 手动刷新品牌配置
+   * POST /agent/config/refresh
+   */
+  @Post('config/refresh')
+  async refreshBrandConfig() {
+    this.logger.log('手动刷新品牌配置');
+    await this.brandConfig.refreshBrandConfig();
+    const brandConfigStatus = await this.brandConfig.getBrandConfigStatus();
+
+    return {
+      success: true,
+      message: brandConfigStatus.available ? '品牌配置刷新成功' : '⚠️ 品牌配置刷新失败，请检查日志',
+      data: brandConfigStatus,
+    };
+  }
+
+  /**
+   * 获取品牌配置状态
+   * GET /agent/config/status
+   */
+  @Get('config/status')
+  async getBrandConfigStatus() {
+    return await this.brandConfig.getBrandConfigStatus();
   }
 
   /**
@@ -177,7 +318,7 @@ export class AgentController {
 
     // 默认使用 candidate-consultation 场景配置（包含所有必需的 context）
     const scenario = body.scenario || 'candidate-consultation';
-    const profile = this.agentConfigService.getProfile(scenario);
+    const profile = this.profileLoader.getProfile(scenario);
 
     if (!profile) {
       throw new HttpException(
@@ -189,11 +330,30 @@ export class AgentController {
     this.logger.log(`使用配置档案: ${profile.name} (${profile.description})`);
 
     // 使用配置档案调用聊天接口（自动传递 context 和 toolContext）
-    return await this.agentService.chatWithProfile(conversationId, body.message, profile, {
+    const result = await this.agentService.chatWithProfile(conversationId, body.message, profile, {
       // 允许通过请求参数覆盖配置档案的设置
       model: body.model,
       allowedTools: body.allowedTools,
     });
+
+    // 基于状态返回不同响应
+    if (result.status === 'error') {
+      throw new HttpException(
+        result.error?.message || 'Agent 调用失败',
+        result.error?.retryable ? HttpStatus.SERVICE_UNAVAILABLE : HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+
+    // 返回扁平结构
+    return {
+      response: result.data || result.fallback,
+      metadata: {
+        status: result.status,
+        fromCache: result.fromCache,
+        correlationId: result.correlationId,
+        ...(result.fallbackInfo && { fallbackInfo: result.fallbackInfo }),
+      },
+    };
   }
 
   /**
@@ -213,16 +373,30 @@ export class AgentController {
     this.logger.log(`测试工具安全校验，请求的工具: ${body.allowedTools.join(', ')}`);
     const conversationId = body.conversationId || 'test-tool-validation';
 
-    const response = await this.agentService.chat({
+    const result = await this.agentService.chat({
       conversationId,
       userMessage: body.message,
       allowedTools: body.allowedTools,
     });
 
+    // 基于状态返回不同响应
+    if (result.status === 'error') {
+      throw new HttpException(
+        result.error?.message || 'Agent 调用失败',
+        result.error?.retryable ? HttpStatus.SERVICE_UNAVAILABLE : HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+
     return {
       requestedTools: body.allowedTools,
       message: '工具校验通过，已过滤不安全的工具',
-      response,
+      response: result.data || result.fallback,
+      metadata: {
+        status: result.status,
+        fromCache: result.fromCache,
+        correlationId: result.correlationId,
+        ...(result.fallbackInfo && { fallbackInfo: result.fallbackInfo }),
+      },
     };
   }
 
@@ -243,16 +417,30 @@ export class AgentController {
     this.logger.log(`测试模型安全校验，请求的模型: ${body.model}`);
     const conversationId = body.conversationId || 'test-model-validation';
 
-    const response = await this.agentService.chat({
+    const result = await this.agentService.chat({
       conversationId,
       userMessage: body.message,
       model: body.model,
     });
 
+    // 基于状态返回不同响应
+    if (result.status === 'error') {
+      throw new HttpException(
+        result.error?.message || 'Agent 调用失败',
+        result.error?.retryable ? HttpStatus.SERVICE_UNAVAILABLE : HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+
     return {
       requestedModel: body.model,
       message: '模型校验完成，如果请求的模型不被允许，已自动使用默认模型',
-      response,
+      response: result.data || result.fallback,
+      metadata: {
+        status: result.status,
+        fromCache: result.fromCache,
+        correlationId: result.correlationId,
+        ...(result.fallbackInfo && { fallbackInfo: result.fallbackInfo }),
+      },
     };
   }
 
@@ -262,7 +450,7 @@ export class AgentController {
    */
   @Get('profiles')
   async getProfiles() {
-    const profiles = this.agentConfigService.getAllProfiles();
+    const profiles = this.profileLoader.getAllProfiles();
     return profiles.map((p) => ({
       name: p.name,
       description: p.description,
@@ -275,17 +463,36 @@ export class AgentController {
   }
 
   /**
-   * 获取特定配置档案
+   * 获取特定配置档案（公开接口，已脱敏）
    * GET /agent/profiles/:scenario
+   *
+   * ⚠️ 安全说明：
+   * - 此接口返回脱敏后的配置摘要，不包含敏感凭据
+   * - context、toolContext、systemPrompt 等字段已移除
+   * - 仅返回公开可见的元数据
    */
   @Get('profiles/:scenario')
-  async getProfile(@Query('scenario') scenario: string) {
-    const profile = this.agentConfigService.getProfile(scenario);
+  async getProfile(@Param('scenario') scenario: string) {
+    const profile = this.profileLoader.getProfile(scenario);
     if (!profile) {
       throw new HttpException(`未找到场景 ${scenario} 的配置`, HttpStatus.NOT_FOUND);
     }
 
-    return profile;
+    // 返回脱敏后的公开版本，移除敏感字段
+    return {
+      name: profile.name,
+      description: profile.description,
+      model: profile.model,
+      allowedTools: profile.allowedTools || [],
+      promptType: profile.promptType,
+      contextStrategy: profile.contextStrategy,
+      prune: profile.prune,
+      pruneOptions: profile.pruneOptions,
+      // 敏感字段已移除：
+      // - context（可能包含 API tokens）
+      // - toolContext（可能包含业务敏感配置）
+      // - systemPrompt（可能包含业务逻辑）
+    };
   }
 
   /**
@@ -293,13 +500,33 @@ export class AgentController {
    * GET /agent/profiles/:scenario/validate
    */
   @Get('profiles/:scenario/validate')
-  async validateProfile(@Query('scenario') scenario: string) {
-    const profile = this.agentConfigService.getProfile(scenario);
+  async validateProfile(@Param('scenario') scenario: string) {
+    const profile = this.profileLoader.getProfile(scenario);
     if (!profile) {
       throw new HttpException(`未找到场景 ${scenario} 的配置`, HttpStatus.NOT_FOUND);
     }
 
-    return this.agentConfigService.validateProfile(profile);
+    // 验证必填字段
+    try {
+      this.validator.validateRequiredFields(profile);
+    } catch (error) {
+      return {
+        valid: false,
+        error: error.message,
+      };
+    }
+
+    // 验证品牌配置
+    const brandValidation = this.validator.validateBrandConfig(profile);
+
+    // 验证上下文
+    const contextValidation = this.validator.validateContext(profile.context);
+
+    return {
+      valid: brandValidation.isValid && contextValidation.isValid,
+      brandConfig: brandValidation,
+      context: contextValidation,
+    };
   }
 
   /**
@@ -326,7 +553,7 @@ export class AgentController {
     this.logger.log(`使用配置档案聊天: ${body.scenario}, 消息: ${body.message}`);
 
     // 获取配置档案
-    const profile = this.agentConfigService.getProfile(body.scenario);
+    const profile = this.profileLoader.getProfile(body.scenario);
     if (!profile) {
       throw new HttpException(`未找到场景 ${body.scenario} 的配置`, HttpStatus.NOT_FOUND);
     }
@@ -334,17 +561,31 @@ export class AgentController {
     // 生成会话ID
     const conversationId = body.roomId ? `room_${body.roomId}` : `user_${body.fromUser}`;
 
-    const response = await this.agentService.chatWithProfile(
+    const result = await this.agentService.chatWithProfile(
       conversationId,
       body.message,
       profile,
       body.overrides,
     );
 
+    // 基于状态返回不同响应
+    if (result.status === 'error') {
+      throw new HttpException(
+        result.error?.message || 'Agent 调用失败',
+        result.error?.retryable ? HttpStatus.SERVICE_UNAVAILABLE : HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+
     return {
       conversationId,
       scenario: body.scenario,
-      response,
+      response: result.data || result.fallback,
+      metadata: {
+        status: result.status,
+        fromCache: result.fromCache,
+        correlationId: result.correlationId,
+        ...(result.fallbackInfo && { fallbackInfo: result.fallbackInfo }),
+      },
     };
   }
 }

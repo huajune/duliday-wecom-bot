@@ -9,9 +9,10 @@
     "build": "nest build",
     "format": "prettier --write \"src/**/*.ts\"",
     "lint": "eslint \"src/**/*.ts\" --fix",
+    "lint:check": "eslint \"src/**/*.ts\" --max-warnings=0",
     "start": "nest start",
     "start:dev": "nest start --watch",
-    "start:prod": "node dist/main",
+    "start:prod": "node dist/src/main",
     "test": "jest",
     "test:cov": "jest --coverage"
   },
@@ -57,38 +58,5 @@
     "ts-node": "^10.9.2",
     "tsconfig-paths": "^4.2.0",
     "typescript": "^5.3.3"
-  },
-  "jest": {
-    "moduleFileExtensions": [
-      "js",
-      "json",
-      "ts"
-    ],
-    "rootDir": "src",
-    "testRegex": ".*\\.spec\\.ts$",
-    "transform": {
-      "^.+\\.(t|j)s$": "ts-jest"
-    },
-    "collectCoverageFrom": [
-      "**/*.(t|j)s"
-    ],
-    "coverageDirectory": "../coverage",
-    "testEnvironment": "node",
-    "moduleNameMapper": {
-      "^@/(.*)$": "<rootDir>/$1",
-      "^@core/http$": "<rootDir>/core/client-http",
-      "^@core/response$": "<rootDir>/core/response",
-      "^@core/config$": "<rootDir>/core/config",
-      "^@core$": "<rootDir>/core",
-      "^@core/(.*)$": "<rootDir>/core/$1",
-      "^@agent$": "<rootDir>/agent",
-      "^@agent/(.*)$": "<rootDir>/agent/$1",
-      "^@wecom/(.*)$": "<rootDir>/wecom/$1",
-      "^@wecom$": "<rootDir>/wecom",
-      "^@sponge$": "<rootDir>/sponge",
-      "^@sponge/(.*)$": "<rootDir>/sponge/$1",
-      "^@analytics$": "<rootDir>/analytics",
-      "^@analytics/(.*)$": "<rootDir>/analytics/$1"
-    }
   }
 }

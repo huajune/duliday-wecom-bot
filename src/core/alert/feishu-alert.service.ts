@@ -2,6 +2,25 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import axios, { AxiosInstance } from 'axios';
 import * as crypto from 'crypto';
+import { AlertErrorType } from './types';
+
+interface AgentAlertOptions {
+  errorType?: AlertErrorType;
+  fallbackMessage?: string;
+  fallbackSuccess?: boolean; // 降级是否成功（用户是否看到错误）
+  scenario?: string;
+  channel?: string;
+  contactName?: string; // 用户昵称
+  requestParams?: any; // Chat API 请求参数（用于排查问题）
+  apiKey?: string; // Agent API Key（会自动脱敏）
+  requestHeaders?: Record<string, any>; // 请求头信息
+  // 告警编排层传递的字段
+  severity?: 'info' | 'warning' | 'error' | 'critical'; // 告警严重程度
+  aggregatedCount?: number; // 聚合的告警数量
+  aggregatedErrors?: string[]; // 聚合的错误消息列表
+  aggregatedTimeWindow?: { start: string; end: string }; // 聚合时间窗口
+  duration?: number; // 请求耗时（毫秒）
+}
 
 /**
  * 飞书告警服务
@@ -56,14 +75,17 @@ export class FeiShuAlertService {
     conversationId: string,
     userMessage: string,
     apiEndpoint: string = '/api/v1/chat',
+    options?: AgentAlertOptions,
   ): Promise<void> {
     if (!this.enabled) {
       return;
     }
 
-    const errorMessage = error.message || '未知错误';
-    const statusCode = error.response?.status || 'N/A';
-    const errorDetails = error.response?.data || {};
+    const apiResponse = error.response || (error as any)?.apiResponse;
+    const errorDetails = apiResponse?.data || error.response?.data || {};
+    const statusCode = apiResponse?.status || 'N/A';
+    const errorMessage = this.extractErrorMessage(error, apiResponse);
+    const requestHeaders = (error as any)?.requestHeaders;
 
     const content = this.buildAgentApiFailureMessage(
       errorMessage,
@@ -72,6 +94,9 @@ export class FeiShuAlertService {
       userMessage,
       apiEndpoint,
       errorDetails,
+      requestHeaders,
+      error, // 传递原始错误对象用于提取堆栈信息
+      options,
     );
 
     await this.send(content);
@@ -97,6 +122,188 @@ export class FeiShuAlertService {
   }
 
   /**
+   * 发送品牌配置不可用告警
+   * @param error 错误信息
+   * @param isFirstLoad 是否首次加载失败
+   */
+  async sendBrandConfigUnavailableAlert(error: any, isFirstLoad: boolean = false): Promise<void> {
+    if (!this.enabled) {
+      return;
+    }
+
+    const errorMessage = error.message || error.toString() || '未知错误';
+    const errorStack = error.stack || '';
+
+    const content = this.buildBrandConfigUnavailableMessage(errorMessage, errorStack, isFirstLoad);
+
+    await this.send(content);
+  }
+
+  /**
+   * 脱敏 Token/Key
+   * 只保留前 8 位和后 4 位，中间用 *** 替代
+   */
+  private maskToken(token: string): string {
+    if (!token || token.length < 12) {
+      return '[无效令牌]';
+    }
+    const prefix = token.substring(0, 8);
+    const suffix = token.substring(token.length - 4);
+    return `${prefix}***${suffix}`;
+  }
+
+  private extractErrorMessage(error: any, response?: any): string {
+    if (response?.data) {
+      if (typeof response.data === 'string') {
+        return response.data;
+      }
+      return (
+        response.data.message ||
+        response.data.error ||
+        response.data.detail ||
+        JSON.stringify(response.data)
+      );
+    }
+
+    return error?.message || '未知错误';
+  }
+
+  private shouldMaskHeader(headerName: string): boolean {
+    const lower = headerName.toLowerCase();
+    return (
+      lower.includes('authorization') ||
+      lower.includes('token') ||
+      lower.includes('key') ||
+      lower.includes('secret')
+    );
+  }
+
+  private formatRequestHeaders(headers?: Record<string, any>): string | null {
+    if (!headers || Object.keys(headers).length === 0) {
+      return null;
+    }
+
+    const lines = Object.entries(headers).map(([key, rawValue]) => {
+      let displayValue: string;
+      if (typeof rawValue === 'string') {
+        displayValue = rawValue;
+      } else if (Array.isArray(rawValue)) {
+        displayValue = rawValue.join(', ');
+      } else if (rawValue !== undefined && rawValue !== null) {
+        displayValue = JSON.stringify(rawValue);
+      } else {
+        displayValue = '';
+      }
+
+      if (displayValue && this.shouldMaskHeader(key)) {
+        if (/^Bearer\s+/i.test(displayValue)) {
+          const token = displayValue.replace(/^Bearer\s+/i, '').trim();
+          displayValue = `Bearer ${this.maskToken(token)}`;
+        } else {
+          displayValue = this.maskToken(displayValue);
+        }
+      }
+
+      return `- ${key}: ${displayValue || '[空]'}`;
+    });
+
+    return lines.join('\n');
+  }
+
+  private sanitizeErrorDetails(details: any, summary: string): any {
+    if (!details) {
+      return null;
+    }
+
+    if (typeof details === 'string') {
+      return this.isSameMessage(details, summary) ? null : details;
+    }
+
+    if (Array.isArray(details)) {
+      return details;
+    }
+
+    if (typeof details === 'object') {
+      const clone = { ...details };
+      ['message', 'detail', 'error_message', 'errorMessage'].forEach((key) => {
+        if (typeof clone[key] === 'string' && this.isSameMessage(clone[key], summary)) {
+          delete clone[key];
+        }
+      });
+
+      return Object.keys(clone).length === 0 ? null : clone;
+    }
+
+    return details;
+  }
+
+  private stringifyErrorDetails(details: any): string | null {
+    if (!details) {
+      return null;
+    }
+
+    if (typeof details === 'string') {
+      return details;
+    }
+
+    try {
+      const str = JSON.stringify(details, null, 2);
+      return str === '{}' ? null : str;
+    } catch {
+      return null;
+    }
+  }
+
+  private isSameMessage(value: string, summary?: string): boolean {
+    if (!value || !summary) {
+      return false;
+    }
+    return value.trim().toLowerCase() === summary.trim().toLowerCase();
+  }
+
+  /**
+   * 格式化用户消息（增加长度限制并显示总长度）
+   */
+  private formatUserMessage(message: string): string {
+    const MAX_LENGTH = 500;
+
+    if (message.length <= MAX_LENGTH) {
+      return `**用户消息**:\n${message}`;
+    }
+
+    const truncated = message.substring(0, MAX_LENGTH);
+    return `**用户消息**:\n${truncated}...\n\n<font color="grey">（完整消息长度: ${message.length} 字符，已截断显示前 ${MAX_LENGTH} 字符）</font>`;
+  }
+
+  /**
+   * 构建智能日志链接（P0 改进）
+   * 添加查询参数：conversationId, time, range
+   */
+  private buildSmartLogUrl(baseUrl: string, conversationId: string, timestamp: string): string {
+    try {
+      const url = new URL(baseUrl);
+
+      // 添加会话ID参数
+      url.searchParams.set('conversationId', conversationId);
+
+      // 添加时间参数（使用告警时间）
+      const alertTime = new Date(timestamp.replace(' ', 'T')); // 转换为 ISO 格式
+      if (!isNaN(alertTime.getTime())) {
+        url.searchParams.set('time', alertTime.toISOString());
+      }
+
+      // 添加时间范围参数（前后 5 分钟）
+      url.searchParams.set('range', '5m');
+
+      return url.toString();
+    } catch (error) {
+      // 如果 URL 解析失败，返回原始 URL
+      this.logger.warn(`无法解析日志查看器 URL: ${baseUrl}，将使用原始 URL`);
+      return baseUrl;
+    }
+  }
+
+  /**
    * 构建 Agent API 失败告警消息
    */
   private buildAgentApiFailureMessage(
@@ -106,53 +313,189 @@ export class FeiShuAlertService {
     userMessage: string,
     apiEndpoint: string,
     errorDetails: any,
+    requestHeaders: Record<string, any> | undefined,
+    error: any, // 原始错误对象（用于提取堆栈信息）
+    options?: AgentAlertOptions,
   ): any {
     const timestamp = new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
     const env = this.configService.get<string>('NODE_ENV', 'unknown');
     const logViewerUrl = this.configService.get<string>('LOG_VIEWER_URL', '');
+    const errorType = options?.errorType || 'agent';
+
+    const { title, template } = this.getAlertHeaderMeta(errorType);
+    const errorTypeLabel = this.getErrorTypeLabel(errorType);
+
+    // 从 requestParams 中提取 dulidayToken
+    const dulidayToken = options?.requestParams?.context?.dulidayToken;
+
+    const metaLines = [
+      `**告警时间**: ${timestamp}`,
+      `**环境**: ${env}`,
+      `**会话ID**: ${conversationId}`,
+      `**错误类型**: ${errorTypeLabel}`,
+    ];
+
+    // 用户影响评估（P0 改进）
+    if (options?.fallbackSuccess !== undefined) {
+      const impactText = options.fallbackSuccess
+        ? '<font color="green">✅ 已降级（用户无感知）</font>'
+        : '<font color="red">❌ 降级失败（用户可见错误）</font>';
+      metaLines.push(`**用户影响**: ${impactText}`);
+    }
+
+    // 聚合统计（来自编排层）
+    if (options?.aggregatedCount && options.aggregatedCount > 1) {
+      metaLines.push(`**聚合告警数**: ${options.aggregatedCount} 次相同错误`);
+    }
+    if (options?.aggregatedTimeWindow) {
+      metaLines.push(
+        `**聚合时间窗口**: ${options.aggregatedTimeWindow.start} ~ ${options.aggregatedTimeWindow.end}`,
+      );
+    }
+
+    // 请求耗时（P0 改进）
+    if (options?.duration !== undefined && options.duration !== null) {
+      const durationSec = (options.duration / 1000).toFixed(2);
+      let durationDisplay = `⏱️ ${durationSec}秒`;
+
+      // 性能警告提示
+      if (options.duration > 10000) {
+        durationDisplay += ' <font color="red">（严重超时）</font>';
+      } else if (options.duration > 5000) {
+        durationDisplay += ' <font color="orange">（响应较慢）</font>';
+      }
+
+      metaLines.push(`**请求耗时**: ${durationDisplay}`);
+    }
+
+    if (options?.contactName) {
+      metaLines.push(`**用户昵称**: ${options.contactName}`);
+    }
+    if (options?.scenario) {
+      metaLines.push(`**场景**: ${options.scenario}`);
+    }
+    if (dulidayToken) {
+      metaLines.push(`**DuLiDay Token**: ${this.maskToken(dulidayToken)}`);
+    }
+    if (options?.apiKey) {
+      metaLines.push(`**API Key**: ${this.maskToken(options.apiKey)}`);
+    }
+
+    // 构建错误详情行（只在有 HTTP 状态码时显示）
+    const errorInfoLines = [`**错误信息**: ${errorMessage}`];
+
+    // 只在有有效的 HTTP 状态码时显示（排除 'N/A'）
+    if (statusCode !== 'N/A' && statusCode !== null && statusCode !== undefined) {
+      errorInfoLines.push(`**HTTP 状态码**: ${statusCode}`);
+    }
+
+    errorInfoLines.push(`**API 端点**: ${apiEndpoint}`);
 
     const elements: any[] = [
       {
         tag: 'div',
         text: {
           tag: 'lark_md',
-          content: `**告警时间**: ${timestamp}\n**环境**: ${env}\n**会话ID**: ${conversationId}`,
+          content: metaLines.join('\n'),
         },
       },
-      {
-        tag: 'hr',
-      },
+      { tag: 'hr' },
       {
         tag: 'div',
         text: {
           tag: 'lark_md',
-          content: `**错误信息**: ${errorMessage}\n**HTTP 状态码**: ${statusCode}\n**API 端点**: ${apiEndpoint}`,
+          content: errorInfoLines.join('\n'),
         },
       },
-      {
-        tag: 'hr',
-      },
+      { tag: 'hr' },
       {
         tag: 'div',
         text: {
           tag: 'lark_md',
-          content: `**用户消息**: ${userMessage.substring(0, 100)}${userMessage.length > 100 ? '...' : ''}`,
-        },
-      },
-      {
-        tag: 'hr',
-      },
-      {
-        tag: 'div',
-        text: {
-          tag: 'lark_md',
-          content: `**错误详情**:\n\`\`\`json\n${JSON.stringify(errorDetails, null, 2).substring(0, 500)}\n\`\`\``,
+          content: this.formatUserMessage(userMessage),
         },
       },
     ];
 
-    // 只有配置了日志查看器 URL 时才添加按钮
+    if (options?.fallbackMessage) {
+      elements.push(
+        { tag: 'hr' },
+        {
+          tag: 'div',
+          text: {
+            tag: 'lark_md',
+            content: `**降级话术**: ${options.fallbackMessage}`,
+          },
+        },
+      );
+    }
+
+    // 【优化】改进错误详情显示 - HTTP响应体
+    const sanitizedErrorDetails = this.sanitizeErrorDetails(errorDetails, errorMessage);
+    const errorDetailsStr = this.stringifyErrorDetails(sanitizedErrorDetails);
+    const hasErrorDetails = Boolean(errorDetailsStr);
+
+    if (hasErrorDetails) {
+      const codeLanguage = typeof sanitizedErrorDetails === 'string' ? 'text' : 'json';
+      // 限制显示长度为 1500 字符
+      const maxLength = 1500;
+      const truncatedDetails =
+        errorDetailsStr.length > maxLength
+          ? errorDetailsStr.substring(0, maxLength) + '\n...(已截断，查看日志获取完整信息)'
+          : errorDetailsStr;
+
+      elements.push(
+        { tag: 'hr' },
+        {
+          tag: 'div',
+          text: {
+            tag: 'lark_md',
+            content: `**HTTP 响应体**:\n\`\`\`${codeLanguage}\n${truncatedDetails}\n\`\`\``,
+          },
+        },
+      );
+    }
+
+    // 【新增】错误堆栈信息
+    const errorStack = error?.stack;
+    if (errorStack && typeof errorStack === 'string') {
+      // 限制堆栈长度，避免过长
+      const maxStackLength = 1000;
+      const truncatedStack =
+        errorStack.length > maxStackLength
+          ? errorStack.substring(0, maxStackLength) + '\n...(已截断，查看日志获取完整堆栈)'
+          : errorStack;
+
+      elements.push(
+        { tag: 'hr' },
+        {
+          tag: 'div',
+          text: {
+            tag: 'lark_md',
+            content: `**错误堆栈**:\n\`\`\`\n${truncatedStack}\n\`\`\``,
+          },
+        },
+      );
+    }
+
+    const headersMarkdown = this.formatRequestHeaders(requestHeaders || options?.requestHeaders);
+    if (headersMarkdown) {
+      elements.push(
+        { tag: 'hr' },
+        {
+          tag: 'div',
+          text: {
+            tag: 'lark_md',
+            content: `**请求 Headers**:\n${headersMarkdown}`,
+          },
+        },
+      );
+    }
+
     if (logViewerUrl) {
+      // 智能日志链接（P0 改进）：添加查询参数
+      const smartLogUrl = this.buildSmartLogUrl(logViewerUrl, conversationId, timestamp);
+
       elements.push({
         tag: 'action',
         actions: [
@@ -163,7 +506,7 @@ export class FeiShuAlertService {
               content: '查看日志',
             },
             type: 'default',
-            url: logViewerUrl,
+            url: smartLogUrl,
           },
         ],
       });
@@ -175,13 +518,41 @@ export class FeiShuAlertService {
         header: {
           title: {
             tag: 'plain_text',
-            content: '🚨 Agent API 调用失败告警',
+            content: title,
           },
-          template: 'red', // 红色表示错误
+          template,
         },
         elements,
       },
     };
+  }
+
+  private getAlertHeaderMeta(errorType: AlertErrorType): { title: string; template: string } {
+    switch (errorType) {
+      case 'message':
+        return { title: '⚠️ Message 处理失败告警', template: 'orange' };
+      case 'delivery':
+        return { title: '⚠️ 消息发送失败告警', template: 'yellow' };
+      case 'merge':
+        return { title: '⚠️ 聚合流程失败告警', template: 'wathet' };
+      case 'agent':
+      default:
+        return { title: '🚨 Agent 调用失败告警', template: 'red' };
+    }
+  }
+
+  private getErrorTypeLabel(errorType: AlertErrorType): string {
+    switch (errorType) {
+      case 'message':
+        return 'Message Processing Error';
+      case 'delivery':
+        return 'Delivery Error';
+      case 'merge':
+        return 'Merge Processor Error';
+      case 'agent':
+      default:
+        return 'Agent Invocation Error';
+    }
   }
 
   /**
@@ -238,6 +609,77 @@ export class FeiShuAlertService {
             },
           },
         ],
+      },
+    };
+  }
+
+  /**
+   * 构建品牌配置不可用告警消息
+   */
+  private buildBrandConfigUnavailableMessage(
+    errorMessage: string,
+    errorStack: string,
+    isFirstLoad: boolean,
+  ): any {
+    const timestamp = new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
+    const env = this.configService.get<string>('NODE_ENV', 'unknown');
+    const apiBaseUrl = this.configService.get<string>('AGENT_API_BASE_URL', '未配置');
+
+    const elements: any[] = [
+      {
+        tag: 'div',
+        text: {
+          tag: 'lark_md',
+          content: `**告警时间**: ${timestamp}\n**环境**: ${env}\n**首次加载**: ${isFirstLoad ? '是' : '否'}`,
+        },
+      },
+      {
+        tag: 'hr',
+      },
+      {
+        tag: 'div',
+        text: {
+          tag: 'lark_md',
+          content: `**错误信息**: ${errorMessage}\n**API 地址**: ${apiBaseUrl}/config/export`,
+        },
+      },
+      {
+        tag: 'hr',
+      },
+      {
+        tag: 'div',
+        text: {
+          tag: 'lark_md',
+          content: `**影响**: ${isFirstLoad ? '⚠️ 服务启动但无法提供智能回复，所有用户消息将返回降级提示' : 'ℹ️ 使用旧缓存数据，服务可继续运行'}\n**建议操作**: \n1. 检查 Agent API 服务是否正常\n2. 验证 AGENT_API_KEY 是否正确\n3. 查看服务日志获取详细错误信息`,
+        },
+      },
+    ];
+
+    // 如果有错误堆栈，添加详细信息
+    if (errorStack) {
+      elements.push({
+        tag: 'hr',
+      });
+      elements.push({
+        tag: 'div',
+        text: {
+          tag: 'lark_md',
+          content: `**错误堆栈**: \n\`\`\`\n${errorStack.substring(0, 500)}${errorStack.length > 500 ? '\n...(省略)' : ''}\n\`\`\``,
+        },
+      });
+    }
+
+    return {
+      msg_type: 'interactive',
+      card: {
+        header: {
+          title: {
+            tag: 'plain_text',
+            content: isFirstLoad ? '🔴 品牌配置加载失败 (首次)' : '⚠️ 品牌配置刷新失败',
+          },
+          template: isFirstLoad ? 'red' : 'orange', // 首次加载失败用红色，刷新失败用橙色
+        },
+        elements,
       },
     };
   }
