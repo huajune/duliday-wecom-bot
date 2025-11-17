@@ -102,7 +102,10 @@
       "Bash(NODE_ENV=development node -e \"\nconst { execSync } = require(''''child_process'''');\ntry {\n  const output = execSync(''''pnpm run start:dev'''', { \n    timeout: 8000,\n    encoding: ''''utf-8'''',\n    stdio: ''''pipe''''\n  });\n  console.log(output);\n} catch (error) {\n  console.log(error.stdout || '''''''');\n  console.log(''''启动测试完成（超时为正常现象）'''');\n}\n\")",
       "Bash(/dev/null)",
       "Bash(./scripts/test-alerts.sh:*)",
-      "Bash(storage/monitoring-data.json)"
+      "Bash(storage/monitoring-data.json)",
+      "Bash(node test-api-key.js:*)",
+      "Bash(__NEW_LINE__ echo \"=== 1. 测试业务指标告警（应该被静默，不发送到飞书）===\" curl -s -X POST http://localhost:8080/alert/test/metrics)",
+      "Bash(node test-axios-headers.js:*)"
     ],
     "deny": [
       "Bash(git restore:*)",
