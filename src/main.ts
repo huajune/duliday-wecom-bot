@@ -4,6 +4,26 @@ import { ConfigService } from '@nestjs/config';
 import { ResponseInterceptor, HttpExceptionFilter } from '@core/server';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { join } from 'path';
+import { networkInterfaces } from 'os';
+
+/**
+ * 获取本机局域网 IP 地址
+ */
+function getLocalIpAddress(): string {
+  const nets = networkInterfaces();
+  for (const name of Object.keys(nets)) {
+    const netInfo = nets[name];
+    if (!netInfo) continue;
+
+    for (const net of netInfo) {
+      // 跳过非 IPv4 和内部地址
+      if (net.family === 'IPv4' && !net.internal) {
+        return net.address;
+      }
+    }
+  }
+  return 'localhost';
+}
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
@@ -32,12 +52,15 @@ async function bootstrap() {
 
   await app.listen(port);
 
+  const localIp = getLocalIpAddress();
+
   console.log('========================================');
   console.log(`🚀 服务已启动`);
   console.log(`📍 监听端口: ${port}`);
   console.log(`🌍 运行环境: ${nodeEnv}`);
-  console.log(`🔗 访问地址: http://localhost:${port}`);
-  console.log(`📊 监控仪表盘: http://localhost:${port}/monitoring.html`);
+  console.log(`🔗 本地访问: http://localhost:${port}`);
+  console.log(`🌐 局域网访问: http://${localIp}:${port}`);
+  console.log(`📊 监控仪表盘: http://${localIp}:${port}/monitoring.html`);
   console.log(`📦 API 响应格式: 统一包装（全局生效）`);
   console.log('========================================');
 }

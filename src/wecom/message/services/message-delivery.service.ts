@@ -6,6 +6,7 @@ import { MonitoringService } from '@/core/monitoring/monitoring.service';
 import { TypingDelayService } from './message-typing-delay.service';
 import { MessageSplitter } from '../utils/message-splitter.util';
 import { DeliveryContext, DeliveryResult, MessageSegment, AgentReply } from '../types';
+import { AlertOrchestratorService } from '@core/alert/services/alert-orchestrator.service';
 
 /**
  * 消息发送服务
@@ -27,6 +28,7 @@ export class MessageDeliveryService {
     private readonly monitoringService: MonitoringService,
     private readonly typingDelayService: TypingDelayService,
     private readonly configService: ConfigService,
+    private readonly alertOrchestrator: AlertOrchestratorService,
   ) {
     this.enableMessageSplitSend =
       this.configService.get<string>('ENABLE_MESSAGE_SPLIT_SEND', 'true') === 'true';
@@ -85,6 +87,9 @@ export class MessageDeliveryService {
     } catch (error) {
       const totalTime = Date.now() - startTime;
       this.logger.error(`[${contactName}] 消息发送失败: ${error.message}`);
+
+      // 发送告警
+      await this.sendDeliveryFailureAlert(error, context, reply.content);
 
       return {
         success: false,
@@ -185,12 +190,40 @@ export class MessageDeliveryService {
       `[${contactName}] 分段发送完成，成功 ${successCount}/${segments.length}，失败 ${failedCount}`,
     );
 
+    // 如果有失败片段，发送告警
+    if (failedCount > 0) {
+      const errorMsg = `${failedCount}/${segments.length} 个消息片段发送失败`;
+      await this.sendDeliveryFailureAlert(new Error(errorMsg), context, content);
+    }
+
     return {
       success: failedCount === 0,
       segmentCount: segments.length,
       failedSegments: failedCount,
       totalTime: 0, // 将由 deliverReply 填充
     };
+  }
+
+  /**
+   * 发送消息发送失败告警
+   */
+  private async sendDeliveryFailureAlert(
+    error: Error,
+    context: DeliveryContext,
+    content: string,
+  ): Promise<void> {
+    try {
+      await this.alertOrchestrator.sendAlert({
+        errorType: 'delivery',
+        error,
+        conversationId: context.chatId,
+        userMessage: content.substring(0, 100),
+        contactName: context.contactName,
+        apiEndpoint: '/message-sender/send',
+      });
+    } catch (alertError) {
+      this.logger.error(`发送失败告警发送失败: ${alertError.message}`);
+    }
   }
 
   /**

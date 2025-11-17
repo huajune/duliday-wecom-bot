@@ -46,6 +46,7 @@ src/
 │   ├── config/                     # Config management (env validation)
 │   ├── redis/                      # Redis cache (Global module)
 │   ├── monitoring/                 # System monitoring & metrics
+│   ├── alert/                      # Alert system (orchestrator pattern)
 │   └── server/response/            # Unified response (Interceptor + Filter)
 │
 ├── agent/                          # AI Agent Domain
@@ -140,6 +141,40 @@ const client = this.httpClientFactory.createWithBearerAuth(config, token);
 Response format:
 - Success: `{ success: true, data: {...}, timestamp: '...' }`
 - Error: `{ success: false, error: { code, message }, timestamp: '...' }`
+
+### 5. Configuration Layering
+The system uses a two-layer configuration approach to separate infrastructure concerns from business rules:
+
+**Layer 1: Infrastructure Config** (`src/core/config/`)
+- **Purpose**: Environment variables, API endpoints, system settings
+- **Components**:
+  - `env.validation.ts` - Type-safe environment variable validation (class-validator)
+  - `api-config.service.ts` - API base URL and endpoint management
+- **Characteristics**: Static at runtime, requires restart to change
+- **Example**: API keys, timeouts, database URLs
+
+**Layer 2: Business Rules Config** (`src/core/alert/`)
+- **Purpose**: Complex business logic, dynamic rules, feature configuration
+- **Components**:
+  - `AlertConfigService` - Alert rules from `config/alert-rules.json`
+  - Hot-reload capability (file watching)
+  - Rule matching engine (regex-based)
+- **Characteristics**: Dynamic at runtime, changes without restart
+- **Example**: Alert severity rules, throttle windows, metric thresholds
+
+**Why Two Layers?**
+- **Separation of Concerns**: Infrastructure vs. business logic
+- **Different Change Frequencies**: Env vars rarely change; business rules evolve frequently
+- **Different Validation Needs**: Env vars need startup validation; business rules need runtime flexibility
+- **Operational Flexibility**: Change alert rules in production without downtime
+
+```typescript
+// Infrastructure config - validated at startup
+this.apiKey = this.configService.get<string>('AGENT_API_KEY');
+
+// Business rules config - hot-reloadable at runtime
+const rule = this.alertConfig.findMatchingRule({ errorType: 'agent', errorCode: '401' });
+```
 
 ## Code Standards
 

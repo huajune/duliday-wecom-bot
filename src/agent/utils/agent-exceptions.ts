@@ -99,3 +99,27 @@ export class AgentAuthException extends AgentException {
     super(message || 'Agent API 认证失败：API Key 无效或已过期', HttpStatus.UNAUTHORIZED);
   }
 }
+
+/**
+ * Agent 调用包装异常（用于业务流内统一识别）
+ */
+export class AgentInvocationException extends AgentException {
+  constructor(
+    public readonly code: string,
+    message: string,
+    options?: {
+      details?: any;
+      retryable?: boolean;
+      retryAfter?: number;
+    },
+  ) {
+    super(message || 'Agent 调用失败', HttpStatus.BAD_GATEWAY);
+    this.details = options?.details;
+    this.retryable = options?.retryable;
+    this.retryAfter = options?.retryAfter;
+  }
+
+  public readonly details?: any;
+  public readonly retryable?: boolean;
+  public readonly retryAfter?: number;
+}

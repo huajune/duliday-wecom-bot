@@ -93,29 +93,28 @@ export class EnvironmentVariables {
   })
   AGENT_API_TIMEOUT: number;
 
-  // ==================== 会话管理配置 ====================
+  @IsOptional()
+  @IsNumber({}, { message: 'AGENT_API_MAX_RETRIES 必须是数字' })
+  @Min(0, { message: 'AGENT_API_MAX_RETRIES 必须大于等于 0' })
+  AGENT_API_MAX_RETRIES?: number;
+
+  // ==================== 会话管理配置（可选，暂未使用）====================
+  @IsOptional()
   @IsNumber({}, { message: 'CONVERSATION_MAX_MESSAGES 必须是数字' })
   @Min(1, { message: 'CONVERSATION_MAX_MESSAGES 必须大于 0' })
-  @IsNotEmpty({
-    message: 'CONVERSATION_MAX_MESSAGES 环境变量未配置，请在 .env 文件中设置',
-  })
-  CONVERSATION_MAX_MESSAGES: number;
+  CONVERSATION_MAX_MESSAGES?: number;
 
+  @IsOptional()
   @IsNumber({}, { message: 'CONVERSATION_TIMEOUT_MS 必须是数字' })
   @Min(1000, { message: 'CONVERSATION_TIMEOUT_MS 必须大于等于 1000ms' })
-  @IsNotEmpty({
-    message: 'CONVERSATION_TIMEOUT_MS 环境变量未配置，请在 .env 文件中设置',
-  })
-  CONVERSATION_TIMEOUT_MS: number;
+  CONVERSATION_TIMEOUT_MS?: number;
 
+  @IsOptional()
   @IsNumber({}, { message: 'CONVERSATION_CLEANUP_INTERVAL_MS 必须是数字' })
   @Min(1000, {
     message: 'CONVERSATION_CLEANUP_INTERVAL_MS 必须大于等于 1000ms',
   })
-  @IsNotEmpty({
-    message: 'CONVERSATION_CLEANUP_INTERVAL_MS 环境变量未配置，请在 .env 文件中设置',
-  })
-  CONVERSATION_CLEANUP_INTERVAL_MS: number;
+  CONVERSATION_CLEANUP_INTERVAL_MS?: number;
 
   // ==================== HTTP 客户端配置 ====================
   @IsNumber({}, { message: 'HTTP_CLIENT_TIMEOUT 必须是数字' })
@@ -145,6 +144,61 @@ export class EnvironmentVariables {
     message: 'DULIDAY_API_TOKEN 环境变量未配置，请在 .env 文件中设置',
   })
   DULIDAY_API_TOKEN: string;
+
+  // ==================== 告警系统配置（可选）====================
+  @IsOptional()
+  @IsString({ message: 'ALERT_ENABLED 必须是字符串' })
+  ALERT_ENABLED?: string;
+
+  @IsOptional()
+  @IsNumber({}, { message: 'ALERT_SUCCESS_RATE_WARNING 必须是数字' })
+  @Min(0, { message: 'ALERT_SUCCESS_RATE_WARNING 必须大于等于 0' })
+  ALERT_SUCCESS_RATE_WARNING?: number;
+
+  @IsOptional()
+  @IsNumber({}, { message: 'ALERT_SUCCESS_RATE_CRITICAL 必须是数字' })
+  @Min(0, { message: 'ALERT_SUCCESS_RATE_CRITICAL 必须大于等于 0' })
+  ALERT_SUCCESS_RATE_CRITICAL?: number;
+
+  @IsOptional()
+  @IsNumber({}, { message: 'ALERT_AVG_DURATION_WARNING 必须是数字' })
+  @Min(0, { message: 'ALERT_AVG_DURATION_WARNING 必须大于等于 0' })
+  ALERT_AVG_DURATION_WARNING?: number;
+
+  @IsOptional()
+  @IsNumber({}, { message: 'ALERT_AVG_DURATION_CRITICAL 必须是数字' })
+  @Min(0, { message: 'ALERT_AVG_DURATION_CRITICAL 必须大于等于 0' })
+  ALERT_AVG_DURATION_CRITICAL?: number;
+
+  @IsOptional()
+  @IsNumber({}, { message: 'ALERT_QUEUE_DEPTH_WARNING 必须是数字' })
+  @Min(0, { message: 'ALERT_QUEUE_DEPTH_WARNING 必须大于等于 0' })
+  ALERT_QUEUE_DEPTH_WARNING?: number;
+
+  @IsOptional()
+  @IsNumber({}, { message: 'ALERT_QUEUE_DEPTH_CRITICAL 必须是数字' })
+  @Min(0, { message: 'ALERT_QUEUE_DEPTH_CRITICAL 必须大于等于 0' })
+  ALERT_QUEUE_DEPTH_CRITICAL?: number;
+
+  @IsOptional()
+  @IsNumber({}, { message: 'ALERT_ERROR_RATE_WARNING 必须是数字' })
+  @Min(0, { message: 'ALERT_ERROR_RATE_WARNING 必须大于等于 0' })
+  ALERT_ERROR_RATE_WARNING?: number;
+
+  @IsOptional()
+  @IsNumber({}, { message: 'ALERT_ERROR_RATE_CRITICAL 必须是数字' })
+  @Min(0, { message: 'ALERT_ERROR_RATE_CRITICAL 必须大于等于 0' })
+  ALERT_ERROR_RATE_CRITICAL?: number;
+
+  @IsOptional()
+  @IsNumber({}, { message: 'ALERT_THROTTLE_WINDOW_MS 必须是数字' })
+  @Min(1000, { message: 'ALERT_THROTTLE_WINDOW_MS 必须大于等于 1000ms' })
+  ALERT_THROTTLE_WINDOW_MS?: number;
+
+  @IsOptional()
+  @IsNumber({}, { message: 'ALERT_THROTTLE_MAX_OCCURRENCES 必须是数字' })
+  @Min(1, { message: 'ALERT_THROTTLE_MAX_OCCURRENCES 必须大于等于 1' })
+  ALERT_THROTTLE_MAX_OCCURRENCES?: number;
 
   // ==================== 可选配置 ====================
   @IsOptional()

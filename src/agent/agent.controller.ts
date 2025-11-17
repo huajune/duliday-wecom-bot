@@ -78,6 +78,64 @@ export class AgentController {
   }
 
   /**
+   * 上游 API 连通性检查（实际调用 Agent API 测试可达性）
+   * GET /agent/health/upstream
+   *
+   * 用途：
+   * - 监控上游 Agent API 是否可达
+   * - 检测 DNS 解析和网络连接问题
+   * - 可配合外部监控服务使用（如 UptimeRobot）
+   */
+  @Get('health/upstream')
+  async checkUpstreamHealth() {
+    const startTime = Date.now();
+
+    try {
+      // 尝试获取模型列表来测试上游 API 连通性
+      await this.agentService.getModels();
+      const responseTime = Date.now() - startTime;
+
+      return {
+        status: 'healthy',
+        upstreamApi: 'reachable',
+        message: '上游 Agent API 连接正常',
+        responseTime: `${responseTime}ms`,
+        timestamp: new Date().toISOString(),
+      };
+    } catch (error) {
+      const responseTime = Date.now() - startTime;
+
+      // 判断错误类型
+      const isDnsError =
+        error.message?.includes('EAI_AGAIN') || error.message?.includes('getaddrinfo');
+      const isTimeoutError = error.message?.includes('timeout') || error.code === 'ETIMEDOUT';
+      const isConnectionError =
+        error.message?.includes('ECONNREFUSED') || error.message?.includes('Cannot connect');
+
+      return {
+        status: 'degraded',
+        upstreamApi: 'unreachable',
+        message: '⚠️ 上游 Agent API 连接失败',
+        error: {
+          message: error.message,
+          type: isDnsError
+            ? 'DNS_ERROR'
+            : isTimeoutError
+              ? 'TIMEOUT'
+              : isConnectionError
+                ? 'CONNECTION_ERROR'
+                : 'UNKNOWN',
+          isDnsError,
+          isTimeoutError,
+          isConnectionError,
+        },
+        responseTime: `${responseTime}ms`,
+        timestamp: new Date().toISOString(),
+      };
+    }
+  }
+
+  /**
    * 获取注册表状态详情
    * GET /agent/health/cache
    */

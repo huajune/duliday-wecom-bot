@@ -9,9 +9,11 @@ import {
   ChatResponse,
   BrandConfigService,
   ScenarioType,
+  AgentError,
+  AgentInvocationException,
 } from '@agent';
 import { MonitoringService } from '@/core/monitoring/monitoring.service';
-import { FeiShuAlertService } from '@/core/alert/feishu-alert.service';
+import { AlertOrchestratorService } from '@/core/alert/services/alert-orchestrator.service';
 import { AgentInvokeResult, AgentReply, FallbackMessageOptions } from '../types';
 import { BrandContext } from '@agent';
 import { FallbackMessageService } from './message-fallback.service';
@@ -42,7 +44,7 @@ export class AgentGatewayService {
     private readonly profileLoader: ProfileLoaderService,
     private readonly configValidator: AgentConfigValidator,
     private readonly monitoringService: MonitoringService,
-    private readonly feiShuAlertService: FeiShuAlertService,
+    private readonly alertOrchestrator: AlertOrchestratorService,
     private readonly brandConfigService: BrandConfigService,
     private readonly fallbackMessageService: FallbackMessageService,
   ) {}
@@ -230,30 +232,7 @@ export class AgentGatewayService {
       // 4. 检查 Agent 调用结果
       if (AgentResultHelper.isError(agentResult)) {
         this.logger.error(`Agent 调用失败:`, agentResult.error);
-
-        // 【修复】立即发送告警（从 agentResult 中提取完整错误信息）
-        const errorToThrow = new Error(agentResult.error?.message || 'Agent 调用失败');
-        (errorToThrow as any).requestParams = (agentResult.error as any)?.requestParams;
-        (errorToThrow as any).apiKey = (agentResult.error as any)?.apiKey;
-        // 兼容 apiResponse 和 response 两种属性名
-        (errorToThrow as any).response =
-          (agentResult.error as any)?.response || (agentResult.error as any)?.apiResponse;
-        (errorToThrow as any).requestHeaders = (agentResult.error as any)?.requestHeaders;
-
-        // 发送告警（异步，不阻塞主流程）
-        this.feiShuAlertService
-          .sendAgentApiFailureAlert(errorToThrow, conversationId, userMessage, '/api/v1/chat', {
-            errorType: 'agent',
-            scenario,
-            requestParams: (errorToThrow as any).requestParams,
-            apiKey: (errorToThrow as any).apiKey,
-            requestHeaders: (errorToThrow as any).requestHeaders,
-          })
-          .catch((alertError) => {
-            this.logger.error(`飞书告警发送失败: ${alertError.message}`);
-          });
-
-        throw errorToThrow;
+        throw this.buildAgentInvocationError(agentResult.error);
       }
 
       // 5. 检查是否为降级响应
@@ -284,21 +263,6 @@ export class AgentGatewayService {
       };
     } catch (error) {
       this.logger.error(`Agent 调用异常: ${error.message}`);
-
-      // 发送告警（异步，不阻塞主流程）
-      this.feiShuAlertService
-        .sendAgentApiFailureAlert(error, conversationId, userMessage, '/api/v1/chat', {
-          errorType: 'agent',
-          scenario,
-          requestParams: (error as any).requestParams, // 传递请求参数
-          apiKey: (error as any).apiKey, // 传递 API Key（会自动脱敏）
-          requestHeaders: (error as any).requestHeaders,
-        })
-        .catch((alertError) => {
-          this.logger.error(`飞书告警发送失败: ${alertError.message}`);
-        });
-
-      // 重新抛出异常，由调用方决定如何处理
       throw error;
     } finally {
       // 8. 【监控埋点】记录 AI 处理完成（无论成功还是失败）
@@ -370,19 +334,55 @@ export class AgentGatewayService {
       requestHeaders,
     };
 
-    // 异步发送告警（不阻塞主流程）
-    this.feiShuAlertService
-      .sendAgentApiFailureAlert(mockError, conversationId, userMessage, '/api/v1/chat', {
+    // 异步发送告警（通过编排层，支持限流、静默、聚合、恢复等高级功能）
+    this.alertOrchestrator
+      .sendAlert({
         errorType: 'agent',
-        fallbackMessage: agentResult.fallbackInfo.message,
+        error: mockError,
+        conversationId,
+        userMessage,
+        apiEndpoint: '/api/v1/chat',
         scenario,
-        requestParams: mockError.requestParams, // 传递请求参数
-        apiKey: (agentResult as any).apiKey, // 传递 API Key（会自动脱敏）
+        fallbackMessage: agentResult.fallbackInfo.message,
+        requestParams: mockError.requestParams,
+        apiKey: (agentResult as any).apiKey,
         requestHeaders: mockError.requestHeaders,
       })
       .catch((alertError) => {
-        this.logger.error(`飞书告警发送失败: ${alertError.message}`);
+        this.logger.error(`告警发送失败: ${alertError.message}`);
       });
+  }
+
+  /**
+   * 构造 Agent 调用异常并附带诊断信息
+   */
+  private buildAgentInvocationError(agentError?: AgentError): AgentInvocationException {
+    const code = agentError?.code || 'UNKNOWN_ERROR';
+    const message = agentError?.message || 'Agent 调用失败';
+    const exception = new AgentInvocationException(code, message, {
+      details: agentError?.details,
+      retryable: agentError?.retryable,
+      retryAfter: agentError?.retryAfter,
+    });
+
+    const metaSource = agentError as any;
+    if (metaSource) {
+      if (metaSource.requestParams) {
+        (exception as any).requestParams = metaSource.requestParams;
+      }
+      if (metaSource.apiKey) {
+        (exception as any).apiKey = metaSource.apiKey;
+      }
+      if (metaSource.requestHeaders) {
+        (exception as any).requestHeaders = metaSource.requestHeaders;
+      }
+      if (metaSource.response || metaSource.apiResponse) {
+        (exception as any).response = metaSource.response || metaSource.apiResponse;
+      }
+    }
+
+    (exception as any).isAgentError = true;
+    return exception;
   }
 
   /**

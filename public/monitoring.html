@@ -114,6 +114,12 @@
         flex-wrap: wrap;
       }
 
+      .filters {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+
       .filters button {
         background: transparent;
         border: 1px solid var(--border);
@@ -123,6 +129,10 @@
         font-size: 13px;
         cursor: pointer;
         transition: all 0.2s ease;
+      }
+
+      .filters button:hover {
+        border-color: var(--primary);
       }
 
       .filters button.active {
@@ -174,6 +184,67 @@
         box-shadow: 0 0 12px rgba(16, 185, 129, 0.7);
       }
 
+      /* 开关样式 */
+      .toggle-switch {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 13px;
+        color: var(--text-secondary);
+      }
+
+      .toggle-switch input[type='checkbox'] {
+        appearance: none;
+        width: 44px;
+        height: 24px;
+        background: rgba(255, 255, 255, 0.1);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        position: relative;
+        cursor: pointer;
+        transition: all 0.3s ease;
+      }
+
+      .toggle-switch input[type='checkbox']::before {
+        content: '';
+        position: absolute;
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        background: var(--text-secondary);
+        top: 2px;
+        left: 2px;
+        transition: all 0.3s ease;
+      }
+
+      .toggle-switch input[type='checkbox']:checked {
+        background: var(--success);
+        border-color: var(--success);
+      }
+
+      .toggle-switch input[type='checkbox']:checked::before {
+        background: white;
+        left: 22px;
+      }
+
+      .toggle-switch input[type='checkbox']:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+
+      .toggle-switch .status-text {
+        min-width: 40px;
+        font-weight: 500;
+      }
+
+      .toggle-switch .status-text.enabled {
+        color: var(--success);
+      }
+
+      .toggle-switch .status-text.disabled {
+        color: var(--danger);
+      }
+
       .last-update {
         display: flex;
         align-items: center;
@@ -187,6 +258,29 @@
         border: 1px solid var(--border);
         border-radius: 20px;
         padding: 24px;
+      }
+
+      .page-footnote {
+        margin-top: 12px;
+        text-align: right;
+        color: var(--text-muted);
+        font-size: 12px;
+        display: flex;
+        justify-content: flex-end;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .btn-ghost.danger-link {
+        border-color: transparent;
+        color: var(--text-muted);
+        padding: 6px 10px;
+        font-size: 12px;
+      }
+
+      .btn-ghost.danger-link:hover {
+        color: var(--danger);
+        border-color: rgba(239, 68, 68, 0.3);
       }
 
       .health-grid {
@@ -350,26 +444,6 @@
         height: 320px !important;
       }
 
-      .scenario-list {
-        list-style: none;
-        margin: 0;
-        padding: 0;
-        display: flex;
-        flex-direction: column;
-        gap: 10px;
-      }
-
-      .scenario-item {
-        display: flex;
-        justify-content: space-between;
-        font-size: 13px;
-        color: var(--text-secondary);
-      }
-
-      .scenario-item strong {
-        color: var(--text-primary);
-      }
-
       .insight-grid {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
@@ -421,6 +495,120 @@
       .percentiles strong {
         display: block;
         font-size: 18px;
+      }
+
+      .alert-type-list {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+
+      .alert-type-item {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 8px 0;
+        border-bottom: 1px solid var(--border);
+      }
+
+      .alert-type-item:last-child {
+        border-bottom: none;
+      }
+
+      .alert-type-label {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-width: 100px;
+        font-size: 13px;
+      }
+
+      .alert-type-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 20px;
+        height: 20px;
+        border-radius: 6px;
+        font-size: 11px;
+      }
+
+      .alert-type-badge.agent {
+        background: rgba(239, 68, 68, 0.2);
+        color: var(--danger);
+      }
+
+      .alert-type-badge.message {
+        background: rgba(245, 158, 11, 0.2);
+        color: var(--warning);
+      }
+
+      .alert-type-badge.delivery {
+        background: rgba(59, 130, 246, 0.2);
+        color: var(--primary);
+      }
+
+      .alert-type-badge.merge {
+        background: rgba(168, 85, 247, 0.2);
+        color: #a855f7;
+      }
+
+      .alert-type-badge.unknown {
+        background: rgba(156, 163, 175, 0.2);
+        color: var(--text-muted);
+      }
+
+      .alert-type-bar {
+        flex: 1;
+        height: 6px;
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 3px;
+        overflow: hidden;
+        position: relative;
+      }
+
+      .alert-type-bar-fill {
+        height: 100%;
+        border-radius: 3px;
+        transition: width 0.3s ease;
+      }
+
+      .alert-type-bar-fill.agent {
+        background: var(--danger);
+      }
+
+      .alert-type-bar-fill.message {
+        background: var(--warning);
+      }
+
+      .alert-type-bar-fill.delivery {
+        background: var(--primary);
+      }
+
+      .alert-type-bar-fill.merge {
+        background: #a855f7;
+      }
+
+      .alert-type-bar-fill.unknown {
+        background: var(--text-muted);
+      }
+
+      .alert-type-stats {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-width: 80px;
+        justify-content: flex-end;
+        font-size: 12px;
+      }
+
+      .alert-type-count {
+        font-weight: 600;
+        color: var(--text-primary);
+      }
+
+      .alert-type-percentage {
+        color: var(--text-secondary);
       }
 
       .section-header {
@@ -522,15 +710,17 @@
           </div>
         </div>
         <div class="header-actions">
-          <div class="filters" id="rangeFilters">
-            <button class="active" data-range="today">今日</button>
+          <div class="filters">
+            <button class="active" data-range="today">本日</button>
             <button data-range="week">本周</button>
             <button data-range="month">本月</button>
-            <button data-range="custom">自定义</button>
           </div>
           <div class="header-controls">
-            <button class="btn btn-primary" onclick="refreshAll()">🔄 刷新数据</button>
-            <button class="btn btn-ghost" onclick="clearData()">🗑️ 清空数据</button>
+            <label class="toggle-switch">
+              <span>🤖 智能回复</span>
+              <input type="checkbox" id="aiReplyToggle" />
+              <span class="status-text" id="aiReplyStatus">-</span>
+            </label>
             <label class="auto-refresh">
               <input type="checkbox" id="autoRefresh" checked />
               自动刷新 (5秒)
@@ -564,21 +754,16 @@
             <div class="health-desc" id="toolHealthDetails">检查中...</div>
           </div>
         </article>
-        <article class="health-card" id="brandConfigCard" data-state="loading">
-          <div class="health-icon">🎨</div>
-          <div>
-            <div class="health-title">品牌配置</div>
-            <div class="health-status" id="brandConfigStatus">-</div>
-            <div class="health-desc" id="brandConfigDetails">检查中...</div>
-          </div>
-        </article>
       </section>
 
       <section class="metric-grid">
         <article class="metric-card primary">
-          <div class="metric-label">今日消息</div>
+          <div class="metric-label">
+            消息总量
+            <span class="time-range-badge" id="timeRangeBadge" style="font-size: 11px; opacity: 0.7;"></span>
+          </div>
           <div class="metric-value" id="totalMessages">-</div>
-          <div class="metric-subtitle">累计处理</div>
+          <div class="metric-subtitle">成功 + 失败</div>
           <div class="metric-delta" id="totalMessagesDelta">-</div>
         </article>
         <article class="metric-card success">
@@ -590,7 +775,7 @@
         <article class="metric-card">
           <div class="metric-label">平均响应</div>
           <div class="metric-value" id="avgDuration">-</div>
-          <div class="metric-subtitle">毫秒</div>
+          <div class="metric-subtitle">秒</div>
           <div class="metric-delta" id="avgDurationDelta">-</div>
         </article>
         <article class="metric-card">
@@ -599,35 +784,110 @@
           <div class="metric-subtitle" id="activeChats">-</div>
           <div class="metric-delta" id="activeUsersDelta">-</div>
         </article>
+        <article class="metric-card" style="border: 1px solid rgba(245, 158, 11, 0.3);">
+          <div class="metric-label">降级次数</div>
+          <div class="metric-value" id="fallbackCount">-</div>
+          <div class="metric-subtitle" id="fallbackRate">-</div>
+          <div class="metric-delta" id="fallbackDelta">-</div>
+        </article>
+      </section>
+
+      <!-- 业务指标区域 -->
+      <section class="business-metrics">
+        <div class="section-header" style="margin-bottom: 16px;">
+          <h3 style="font-size: 18px; font-weight: 600; color: var(--text-primary); display: flex; align-items: center; gap: 8px;">
+            <span>📊</span>
+            <span>业务指标</span>
+            <span class="time-range-badge" id="businessTimeRangeBadge" style="font-size: 11px; opacity: 0.7;"></span>
+          </h3>
+          <p style="font-size: 13px; color: var(--text-secondary); margin-top: 4px;">核心业务转化与用户行为洞察</p>
+        </div>
+        <div class="metric-grid" style="grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));">
+          <!-- 总咨询人数 -->
+          <article class="metric-card" style="border: 1px solid rgba(99, 102, 241, 0.3);">
+            <div class="metric-label">总咨询人数</div>
+            <div class="metric-value" id="businessConsultationsTotal">-</div>
+            <div class="metric-subtitle">
+              新增 <span id="businessConsultationsNew">-</span> 人
+            </div>
+            <div class="metric-delta" id="businessConsultationsDelta">-</div>
+          </article>
+
+          <!-- 预约面试人数 -->
+          <article class="metric-card" style="border: 1px solid rgba(168, 85, 247, 0.3);">
+            <div class="metric-label">预约面试次数</div>
+            <div class="metric-value" id="businessBookingAttempts">-</div>
+            <div class="metric-subtitle">
+              成功 <span id="businessBookingSuccessful" style="color: var(--success);">-</span> /
+              失败 <span id="businessBookingFailed" style="color: var(--danger);">-</span>
+            </div>
+            <div class="metric-delta" id="businessBookingAttemptsDelta">-</div>
+          </article>
+
+          <!-- 预约成功率 -->
+          <article class="metric-card success" style="border: 1px solid rgba(16, 185, 129, 0.3);">
+            <div class="metric-label">预约成功率</div>
+            <div class="metric-value" id="businessBookingSuccessRate">-</div>
+            <div class="metric-subtitle">
+              咨询转化率 <span id="businessConversionRate">-</span>
+            </div>
+            <div class="metric-delta" id="businessBookingSuccessRateDelta">-</div>
+          </article>
+        </div>
+      </section>
+
+      <!-- 业务指标趋势 -->
+      <section class="charts-row">
+        <div class="chart-card">
+          <div class="chart-header">
+            <div>
+              <h3>咨询人数趋势</h3>
+              <p>活跃用户数量变化</p>
+            </div>
+          </div>
+          <div class="chart-container">
+            <canvas id="consultationsTrendChart"></canvas>
+          </div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-header">
+            <div>
+              <h3>预约转化趋势</h3>
+              <p>预约次数与成功率</p>
+            </div>
+          </div>
+          <div class="chart-container">
+            <canvas id="bookingTrendChart"></canvas>
+          </div>
+        </div>
       </section>
 
       <section class="charts-row">
         <div class="chart-card">
           <div class="chart-header">
             <div>
-              <h3>消息量趋势</h3>
-              <p>最近 <span id="chartRangeLabel">24</span> 小时</p>
+              <h3>响应耗时（秒）</h3>
+              <p>最近 <span id="chartRangeLabel">60</span> 分钟</p>
             </div>
             <div class="chart-kpi">
-              <span>近1小时成功率</span>
-              <strong id="chartSuccessRate">-</strong>
+              <span>当前平均耗时</span>
+              <strong id="responseChartAvg">-</strong>
             </div>
           </div>
-          <canvas id="messageChart"></canvas>
+          <canvas id="responseTrendChart"></canvas>
         </div>
         <div class="chart-card">
           <div class="chart-header">
             <div>
-              <h3>功能使用频率</h3>
-              <p>Top5 工具调用</p>
+              <h3>告警量趋势</h3>
+              <p>最近 60 分钟</p>
             </div>
             <div class="chart-kpi">
-              <span>平均失败率</span>
-              <strong id="featureFailureRate">-</strong>
+              <span>近5分钟告警</span>
+              <strong id="alertTrendRecent">-</strong>
             </div>
           </div>
-          <canvas id="featureUsageChart"></canvas>
-          <ul class="scenario-list" id="scenarioUsageList"></ul>
+          <canvas id="alertTrendChart"></canvas>
         </div>
       </section>
 
@@ -664,10 +924,6 @@
               <span>P99</span>
               <strong id="p99Duration">-</strong>
             </div>
-            <div>
-              <span>P999</span>
-              <strong id="p999Duration">-</strong>
-            </div>
           </div>
         </article>
         <article class="insight-card">
@@ -681,6 +937,12 @@
               <span>近24小时</span>
               <strong id="alertRecent">-</strong>
             </div>
+          </div>
+        </article>
+        <article class="insight-card">
+          <div class="insight-title">告警类型分布</div>
+          <div id="alertTypeList" class="alert-type-list">
+            <div class="loading" style="padding: 12px 0; font-size: 13px;">暂无数据</div>
           </div>
         </article>
       </section>
@@ -698,7 +960,7 @@
                 <th>消息预览</th>
                 <th>总耗时</th>
                 <th>AI 耗时</th>
-                <th>工具</th>
+                <th>回复条数</th>
                 <th>状态</th>
               </tr>
             </thead>
@@ -720,7 +982,7 @@
             <thead>
               <tr>
                 <th>时间</th>
-                <th>会话</th>
+                <th>用户</th>
                 <th>用户消息</th>
                 <th>回复预览</th>
                 <th>总耗时</th>
@@ -736,66 +998,40 @@
         </div>
       </section>
 
-      <section class="section">
-        <div class="section-header">
-          <h3>实时告警日志</h3>
-        </div>
-        <div class="table-wrapper">
-          <table>
-            <thead>
-              <tr>
-                <th>时间</th>
-                <th>消息 ID</th>
-                <th>错误信息</th>
-              </tr>
-            </thead>
-            <tbody id="errorLogs">
-              <tr>
-                <td colspan="3" class="loading">加载中</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </section>
+      <div class="page-footnote">
+        <button class="btn btn-ghost danger-link" type="button" onclick="clearData()">清空监控数据</button>
+        <span>仅在需要重置统计时使用</span>
+      </div>
     </div>
 
     <script>
       let autoRefreshInterval = null;
-      let messageChart = null;
-      let featureUsageChart = null;
+      let responseTrendChart = null;
+      let alertTrendChart = null;
+      let consultationsTrendChart = null;
+      let bookingTrendChart = null;
       let cachedDashboard = null;
       let cachedMetrics = null;
-      const RANGE_PRESETS = {
-        today: 24,
-        week: 72,
-        month: 168,
-        custom: 48,
+      let currentTimeRange = 'today';
+      const unwrapResponse = (payload) => {
+        let current = payload;
+        while (current && typeof current === 'object' && 'data' in current) {
+          current = current.data;
+        }
+        return current;
       };
-      let selectedRange = 'today';
 
       document.addEventListener('DOMContentLoaded', () => {
         initCharts();
-        setupRangeFilters();
         setupAutoRefreshToggle();
+        setupAiReplyToggle();
+        setupTimeRangeFilters();
         refreshAll();
+        loadAiReplyStatus();
       });
 
       async function refreshAll() {
         await Promise.all([refreshHealthStatus(), refreshDashboard()]);
-      }
-
-      function setupRangeFilters() {
-        const buttons = document.querySelectorAll('#rangeFilters button');
-        buttons.forEach((btn) => {
-          btn.addEventListener('click', () => {
-            buttons.forEach((b) => b.classList.remove('active'));
-            btn.classList.add('active');
-            selectedRange = btn.dataset.range;
-            if (cachedDashboard) {
-              updateCharts(cachedDashboard);
-            }
-          });
-        });
       }
 
       function setupAutoRefreshToggle() {
@@ -815,14 +1051,82 @@
         }
       }
 
+      function setupAiReplyToggle() {
+        const checkbox = document.getElementById('aiReplyToggle');
+        checkbox.addEventListener('change', handleAiReplyToggle);
+      }
+
+      async function loadAiReplyStatus() {
+        try {
+          const response = await fetch('/monitoring/ai-reply-status');
+          const result = await response.json();
+          const payload = unwrapResponse(result);
+          updateAiReplyUI(payload?.enabled ?? false);
+        } catch (error) {
+          console.error('获取 AI 回复状态失败', error);
+        }
+      }
+
+      async function handleAiReplyToggle() {
+        const checkbox = document.getElementById('aiReplyToggle');
+        const enabled = checkbox.checked;
+
+        try {
+          checkbox.disabled = true;
+          const response = await fetch('/monitoring/toggle-ai-reply', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ enabled }),
+          });
+
+          const result = await response.json();
+          const responseData = unwrapResponse(result);
+          updateAiReplyUI(responseData?.enabled ?? enabled);
+
+          // 显示通知
+          console.log(responseData?.message || '状态已更新');
+        } catch (error) {
+          console.error('切换 AI 回复状态失败', error);
+          // 恢复原来的状态
+          checkbox.checked = !enabled;
+        } finally {
+          checkbox.disabled = false;
+        }
+      }
+
+      function updateAiReplyUI(enabled) {
+        const checkbox = document.getElementById('aiReplyToggle');
+        const statusText = document.getElementById('aiReplyStatus');
+
+        checkbox.checked = enabled;
+        statusText.textContent = enabled ? '已启用' : '已禁用';
+        statusText.className = enabled ? 'status-text enabled' : 'status-text disabled';
+      }
+
+      function setupTimeRangeFilters() {
+        const filterButtons = document.querySelectorAll('.filters button[data-range]');
+        filterButtons.forEach(button => {
+          button.addEventListener('click', () => {
+            filterButtons.forEach(btn => btn.classList.remove('active'));
+            button.classList.add('active');
+            currentTimeRange = button.dataset.range;
+            refreshDashboard();
+          });
+        });
+      }
+
       async function refreshDashboard() {
         try {
           const [dashboardRes, metricsRes] = await Promise.all([
-            fetch('/monitoring/dashboard'),
+            fetch(`/monitoring/dashboard?range=${currentTimeRange}`),
             fetch('/monitoring/metrics'),
           ]);
-          const dashboard = await dashboardRes.json();
-          const metrics = await metricsRes.json();
+          const dashboardPayload = await dashboardRes.json();
+          const metricsPayload = await metricsRes.json();
+          const dashboard = unwrapResponse(dashboardPayload);
+          const metrics = unwrapResponse(metricsPayload);
           cachedDashboard = dashboard;
           cachedMetrics = metrics;
           renderDashboard(dashboard, metrics);
@@ -833,13 +1137,14 @@
       }
 
       function renderDashboard(dashboard, metrics) {
+        updateTimeRangeBadge(dashboard.timeRange);
         updateOverview(dashboard);
-        updateUsage(dashboard);
+        updateFallbackStats(dashboard.fallback, dashboard.fallbackDelta);
+        updateBusinessMetrics(dashboard.business, dashboard.businessDelta);
         updateQueueInfo(dashboard);
         updatePercentiles(metrics.percentiles);
         updateSlowestTable(metrics.slowestRecords);
         updateRecentMessages(dashboard.recentMessages);
-        updateErrorLogs(dashboard.recentErrors);
         updateCharts(dashboard);
       }
 
@@ -847,7 +1152,7 @@
         const { overview, overviewDelta } = data;
         setMetric('totalMessages', overview.totalMessages);
         setMetric('successRate', `${overview.successRate.toFixed(1)}%`);
-        setMetric('avgDuration', `${Math.round(overview.avgDuration)} ms`);
+        setMetric('avgDuration', formatDuration(overview.avgDuration));
         setMetric('activeUsers', overview.activeUsers);
         document.getElementById('successCount').textContent = `成功 ${overview.successCount} 条`;
         document.getElementById('activeChats').textContent = `${overview.activeChats} 个会话`;
@@ -875,50 +1180,115 @@
         el.classList.toggle('negative', val < 0);
       }
 
-      function updateUsage(data) {
-        const tools = data.usage?.tools || [];
-        const scenarios = data.usage?.scenarios || [];
-        const failureAvg =
-          tools.length > 0
-            ? tools.reduce((sum, item) => sum + item.failureRate, 0) / tools.length
-            : 0;
-        document.getElementById('featureFailureRate').textContent = `${failureAvg.toFixed(1)}%`;
-        updateScenarioList(scenarios);
-      }
-
-      function updateScenarioList(list) {
-        const container = document.getElementById('scenarioUsageList');
-        container.innerHTML = '';
-        if (!list || list.length === 0) {
-          container.innerHTML = '<li class="scenario-item">暂无场景数据</li>';
-          return;
-        }
-        list.slice(0, 4).forEach((item) => {
-          const li = document.createElement('li');
-          li.className = 'scenario-item';
-          li.innerHTML = `<span>${item.name}</span><strong>${item.total} (${item.percentage}%)</strong>`;
-          container.appendChild(li);
-        });
-      }
-
       function updateQueueInfo(data) {
         const queue = data.queue || {};
         document.getElementById('queueCurrent').textContent = queue.currentProcessing ?? '-';
         document.getElementById('queuePeak').textContent = queue.peakProcessing ?? '-';
         document.getElementById('queueAvgWait').textContent = queue.avgQueueDuration
-          ? `${Math.round(queue.avgQueueDuration)} ms`
+          ? formatDuration(queue.avgQueueDuration)
           : '-';
-        const alerts = data.alertsSummary || { total: 0, last24Hours: 0 };
+        const alerts = data.alertsSummary || { total: 0, last24Hours: 0, byType: [] };
         document.getElementById('alertTotal').textContent = alerts.total;
         document.getElementById('alertRecent').textContent = alerts.last24Hours;
+        updateAlertTypeList(alerts.byType || []);
+      }
+
+      function updateAlertTypeList(alertTypes) {
+        const container = document.getElementById('alertTypeList');
+        if (!alertTypes || alertTypes.length === 0) {
+          container.innerHTML = '<div class="loading" style="padding: 12px 0; font-size: 13px;">暂无数据</div>';
+          return;
+        }
+
+        const typeLabels = {
+          agent: 'AI 代理',
+          message: '消息处理',
+          delivery: '消息发送',
+          merge: '消息合并',
+          unknown: '未知类型',
+        };
+
+        const typeIcons = {
+          agent: '🤖',
+          message: '💬',
+          delivery: '📤',
+          merge: '🔀',
+          unknown: '❓',
+        };
+
+        container.innerHTML = alertTypes
+          .map(
+            (item) => `
+          <div class="alert-type-item">
+            <div class="alert-type-label">
+              <span class="alert-type-badge ${item.type}">${typeIcons[item.type] || '❓'}</span>
+              <span>${typeLabels[item.type] || item.type}</span>
+            </div>
+            <div class="alert-type-bar">
+              <div class="alert-type-bar-fill ${item.type}" style="width: ${item.percentage}%"></div>
+            </div>
+            <div class="alert-type-stats">
+              <span class="alert-type-count">${item.count}</span>
+              <span class="alert-type-percentage">${item.percentage}%</span>
+            </div>
+          </div>
+        `,
+          )
+          .join('');
+      }
+
+      function updateTimeRangeBadge(timeRange) {
+        const badge = document.getElementById('timeRangeBadge');
+        const businessBadge = document.getElementById('businessTimeRangeBadge');
+        const labels = {
+          'today': '（本日）',
+          'week': '（本周）',
+          'month': '（本月）'
+        };
+        const label = labels[timeRange] || '';
+        badge.textContent = label;
+        if (businessBadge) {
+          businessBadge.textContent = label;
+        }
+      }
+
+      function updateFallbackStats(fallback, fallbackDelta) {
+        if (!fallback) return;
+        document.getElementById('fallbackCount').textContent = fallback.totalCount;
+        document.getElementById('fallbackRate').textContent =
+          `成功率 ${fallback.successRate.toFixed(1)}% (${fallback.successCount}/${fallback.totalCount})`;
+        setDelta('fallbackDelta', fallbackDelta.totalCount);
+      }
+
+      function updateBusinessMetrics(business, businessDelta) {
+        if (!business) return;
+
+        // 总咨询人数
+        document.getElementById('businessConsultationsTotal').textContent = business.consultations.total;
+        document.getElementById('businessConsultationsNew').textContent = business.consultations.new;
+        setDelta('businessConsultationsDelta', businessDelta.consultations);
+
+        // 预约面试次数
+        document.getElementById('businessBookingAttempts').textContent = business.bookings.attempts;
+        document.getElementById('businessBookingSuccessful').textContent = business.bookings.successful;
+        document.getElementById('businessBookingFailed').textContent = business.bookings.failed;
+        setDelta('businessBookingAttemptsDelta', businessDelta.bookingAttempts);
+
+        // 预约成功率
+        document.getElementById('businessBookingSuccessRate').textContent =
+          business.bookings.successRate > 0 ? `${business.bookings.successRate.toFixed(1)}%` : '0%';
+        document.getElementById('businessConversionRate').textContent =
+          business.conversion.consultationToBooking > 0
+            ? `${business.conversion.consultationToBooking.toFixed(1)}%`
+            : '0%';
+        setDelta('businessBookingSuccessRateDelta', businessDelta.bookingSuccessRate);
       }
 
       function updatePercentiles(percentiles) {
         if (!percentiles) return;
-        document.getElementById('p50Duration').textContent = `${Math.round(percentiles.p50)} ms`;
-        document.getElementById('p95Duration').textContent = `${Math.round(percentiles.p95)} ms`;
-        document.getElementById('p99Duration').textContent = `${Math.round(percentiles.p99)} ms`;
-        document.getElementById('p999Duration').textContent = `${Math.round(percentiles.p999)} ms`;
+        document.getElementById('p50Duration').textContent = formatDuration(percentiles.p50);
+        document.getElementById('p95Duration').textContent = formatDuration(percentiles.p95);
+        document.getElementById('p99Duration').textContent = formatDuration(percentiles.p99);
       }
 
       function updateSlowestTable(records) {
@@ -936,7 +1306,7 @@
             <td>${record.messagePreview || '-'}</td>
             <td>${formatDuration(record.totalDuration)}</td>
             <td>${formatDuration(record.aiDuration)}</td>
-            <td>${(record.tools || []).join(', ') || '-'}</td>
+            <td>${record.replySegments ?? '-'}</td>
             <td><span class="status-badge ${record.status === 'success' ? 'success' : 'danger'}">${record.status}</span></td>
           `;
           tbody.appendChild(row);
@@ -954,7 +1324,7 @@
           const row = document.createElement('tr');
           row.innerHTML = `
             <td>${formatTime(record.receivedAt)}</td>
-            <td>${record.chatId}</td>
+            <td>${record.userName || record.chatId || '-'}</td>
             <td>${record.messagePreview || '-'}</td>
             <td>${record.replyPreview || '-'}</td>
             <td>${formatDuration(record.totalDuration)}</td>
@@ -970,38 +1340,21 @@
         });
       }
 
-      function updateErrorLogs(logs) {
-        const tbody = document.getElementById('errorLogs');
-        tbody.innerHTML = '';
-        if (!logs || logs.length === 0) {
-          tbody.innerHTML = '<tr><td colspan="3" class="loading">暂无错误</td></tr>';
-          return;
-        }
-        logs.forEach((log) => {
-          const row = document.createElement('tr');
-          row.innerHTML = `
-            <td>${formatTime(log.timestamp)}</td>
-            <td>${log.messageId}</td>
-            <td>${log.error}</td>
-          `;
-          tbody.appendChild(row);
-        });
-      }
-
       function initCharts() {
-        const ctx = document.getElementById('messageChart').getContext('2d');
-        messageChart = new Chart(ctx, {
+        const responseCtx = document.getElementById('responseTrendChart').getContext('2d');
+        responseTrendChart = new Chart(responseCtx, {
           type: 'line',
           data: {
             labels: [],
             datasets: [
               {
-                label: '消息量',
+                label: '平均耗时 (秒)',
                 data: [],
                 borderColor: '#3b82f6',
                 backgroundColor: 'rgba(59, 130, 246, 0.15)',
                 fill: true,
                 tension: 0.35,
+                borderWidth: 2,
                 pointRadius: 0,
               },
             ],
@@ -1014,28 +1367,31 @@
             },
             scales: {
               x: {
-                grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                grid: { display: false },
                 ticks: { color: '#94a3b8' },
               },
               y: {
                 beginAtZero: true,
                 grid: { color: 'rgba(255, 255, 255, 0.05)' },
-                ticks: { color: '#94a3b8' },
+                ticks: {
+                  color: '#94a3b8',
+                  callback: (value) => `${value.toFixed(2)} 秒`,
+                },
               },
             },
           },
         });
 
-        const featureCtx = document.getElementById('featureUsageChart').getContext('2d');
-        featureUsageChart = new Chart(featureCtx, {
+        const alertCtx = document.getElementById('alertTrendChart').getContext('2d');
+        alertTrendChart = new Chart(alertCtx, {
           type: 'bar',
           data: {
             labels: [],
             datasets: [
               {
-                label: '调用次数',
+                label: '告警次数',
                 data: [],
-                backgroundColor: '#22d3ee',
+                backgroundColor: 'rgba(239, 68, 68, 0.6)',
                 borderRadius: 8,
               },
             ],
@@ -1054,7 +1410,164 @@
               y: {
                 beginAtZero: true,
                 grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                ticks: {
+                  color: '#94a3b8',
+                  stepSize: 1,
+                  precision: 0,
+                },
+              },
+            },
+          },
+        });
+
+        // 咨询人数趋势图表
+        const consultationsCtx = document.getElementById('consultationsTrendChart').getContext('2d');
+        consultationsTrendChart = new Chart(consultationsCtx, {
+          type: 'line',
+          data: {
+            labels: [],
+            datasets: [
+              {
+                label: '咨询人数',
+                data: [],
+                borderColor: 'rgb(99, 102, 241)',
+                backgroundColor: 'rgba(99, 102, 241, 0.15)',
+                fill: true,
+                tension: 0.35,
+                borderWidth: 2,
+                pointRadius: 3,
+                pointHoverRadius: 5,
+              },
+            ],
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { display: false },
+              tooltip: {
+                callbacks: {
+                  label: (context) => `咨询人数: ${context.parsed.y} 人`,
+                },
+              },
+            },
+            scales: {
+              x: {
+                grid: { display: false },
                 ticks: { color: '#94a3b8' },
+              },
+              y: {
+                beginAtZero: true,
+                grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                ticks: {
+                  color: '#94a3b8',
+                  stepSize: 1,
+                  precision: 0,
+                  callback: (value) => `${Math.round(value)} 人`,
+                },
+              },
+            },
+          },
+        });
+
+        // 预约转化趋势图表（双轴）
+        const bookingCtx = document.getElementById('bookingTrendChart').getContext('2d');
+        bookingTrendChart = new Chart(bookingCtx, {
+          type: 'line',
+          data: {
+            labels: [],
+            datasets: [
+              {
+                label: '预约次数',
+                data: [],
+                borderColor: 'rgb(168, 85, 247)',
+                backgroundColor: 'rgba(168, 85, 247, 0.15)',
+                fill: true,
+                tension: 0.35,
+                borderWidth: 2,
+                pointRadius: 3,
+                pointHoverRadius: 5,
+                yAxisID: 'y',
+              },
+              {
+                label: '预约成功率',
+                data: [],
+                borderColor: 'rgb(16, 185, 129)',
+                backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                fill: false,
+                tension: 0.35,
+                borderWidth: 2,
+                pointRadius: 3,
+                pointHoverRadius: 5,
+                yAxisID: 'y1',
+              },
+            ],
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: {
+                display: true,
+                position: 'top',
+                labels: {
+                  color: '#94a3b8',
+                  usePointStyle: true,
+                  padding: 15,
+                },
+              },
+              tooltip: {
+                callbacks: {
+                  label: (context) => {
+                    const label = context.dataset.label || '';
+                    const value = context.parsed.y;
+                    if (label.includes('成功率')) {
+                      return `${label}: ${value.toFixed(1)}%`;
+                    }
+                    return `${label}: ${value} 次`;
+                  },
+                },
+              },
+            },
+            scales: {
+              x: {
+                grid: { display: false },
+                ticks: { color: '#94a3b8' },
+              },
+              y: {
+                type: 'linear',
+                display: true,
+                position: 'left',
+                beginAtZero: true,
+                grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                ticks: {
+                  color: '#94a3b8',
+                  stepSize: 1,
+                  precision: 0,
+                  callback: (value) => `${Math.round(value)} 次`,
+                },
+                title: {
+                  display: true,
+                  text: '预约次数',
+                  color: 'rgb(168, 85, 247)',
+                },
+              },
+              y1: {
+                type: 'linear',
+                display: true,
+                position: 'right',
+                beginAtZero: true,
+                max: 100,
+                grid: { drawOnChartArea: false },
+                ticks: {
+                  color: '#94a3b8',
+                  callback: (value) => `${value}%`,
+                },
+                title: {
+                  display: true,
+                  text: '成功率 (%)',
+                  color: 'rgb(16, 185, 129)',
+                },
               },
             },
           },
@@ -1062,30 +1575,69 @@
       }
 
       function updateCharts(data) {
-        const hourly = data.trends?.hourly || [];
-        const rangeHours = RANGE_PRESETS[selectedRange] || data.lastWindowHours || 24;
-        const slice = hourly.slice(-rangeHours);
+        const isToday = currentTimeRange === 'today';
+        const formatLabel = isToday ? formatMinuteLabel : formatDayLabel;
 
-        const labels = slice.map((item) => formatHour(item.hour));
-        const counts = slice.map((item) => item.messageCount);
-        messageChart.data.labels = labels;
-        messageChart.data.datasets[0].data = counts;
-        messageChart.update();
-        document.getElementById('chartRangeLabel').textContent = labels.length;
-        document.getElementById('chartSuccessRate').textContent =
-          slice.length > 0 ? `${slice[slice.length - 1].successRate.toFixed(1)}%` : '-';
+        // 本日：显示最近90个数据点；本周/本月：显示全部数据点
+        const responsePoints = isToday
+          ? (data.responseTrend || []).slice(-90)
+          : (data.responseTrend || []);
+        const responseLabels = responsePoints.map((point) => formatLabel(point.minute));
+        responseTrendChart.data.labels = responseLabels;
+        responseTrendChart.data.datasets[0].data = responsePoints.map((point) =>
+          point.avgDuration ? point.avgDuration / 1000 : 0,
+        );
+        responseTrendChart.update();
 
-        const tools = data.usage?.tools || [];
-        featureUsageChart.data.labels = tools.map((item) => item.name);
-        featureUsageChart.data.datasets[0].data = tools.map((item) => item.total);
-        featureUsageChart.update();
+        // 更新图表范围标签
+        const rangeText = isToday
+          ? `${responseLabels.length} 分钟`
+          : `${responseLabels.length} 天`;
+        document.getElementById('chartRangeLabel').textContent = responseLabels.length;
+        document.getElementById('responseChartAvg').textContent =
+          responsePoints.length > 0
+            ? formatDuration(responsePoints[responsePoints.length - 1].avgDuration)
+            : '-';
+
+        const alertPoints = isToday
+          ? (data.alertTrend || []).slice(-90)
+          : (data.alertTrend || []);
+        const alertLabels = alertPoints.map((point) => formatLabel(point.minute));
+        alertTrendChart.data.labels = alertLabels;
+        alertTrendChart.data.datasets[0].data = alertPoints.map((point) => point.count);
+        alertTrendChart.update();
+        const lastFiveAlerts = alertPoints.slice(-5).reduce((sum, point) => sum + point.count, 0);
+        document.getElementById('alertTrendRecent').textContent = lastFiveAlerts || 0;
+
+        // 更新业务指标趋势图表
+        const businessPoints = isToday
+          ? (data.businessTrend || []).slice(-90)
+          : (data.businessTrend || []);
+        const businessLabels = businessPoints.map((point) => formatLabel(point.minute));
+
+        // 咨询人数趋势
+        consultationsTrendChart.data.labels = businessLabels;
+        consultationsTrendChart.data.datasets[0].data = businessPoints.map(
+          (point) => point.consultations,
+        );
+        consultationsTrendChart.update();
+
+        // 预约转化趋势（双轴：预约次数 + 成功率）
+        bookingTrendChart.data.labels = businessLabels;
+        bookingTrendChart.data.datasets[0].data = businessPoints.map(
+          (point) => point.bookingAttempts,
+        );
+        bookingTrendChart.data.datasets[1].data = businessPoints.map(
+          (point) => point.bookingSuccessRate,
+        );
+        bookingTrendChart.update();
       }
 
       async function refreshHealthStatus() {
         try {
           const response = await fetch('/agent/health');
           const result = await response.json();
-          const health = result.data || result;
+          const health = unwrapResponse(result);
           updateHealthCard(
             'overallHealthCard',
             'overallHealthStatus',
@@ -1113,14 +1665,6 @@
             health.tools?.message || '工具链检查中',
           );
 
-          updateHealthCard(
-            'brandConfigCard',
-            'brandConfigStatus',
-            'brandConfigDetails',
-            health.brandConfig?.status === 'loaded' ? 'success' : 'warning',
-            health.brandConfig?.status === 'loaded' ? '已加载' : '未加载',
-            health.brandConfig?.message || '品牌配置检查中',
-          );
         } catch (error) {
           console.error('获取健康状态失败', error);
         }
@@ -1151,14 +1695,26 @@
         return date.toLocaleString('zh-CN', { hour12: false });
       }
 
-      function formatHour(value) {
-        return new Date(value).getHours() + ':00';
+      function formatMinuteLabel(value) {
+        if (!value) return '-';
+        const date = new Date(value);
+        const hours = String(date.getHours()).padStart(2, '0');
+        const minutes = String(date.getMinutes()).padStart(2, '0');
+        return `${hours}:${minutes}`;
       }
 
-      function formatDuration(value) {
+      function formatDayLabel(value) {
+        if (!value) return '-';
+        const date = new Date(value);
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${month}-${day}`;
+      }
+
+      function formatDuration(value, fractionDigits = 2) {
         if (value === undefined || value === null) return '-';
-        if (value < 1000) return `${Math.round(value)} ms`;
-        return `${(value / 1000).toFixed(2)} s`;
+        const seconds = value / 1000;
+        return `${seconds.toFixed(fractionDigits)} 秒`;
       }
     </script>
   </body>

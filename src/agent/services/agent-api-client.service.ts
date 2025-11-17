@@ -22,7 +22,7 @@ export class AgentApiClientService {
   private readonly apiKey: string;
   private readonly baseURL: string;
   private readonly timeout: number;
-  private readonly maxRetries: number = 3;
+  private readonly maxRetries: number;
 
   constructor(
     private readonly configService: ConfigService,
@@ -32,9 +32,25 @@ export class AgentApiClientService {
     this.apiKey = this.configService.get<string>('AGENT_API_KEY')!;
     this.baseURL = this.configService.get<string>('AGENT_API_BASE_URL')!;
     this.timeout = this.configService.get<number>('AGENT_API_TIMEOUT')!;
+    this.maxRetries = this.configService.get<number>('AGENT_API_MAX_RETRIES') ?? 5; // 默认 5 次
+
+    // 【修复】验证关键配置是否已加载，防止环境变量加载时序问题
+    if (!this.apiKey) {
+      throw new Error(
+        '❌ AGENT_API_KEY 未配置或为空，请检查环境变量是否正确加载。' +
+          '\n提示：请确保 .env 文件存在且包含 AGENT_API_KEY 配置',
+      );
+    }
+    if (!this.baseURL) {
+      throw new Error(
+        '❌ AGENT_API_BASE_URL 未配置或为空，请检查环境变量是否正确加载。' +
+          '\n提示：请确保 .env 文件存在且包含 AGENT_API_BASE_URL 配置',
+      );
+    }
 
     this.logger.log(`初始化 Agent API 客户端: ${this.baseURL}`);
     this.logger.log(`API 超时设置: ${this.timeout}ms`);
+    this.logger.log(`最大重试次数: ${this.maxRetries}`);
 
     // 使用工厂创建 HTTP 客户端实例
     this.httpClient = this.httpClientFactory.createWithBearerAuth(

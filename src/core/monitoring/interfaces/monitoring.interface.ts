@@ -1,15 +1,19 @@
 import { ScenarioType } from '@agent';
+import { AlertErrorType } from '@core/alert/types';
 
 /**
  * 监控系统接口定义
  */
 
+/**
+ * 时间范围类型
+ */
+export type TimeRange = 'today' | 'week' | 'month';
+
 export interface ToolUsageMetric {
   name: string;
   total: number;
-  failureCount: number;
-  failureRate: number;
-  lastUsedAt: number;
+  percentage: number; // 使用占比
 }
 
 export interface ScenarioUsageMetric {
@@ -18,12 +22,65 @@ export interface ScenarioUsageMetric {
   percentage: number;
 }
 
+export interface MonitoringErrorLog {
+  messageId: string;
+  timestamp: number;
+  error: string;
+  alertType?: AlertErrorType;
+}
+
+export interface MonitoringGlobalCounters {
+  totalMessages: number;
+  totalSuccess: number;
+  totalFailure: number;
+  totalAiDuration: number;
+  totalSendDuration: number;
+  totalFallback: number; // 总降级次数
+  totalFallbackSuccess: number; // 降级成功次数（用户无感知）
+}
+
+export interface MonitoringSnapshot {
+  version: number;
+  savedAt: number;
+  detailRecords: MessageProcessingRecord[];
+  hourlyStats: HourlyStats[];
+  errorLogs: MonitoringErrorLog[];
+  globalCounters: MonitoringGlobalCounters;
+  activeUsers: string[];
+  activeChats: string[];
+  currentProcessing: number;
+  peakProcessing: number;
+}
+
+export interface ResponseMinuteTrendPoint {
+  minute: string;
+  avgDuration: number;
+  messageCount: number;
+  successRate: number;
+}
+
+export interface AlertTrendPoint {
+  minute: string;
+  count: number;
+}
+
+export interface BusinessMetricTrendPoint {
+  minute: string;
+  consultations: number; // 咨询人数
+  bookingAttempts: number; // 预约尝试次数
+  successfulBookings: number; // 成功预约次数
+  conversionRate: number; // 转化率 (%)
+  bookingSuccessRate: number; // 预约成功率 (%)
+}
+
 export interface MonitoringMetadata {
   scenario?: ScenarioType;
   tools?: string[];
   tokenUsage?: number;
   replyPreview?: string;
+  replySegments?: number;
   isFallback?: boolean;
+  alertType?: AlertErrorType;
 }
 
 /**
@@ -52,13 +109,21 @@ export interface MessageProcessingRecord {
   // 状态
   status: 'processing' | 'success' | 'failure';
   error?: string;
-  isFallback?: boolean;
+  isFallback?: boolean; // 是否使用了降级
+  fallbackSuccess?: boolean; // 降级是否成功（用户无感知）
 
   // 消息内容（用于调试）
   messagePreview?: string; // 消息预览（前50字符）
   replyPreview?: string; // AI 回复预览
   tokenUsage?: number; // Token 使用
   tools?: string[]; // 使用的工具
+  replySegments?: number; // 实际发送的回复条数
+  alertType?: AlertErrorType;
+}
+export interface AlertTypeMetric {
+  type: AlertErrorType | 'unknown';
+  count: number;
+  percentage: number;
 }
 
 /**
@@ -93,6 +158,7 @@ export interface HourlyStats {
  * 仪表盘数据
  */
 export interface DashboardData {
+  timeRange: TimeRange; // 当前时间范围
   lastWindowHours: number;
 
   // 总览
@@ -113,6 +179,42 @@ export interface DashboardData {
     activeUsers: number;
   };
 
+  // 降级统计（NEW）
+  fallback: {
+    totalCount: number; // 总降级次数
+    successCount: number; // 降级成功次数
+    successRate: number; // 降级成功率
+    affectedUsers: number; // 影响用户数
+  };
+
+  fallbackDelta: {
+    totalCount: number; // 降级次数增长
+    successRate: number; // 降级成功率变化
+  };
+
+  // 业务指标（NEW）
+  business: {
+    consultations: {
+      total: number; // 总咨询人数
+      new: number; // 新增咨询人数（时间范围内）
+    };
+    bookings: {
+      attempts: number; // 预约尝试次数
+      successful: number; // 成功预约次数
+      failed: number; // 失败预约次数
+      successRate: number; // 成功率 (%)
+    };
+    conversion: {
+      consultationToBooking: number; // 咨询到预约转化率 (%)
+    };
+  };
+
+  businessDelta: {
+    consultations: number; // 咨询人数增长
+    bookingAttempts: number; // 预约次数增长
+    bookingSuccessRate: number; // 预约成功率变化
+  };
+
   usage: {
     tools: ToolUsageMetric[];
     scenarios: ScenarioUsageMetric[];
@@ -127,6 +229,7 @@ export interface DashboardData {
   alertsSummary: {
     total: number;
     last24Hours: number;
+    byType: AlertTypeMetric[];
   };
 
   // 趋势数据
@@ -135,15 +238,15 @@ export interface DashboardData {
     previous?: HourlyStats[];
   };
 
+  responseTrend: ResponseMinuteTrendPoint[];
+  alertTrend: AlertTrendPoint[];
+  businessTrend: BusinessMetricTrendPoint[];
+
   // 最近消息（最新50条）
   recentMessages: MessageProcessingRecord[];
 
   // 错误日志（最新20条）
-  recentErrors: Array<{
-    messageId: string;
-    timestamp: number;
-    error: string;
-  }>;
+  recentErrors: MonitoringErrorLog[];
 
   // 实时状态
   realtime: {
@@ -163,13 +266,7 @@ export interface MetricsData {
   hourlyStats: HourlyStats[];
 
   // 全局计数器
-  globalCounters: {
-    totalMessages: number;
-    totalSuccess: number;
-    totalFailure: number;
-    totalAiDuration: number;
-    totalSendDuration: number;
-  };
+  globalCounters: MonitoringGlobalCounters;
 
   // 百分位统计（全量）
   percentiles: {

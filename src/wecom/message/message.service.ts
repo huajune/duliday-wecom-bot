@@ -1,8 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { MonitoringService } from '@/core/monitoring/monitoring.service';
-import { FeiShuAlertService } from '@/core/alert/feishu-alert.service';
+import { AlertOrchestratorService } from '@/core/alert/services/alert-orchestrator.service';
 import { ScenarioType } from '@agent';
+import { AgentException } from '@/agent/utils/agent-exceptions';
 
 // 导入子服务
 import { MessageDeduplicationService } from './services/message-deduplication.service';
@@ -38,7 +39,7 @@ import { DeliveryContext, PipelineResult, AlertErrorType } from './types';
 @Injectable()
 export class MessageService {
   private readonly logger = new Logger(MessageService.name);
-  private readonly enableAiReply: boolean;
+  private enableAiReply: boolean; // 可动态切换
   private readonly enableMessageMerge: boolean;
 
   // 监控统计：跟踪正在处理的消息数
@@ -56,7 +57,7 @@ export class MessageService {
     private readonly agentGateway: AgentGatewayService, // 增强版：包含上下文构建和降级处理
     // 监控和告警
     private readonly monitoringService: MonitoringService,
-    private readonly feiShuAlertService: FeiShuAlertService,
+    private readonly alertOrchestrator: AlertOrchestratorService,
   ) {
     this.enableAiReply = this.configService.get<string>('ENABLE_AI_REPLY', 'true') === 'true';
     this.enableMessageMerge =
@@ -237,7 +238,11 @@ export class MessageService {
 
       // 6. 发送回复
       const deliveryContext = this.buildDeliveryContext(parsed);
-      await this.deliveryService.deliverReply(agentResult.reply, deliveryContext, true);
+      const deliveryResult = await this.deliveryService.deliverReply(
+        agentResult.reply,
+        deliveryContext,
+        true,
+      );
 
       // 7. 记录成功
       this.monitoringService.recordSuccess(messageId, {
@@ -245,6 +250,7 @@ export class MessageService {
         tools: agentResult.reply.tools?.used,
         tokenUsage: agentResult.reply.usage?.totalTokens,
         replyPreview: agentResult.reply.content,
+        replySegments: deliveryResult.segmentCount,
         isFallback: agentResult.isFallback,
       });
 
@@ -252,7 +258,9 @@ export class MessageService {
       this.deduplicationService.markMessageAsProcessed(messageId);
       this.logger.debug(`[${contactName}] 消息 [${messageId}] 已标记为已处理`);
     } catch (error) {
-      await this.handleProcessingError(error, parsed, { errorType: 'message', scenario });
+      // 【修复】区分 Agent API 错误和其他消息处理错误
+      const errorType: AlertErrorType = this.isAgentError(error) ? 'agent' : 'message';
+      await this.handleProcessingError(error, parsed, { errorType, scenario });
     }
   }
 
@@ -310,7 +318,11 @@ export class MessageService {
 
       // 8. 发送回复
       const deliveryContext = this.buildDeliveryContext(MessageParser.parse(lastMessage));
-      await this.deliveryService.deliverReply(agentResult.reply, deliveryContext, false);
+      const deliveryResult = await this.deliveryService.deliverReply(
+        agentResult.reply,
+        deliveryContext,
+        false,
+      );
 
       // 9. 【修复】标记所有聚合的消息为已处理，并记录监控成功
       const sharedSuccessMetadata = {
@@ -318,6 +330,7 @@ export class MessageService {
         tools: agentResult.reply.tools?.used,
         tokenUsage: agentResult.reply.usage?.totalTokens,
         replyPreview: agentResult.reply.content,
+        replySegments: deliveryResult.segmentCount,
         isFallback: agentResult.isFallback,
       };
       for (const message of messages) {
@@ -335,15 +348,22 @@ export class MessageService {
       const fallbackTarget =
         messages.length > 0 ? MessageParser.parse(messages[messages.length - 1]) : null;
       if (fallbackTarget) {
+        // 【修复】区分 Agent API 错误和消息合并错误
+        const errorType: AlertErrorType = this.isAgentError(error) ? 'agent' : 'merge';
         await this.handleProcessingError(error, fallbackTarget, {
-          errorType: 'merge',
+          errorType,
           scenario,
         });
-        // 【修复】标记所有消息为已处理，并记录监控失败
+        // 【修复】标记所有消息为已处理，并记录监控失败（使用正确的错误类型）
+        const handledMessageId = fallbackTarget.messageId;
         for (const message of messages) {
+          if (message.messageId === handledMessageId) {
+            continue;
+          }
           this.deduplicationService.markMessageAsProcessed(message.messageId);
           this.monitoringService.recordFailure(message.messageId, error.message || '聚合处理失败', {
             scenario,
+            alertType: errorType, // 使用智能判断的错误类型
           });
         }
       }
@@ -355,6 +375,13 @@ export class MessageService {
     } finally {
       this.processingCount--;
     }
+  }
+
+  /**
+   * 判断错误是否为 Agent API 错误
+   */
+  private isAgentError(error: any): boolean {
+    return error instanceof AgentException || Boolean((error as any)?.isAgentError);
   }
 
   /**
@@ -373,20 +400,31 @@ export class MessageService {
     this.logger.error(`[${contactName}] 消息处理失败 [${messageId}]: ${error.message}`);
 
     // 记录失败
-    this.monitoringService.recordFailure(messageId, error.message, { scenario });
+    this.monitoringService.recordFailure(messageId, error.message, {
+      scenario,
+      alertType: errorType, // 记录错误类型，确保根因（如401认证失败）被正确追踪
+    });
 
-    // 发送告警
+    // 发送告警（通过编排层，支持限流、静默、聚合、恢复等高级功能）
     const fallbackMessage = this.agentGateway.getFallbackMessage();
 
-    await this.feiShuAlertService.sendAgentApiFailureAlert(error, chatId, content, '/api/v1/chat', {
-      errorType,
-      fallbackMessage,
-      scenario,
-      contactName, // 传递用户昵称
-      requestParams: (error as any).requestParams, // 传递请求参数
-      apiKey: (error as any).apiKey, // 传递 API Key（会自动脱敏）
-      requestHeaders: (error as any).requestHeaders,
-    });
+    this.alertOrchestrator
+      .sendAlert({
+        errorType,
+        error,
+        conversationId: chatId,
+        userMessage: content,
+        apiEndpoint: '/api/v1/chat',
+        scenario,
+        contactName,
+        fallbackMessage,
+        requestParams: (error as any).requestParams,
+        apiKey: (error as any).apiKey,
+        requestHeaders: (error as any).requestHeaders,
+      })
+      .catch((alertError) => {
+        this.logger.error(`告警发送失败: ${alertError.message}`);
+      });
 
     // 发送降级回复
     try {
@@ -452,6 +490,22 @@ export class MessageService {
       this.enableMessageMerge,
       true, // enableMessageSplitSend - 默认启用
     );
+  }
+
+  /**
+   * 获取 AI 回复开关状态
+   */
+  getAiReplyStatus(): boolean {
+    return this.enableAiReply;
+  }
+
+  /**
+   * 切换 AI 回复开关
+   */
+  toggleAiReply(enabled: boolean): boolean {
+    this.enableAiReply = enabled;
+    this.logger.log(`AI 自动回复功能已${enabled ? '启用' : '禁用'}`);
+    return this.enableAiReply;
   }
 
   /**

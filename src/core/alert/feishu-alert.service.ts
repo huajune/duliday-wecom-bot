@@ -7,12 +7,19 @@ import { AlertErrorType } from './types';
 interface AgentAlertOptions {
   errorType?: AlertErrorType;
   fallbackMessage?: string;
+  fallbackSuccess?: boolean; // 降级是否成功（用户是否看到错误）
   scenario?: string;
   channel?: string;
   contactName?: string; // 用户昵称
   requestParams?: any; // Chat API 请求参数（用于排查问题）
   apiKey?: string; // Agent API Key（会自动脱敏）
   requestHeaders?: Record<string, any>; // 请求头信息
+  // 告警编排层传递的字段
+  severity?: 'info' | 'warning' | 'error' | 'critical'; // 告警严重程度
+  aggregatedCount?: number; // 聚合的告警数量
+  aggregatedErrors?: string[]; // 聚合的错误消息列表
+  aggregatedTimeWindow?: { start: string; end: string }; // 聚合时间窗口
+  duration?: number; // 请求耗时（毫秒）
 }
 
 /**
@@ -88,6 +95,7 @@ export class FeiShuAlertService {
       apiEndpoint,
       errorDetails,
       requestHeaders,
+      error, // 传递原始错误对象用于提取堆栈信息
       options,
     );
 
@@ -254,6 +262,48 @@ export class FeiShuAlertService {
   }
 
   /**
+   * 格式化用户消息（增加长度限制并显示总长度）
+   */
+  private formatUserMessage(message: string): string {
+    const MAX_LENGTH = 500;
+
+    if (message.length <= MAX_LENGTH) {
+      return `**用户消息**:\n${message}`;
+    }
+
+    const truncated = message.substring(0, MAX_LENGTH);
+    return `**用户消息**:\n${truncated}...\n\n<font color="grey">（完整消息长度: ${message.length} 字符，已截断显示前 ${MAX_LENGTH} 字符）</font>`;
+  }
+
+  /**
+   * 构建智能日志链接（P0 改进）
+   * 添加查询参数：conversationId, time, range
+   */
+  private buildSmartLogUrl(baseUrl: string, conversationId: string, timestamp: string): string {
+    try {
+      const url = new URL(baseUrl);
+
+      // 添加会话ID参数
+      url.searchParams.set('conversationId', conversationId);
+
+      // 添加时间参数（使用告警时间）
+      const alertTime = new Date(timestamp.replace(' ', 'T')); // 转换为 ISO 格式
+      if (!isNaN(alertTime.getTime())) {
+        url.searchParams.set('time', alertTime.toISOString());
+      }
+
+      // 添加时间范围参数（前后 5 分钟）
+      url.searchParams.set('range', '5m');
+
+      return url.toString();
+    } catch (error) {
+      // 如果 URL 解析失败，返回原始 URL
+      this.logger.warn(`无法解析日志查看器 URL: ${baseUrl}，将使用原始 URL`);
+      return baseUrl;
+    }
+  }
+
+  /**
    * 构建 Agent API 失败告警消息
    */
   private buildAgentApiFailureMessage(
@@ -264,6 +314,7 @@ export class FeiShuAlertService {
     apiEndpoint: string,
     errorDetails: any,
     requestHeaders: Record<string, any> | undefined,
+    error: any, // 原始错误对象（用于提取堆栈信息）
     options?: AgentAlertOptions,
   ): any {
     const timestamp = new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
@@ -284,14 +335,44 @@ export class FeiShuAlertService {
       `**错误类型**: ${errorTypeLabel}`,
     ];
 
+    // 用户影响评估（P0 改进）
+    if (options?.fallbackSuccess !== undefined) {
+      const impactText = options.fallbackSuccess
+        ? '<font color="green">✅ 已降级（用户无感知）</font>'
+        : '<font color="red">❌ 降级失败（用户可见错误）</font>';
+      metaLines.push(`**用户影响**: ${impactText}`);
+    }
+
+    // 聚合统计（来自编排层）
+    if (options?.aggregatedCount && options.aggregatedCount > 1) {
+      metaLines.push(`**聚合告警数**: ${options.aggregatedCount} 次相同错误`);
+    }
+    if (options?.aggregatedTimeWindow) {
+      metaLines.push(
+        `**聚合时间窗口**: ${options.aggregatedTimeWindow.start} ~ ${options.aggregatedTimeWindow.end}`,
+      );
+    }
+
+    // 请求耗时（P0 改进）
+    if (options?.duration !== undefined && options.duration !== null) {
+      const durationSec = (options.duration / 1000).toFixed(2);
+      let durationDisplay = `⏱️ ${durationSec}秒`;
+
+      // 性能警告提示
+      if (options.duration > 10000) {
+        durationDisplay += ' <font color="red">（严重超时）</font>';
+      } else if (options.duration > 5000) {
+        durationDisplay += ' <font color="orange">（响应较慢）</font>';
+      }
+
+      metaLines.push(`**请求耗时**: ${durationDisplay}`);
+    }
+
     if (options?.contactName) {
       metaLines.push(`**用户昵称**: ${options.contactName}`);
     }
     if (options?.scenario) {
       metaLines.push(`**场景**: ${options.scenario}`);
-    }
-    if (options?.channel) {
-      metaLines.push(`**渠道**: ${options.channel}`);
     }
     if (dulidayToken) {
       metaLines.push(`**DuLiDay Token**: ${this.maskToken(dulidayToken)}`);
@@ -299,6 +380,16 @@ export class FeiShuAlertService {
     if (options?.apiKey) {
       metaLines.push(`**API Key**: ${this.maskToken(options.apiKey)}`);
     }
+
+    // 构建错误详情行（只在有 HTTP 状态码时显示）
+    const errorInfoLines = [`**错误信息**: ${errorMessage}`];
+
+    // 只在有有效的 HTTP 状态码时显示（排除 'N/A'）
+    if (statusCode !== 'N/A' && statusCode !== null && statusCode !== undefined) {
+      errorInfoLines.push(`**HTTP 状态码**: ${statusCode}`);
+    }
+
+    errorInfoLines.push(`**API 端点**: ${apiEndpoint}`);
 
     const elements: any[] = [
       {
@@ -313,7 +404,7 @@ export class FeiShuAlertService {
         tag: 'div',
         text: {
           tag: 'lark_md',
-          content: `**错误信息**: ${errorMessage}\n**HTTP 状态码**: ${statusCode}\n**API 端点**: ${apiEndpoint}`,
+          content: errorInfoLines.join('\n'),
         },
       },
       { tag: 'hr' },
@@ -321,7 +412,7 @@ export class FeiShuAlertService {
         tag: 'div',
         text: {
           tag: 'lark_md',
-          content: `**用户消息**: ${userMessage.substring(0, 100)}${userMessage.length > 100 ? '...' : ''}`,
+          content: this.formatUserMessage(userMessage),
         },
       },
     ];
@@ -339,14 +430,14 @@ export class FeiShuAlertService {
       );
     }
 
-    // 【优化】改进错误详情显示
+    // 【优化】改进错误详情显示 - HTTP响应体
     const sanitizedErrorDetails = this.sanitizeErrorDetails(errorDetails, errorMessage);
     const errorDetailsStr = this.stringifyErrorDetails(sanitizedErrorDetails);
     const hasErrorDetails = Boolean(errorDetailsStr);
 
     if (hasErrorDetails) {
       const codeLanguage = typeof sanitizedErrorDetails === 'string' ? 'text' : 'json';
-      // 限制显示长度为 1500 字符（原来是 500，现在增加到 1500）
+      // 限制显示长度为 1500 字符
       const maxLength = 1500;
       const truncatedDetails =
         errorDetailsStr.length > maxLength
@@ -359,7 +450,29 @@ export class FeiShuAlertService {
           tag: 'div',
           text: {
             tag: 'lark_md',
-            content: `**错误详情**:\n\`\`\`${codeLanguage}\n${truncatedDetails}\n\`\`\``,
+            content: `**HTTP 响应体**:\n\`\`\`${codeLanguage}\n${truncatedDetails}\n\`\`\``,
+          },
+        },
+      );
+    }
+
+    // 【新增】错误堆栈信息
+    const errorStack = error?.stack;
+    if (errorStack && typeof errorStack === 'string') {
+      // 限制堆栈长度，避免过长
+      const maxStackLength = 1000;
+      const truncatedStack =
+        errorStack.length > maxStackLength
+          ? errorStack.substring(0, maxStackLength) + '\n...(已截断，查看日志获取完整堆栈)'
+          : errorStack;
+
+      elements.push(
+        { tag: 'hr' },
+        {
+          tag: 'div',
+          text: {
+            tag: 'lark_md',
+            content: `**错误堆栈**:\n\`\`\`\n${truncatedStack}\n\`\`\``,
           },
         },
       );
@@ -380,6 +493,9 @@ export class FeiShuAlertService {
     }
 
     if (logViewerUrl) {
+      // 智能日志链接（P0 改进）：添加查询参数
+      const smartLogUrl = this.buildSmartLogUrl(logViewerUrl, conversationId, timestamp);
+
       elements.push({
         tag: 'action',
         actions: [
@@ -390,7 +506,7 @@ export class FeiShuAlertService {
               content: '查看日志',
             },
             type: 'default',
-            url: logViewerUrl,
+            url: smartLogUrl,
           },
         ],
       });

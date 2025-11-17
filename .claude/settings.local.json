@@ -96,7 +96,13 @@
       "Bash(pnpm test:*)",
       "Bash(pnpm run test:cov:*)",
       "Bash(source:*)",
-      "Bash(time curl -s http://localhost:8080/agent/tools)"
+      "Bash(time curl -s http://localhost:8080/agent/tools)",
+      "Bash(ipconfig getifaddr:*)",
+      "Bash(timeout 10 pnpm run start:dev:*)",
+      "Bash(NODE_ENV=development node -e \"\nconst { execSync } = require(''''child_process'''');\ntry {\n  const output = execSync(''''pnpm run start:dev'''', { \n    timeout: 8000,\n    encoding: ''''utf-8'''',\n    stdio: ''''pipe''''\n  });\n  console.log(output);\n} catch (error) {\n  console.log(error.stdout || '''''''');\n  console.log(''''启动测试完成（超时为正常现象）'''');\n}\n\")",
+      "Bash(/dev/null)",
+      "Bash(./scripts/test-alerts.sh:*)",
+      "Bash(storage/monitoring-data.json)"
     ],
     "deny": [
       "Bash(git restore:*)",
