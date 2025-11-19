@@ -21,7 +21,10 @@ export interface FilterResult {
  * 消息过滤服务
  * 负责对接收到的消息进行各种过滤检查
  * 只处理：私聊、用户发送、手机推送、文本消息、非空内容
- * 排除：特定企业级 groupId (68d368d1fa2192479454c365)
+ *
+ * 黑名单规则：
+ * - 企业级消息：排除特定 groupId (691d3b171535fed6bcc94f66)
+ * - 小组级消息：不应用 groupId 黑名单，允许通过
  */
 @Injectable()
 export class MessageFilterService {
@@ -59,10 +62,11 @@ export class MessageFilterService {
       };
     }
 
-    // 3. 过滤企业级特定 groupId 的消息
-    if (messageData.groupId === '68d368d1fa2192479454c365') {
+    // 3. 过滤企业级特定 groupId 的消息（仅对企业级消息生效，不影响小组级消息）
+    const isEnterpriseMessage = messageData._apiType !== 'group';
+    if (isEnterpriseMessage && messageData.groupId === '691d3b171535fed6bcc94f66') {
       this.logger.log(
-        `[过滤-企业级分组] 跳过特定企业级分组的消息 [${messageData.messageId}], groupId=${messageData.groupId}`,
+        `[过滤-企业级分组] 跳过特定企业级分组的消息 [${messageData.messageId}], groupId=${messageData.groupId}, orgId=${messageData.orgId}`,
       );
       return {
         pass: false,
@@ -70,6 +74,7 @@ export class MessageFilterService {
         details: {
           groupId: messageData.groupId,
           orgId: messageData.orgId,
+          apiType: messageData._apiType || 'enterprise',
         },
       };
     }

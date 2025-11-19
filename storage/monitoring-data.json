@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "savedAt": 1763532683217,
+  "savedAt": 1763534496102,
   "detailRecords": [
     {
       "messageId": "f959b7ad4a382d052b7352fc391d07f4",
@@ -970,6 +970,58 @@
       "replyPreview": "亲，您是想了解兼职岗位，还是有其他问题呢？可以直接说哈😊",
       "replySegments": 1,
       "isFallback": false
+    },
+    {
+      "messageId": "2f6b824e04dd279738ba31debf536d37",
+      "chatId": "691d3db49d6d3a463b1a0af3",
+      "userId": "7881300085910772",
+      "userName": "🦋Ariel",
+      "receivedAt": 1763534048943,
+      "status": "success",
+      "messagePreview": "？？",
+      "scenario": "candidate-consultation",
+      "aiStartAt": 1763534054052,
+      "queueDuration": 5109,
+      "aiEndAt": 1763534059453,
+      "aiDuration": 5401,
+      "totalDuration": 13351,
+      "tools": [
+        "duliday_interview_booking",
+        "duliday_job_details",
+        "duliday_job_list",
+        "feishu",
+        "analyze_screenshot"
+      ],
+      "tokenUsage": 8878,
+      "replyPreview": "没事的，有需要随时找我哈～😊",
+      "replySegments": 2,
+      "isFallback": false
+    },
+    {
+      "messageId": "3ae9585e5530a500fa4623e798ceab96",
+      "chatId": "691d3db49d6d3a463b1a0af3",
+      "userId": "7881300085910772",
+      "userName": "🦋Ariel",
+      "receivedAt": 1763534485017,
+      "status": "success",
+      "messagePreview": "？？",
+      "scenario": "candidate-consultation",
+      "aiStartAt": 1763534490412,
+      "queueDuration": 5395,
+      "aiEndAt": 1763534495876,
+      "aiDuration": 5464,
+      "totalDuration": 11085,
+      "tools": [
+        "duliday_interview_booking",
+        "duliday_job_details",
+        "duliday_job_list",
+        "feishu",
+        "analyze_screenshot"
+      ],
+      "tokenUsage": 8909,
+      "replyPreview": "亲，您随时有问题都可以问我哈，我在的～",
+      "replySegments": 1,
+      "isFallback": false
     }
   ],
   "hourlyStats": [
@@ -1043,17 +1095,17 @@
     },
     {
       "hour": "2025-11-19T06:00:00.000Z",
-      "messageCount": 4,
-      "successCount": 4,
+      "messageCount": 6,
+      "successCount": 6,
       "failureCount": 0,
       "successRate": 100,
-      "avgDuration": 11569.75,
-      "minDuration": 11407,
-      "maxDuration": 11777,
+      "avgDuration": 11785.83,
+      "minDuration": 11085,
+      "maxDuration": 13351,
       "p50Duration": 11532,
-      "p95Duration": 11777,
-      "p99Duration": 11777,
-      "avgAiDuration": 6031,
+      "p95Duration": 13351,
+      "p99Duration": 13351,
+      "avgAiDuration": 5831.5,
       "avgSendDuration": 0,
       "activeUsers": 8,
       "activeChats": 10
@@ -1102,10 +1154,10 @@
     }
   ],
   "globalCounters": {
-    "totalMessages": 42,
-    "totalSuccess": 32,
+    "totalMessages": 44,
+    "totalSuccess": 34,
     "totalFailure": 8,
-    "totalAiDuration": 345798,
+    "totalAiDuration": 356663,
     "totalSendDuration": 0,
     "totalFallback": 0,
     "totalFallbackSuccess": 0
