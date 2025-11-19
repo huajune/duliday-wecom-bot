@@ -8,12 +8,17 @@ import {
   EnterpriseMessageCallbackDto,
 } from './dto/message-callback.dto';
 import { AgentService } from '@agent';
+import { MessageCallbackAdapterService } from './services/message-callback-adapter.service';
 
 /**
  * 消息处理控制器
  * 负责接收和处理企微机器人的消息回调
  *
  * 注意：企微回调接口必须返回特定格式，使用 @RawResponse 豁免统一包装
+ *
+ * 支持：
+ * - 企业级回调格式（数据在顶层）
+ * - 小组级回调格式（数据在 data 字段中）
  */
 @Controller('message')
 export class MessageController {
@@ -22,20 +27,37 @@ export class MessageController {
   constructor(
     private readonly messageService: MessageService,
     private readonly agentService: AgentService,
+    private readonly callbackAdapter: MessageCallbackAdapterService,
   ) {}
 
   /**
-   * 接收企微机器人推送的消息
+   * 接收企微机器人推送的消息（统一入口）
    * @description 接收消息回调，支持 AI 自动回复
+   * @description 自动识别并适配企业级/小组级回调格式
    * @example POST /message
    */
   @RawResponse() // 企微回调必须返回原始格式，不使用统一包装
   @Post()
-  async receiveMessage(@Body() body: EnterpriseMessageCallbackDto) {
+  async receiveMessage(@Body() body: any) {
+    // 打印原始回调数据（用于对比分析）
+    this.logger.debug('=== [原始消息回调数据] ===');
+    this.logger.debug(JSON.stringify(body, null, 2));
+    this.logger.debug('=========================');
+
+    // 自动检测并转换为统一格式
+    const callbackType = this.callbackAdapter.detectCallbackType(body);
     this.logger.log(
-      `收到消息回调: messageId=${body.messageId}, source=${body.source}, chatId=${body.chatId}`,
+      `收到消息回调 [${callbackType}]: messageId=${body.messageId || body.data?.messageId}`,
     );
-    return await this.messageService.handleMessage(body);
+
+    // 统一转换为企业级格式
+    const normalizedCallback = this.callbackAdapter.normalizeCallback(body);
+
+    this.logger.log(
+      `处理消息: messageId=${normalizedCallback.messageId}, source=${normalizedCallback.source}, chatId=${normalizedCallback.chatId}`,
+    );
+
+    return await this.messageService.handleMessage(normalizedCallback);
   }
 
   /**
@@ -230,5 +252,206 @@ export class MessageController {
         note: '消息服务应该内部处理错误，不应该向外抛出',
       };
     }
+  }
+
+  /**
+   * 测试接口：模拟小组级消息回调
+   * @description 用于测试小组级回调的完整流程（检测、转换、处理、发送）
+   * @example POST /message/test-group
+   * @body { "text": "测试小组级消息", "token": "68f88a31d53018ed04950739" }
+   */
+  @Post('test-group')
+  async testGroupMessage(
+    @Body()
+    body: {
+      text?: string;
+      token?: string;
+      chatId?: string;
+    },
+  ) {
+    this.logger.log('收到小组级测试消息请求:', body);
+
+    // 构造小组级格式的回调数据（参考 test-callback-adapter.json）
+    const mockGroupCallback = {
+      data: {
+        messageId: `test_group_msg_${Date.now()}`,
+        chatId: body.chatId || '68e7618f9d6d3a463b8dec3d',
+        avatar:
+          'https://wx.qlogo.cn/mmhead/oLU121BePGnQELLZwWEIfzyOZESyeA9ibPibsjOEqrPrHhLERgibRM6NG6yraSFxtemo3PNHa6trK8/0',
+        roomTopic: '',
+        roomId: '',
+        contactName: '测试用户',
+        contactId: '7881300085910772',
+        payload: {
+          text: body.text || '测试小组级消息发送',
+          pureText: body.text || '测试小组级消息发送',
+        },
+        type: MessageType.TEXT,
+        timestamp: Date.now(),
+        token: body.token || '68f88a31d53018ed04950739', // 小组级 token
+        contactType: ContactType.PERSONAL_WECHAT,
+        coworker: false,
+        botId: '68d3b986de170dd6eb01982a',
+        botWxid: '1688854747775509',
+        botWeixin: 'ZhuJie',
+        isSelf: false,
+        externalUserId: '',
+        roomWecomChatId: null,
+        mentionSelf: false,
+      },
+    };
+
+    this.logger.log('构造的小组级回调数据:', JSON.stringify(mockGroupCallback, null, 2));
+
+    // 调用统一的消息接收接口（会经过完整的检测、转换、处理流程）
+    const result = await this.receiveMessage(mockGroupCallback);
+
+    return {
+      success: true,
+      message: '小组级测试消息已处理',
+      mockData: mockGroupCallback,
+      result,
+      note: '该测试会经过完整的流程：格式检测 → 小组级转企业级 → 过滤 → AI回复 → 消息发送',
+    };
+  }
+
+  /**
+   * 诊断接口：检测回调格式并显示差异
+   * @description 用于调试和理解企业级/小组级回调格式的差异
+   * @example POST /message/callback/diagnose
+   * @body 任意回调数据（企业级或小组级）
+   */
+  @Post('callback/diagnose')
+  diagnoseCallback(@Body() body: any) {
+    const callbackType = this.callbackAdapter.detectCallbackType(body);
+
+    const result: any = {
+      detectedType: callbackType,
+      summary: {
+        enterprise: '企业级格式（数据在顶层，有 orgId/groupId/source 字段）',
+        group: '小组级格式（数据在 data 字段中，有 coworker/mentionSelf 等字段）',
+        unknown: '未知格式（建议检查数据结构）',
+      }[callbackType],
+      originalData: body,
+    };
+
+    // 如果是小组级格式，显示转换后的数据
+    if (callbackType === 'group') {
+      const normalizedData = this.callbackAdapter.normalizeCallback(body);
+      result.normalizedData = normalizedData;
+      result.conversion = {
+        message: '小组级格式已转换为企业级格式',
+        fieldMappings: [
+          { from: 'data.type', to: 'messageType' },
+          { from: 'data.contactId', to: 'imContactId' },
+          { from: 'data.botWxid', to: 'imBotId' },
+          { from: 'data.botWeixin', to: 'botUserId' },
+          { from: 'data.timestamp (number)', to: 'timestamp (string)' },
+          { from: 'data.roomId', to: 'imRoomId' },
+          { from: 'data.roomTopic', to: 'roomName' },
+        ],
+        addedFields: [
+          { field: 'orgId', value: normalizedData.orgId, note: '从 token 提取或使用默认值' },
+          { field: 'groupId', value: normalizedData.groupId, note: '小组级没有此字段' },
+          { field: 'source', value: normalizedData.source, note: '默认为 MOBILE_PUSH' },
+        ],
+      };
+    }
+
+    // 如果是企业级格式，直接显示
+    if (callbackType === 'enterprise') {
+      result.message = '已是企业级格式，无需转换';
+    }
+
+    return result;
+  }
+
+  /**
+   * 工具接口：获取格式差异说明
+   * @description 获取企业级和小组级格式的详细差异说明
+   * @example GET /message/callback/diff
+   */
+  @Get('callback/diff')
+  getCallbackDiff() {
+    return {
+      title: '企业级 vs 小组级回调格式差异',
+      structureDifference: {
+        enterprise: '数据在顶层（直接访问字段）',
+        group: '数据在 data 字段中（需要通过 body.data 访问）',
+      },
+      fieldMappings: [
+        {
+          dataType: '消息类型',
+          groupField: 'type',
+          enterpriseField: 'messageType',
+          note: '取值相同',
+        },
+        {
+          dataType: '联系人ID',
+          groupField: 'contactId',
+          enterpriseField: 'imContactId',
+          note: '系统微信号',
+        },
+        {
+          dataType: 'Bot微信ID',
+          groupField: 'botWxid',
+          enterpriseField: 'imBotId',
+          note: '托管账号的系统wxid',
+        },
+        {
+          dataType: 'Bot用户ID',
+          groupField: 'botWeixin',
+          enterpriseField: 'botUserId',
+          note: '用户ID/员工ID',
+        },
+        {
+          dataType: '时间戳',
+          groupField: 'timestamp (number)',
+          enterpriseField: 'timestamp (string)',
+          note: '类型不同，需要转换',
+        },
+        {
+          dataType: '群聊ID',
+          groupField: 'roomId',
+          enterpriseField: 'imRoomId',
+          note: '群聊时有值',
+        },
+        {
+          dataType: '群聊名称',
+          groupField: 'roomTopic',
+          enterpriseField: 'roomName',
+          note: '群聊时有值',
+        },
+      ],
+      enterpriseOnly: [
+        { field: 'orgId', description: '组织ID - 企业级特有' },
+        { field: 'groupId', description: '分组ID - 企业级特有（可选）' },
+        { field: 'source', description: '消息来源标识 - 企业级特有' },
+      ],
+      groupOnly: [
+        { field: 'coworker', description: '是否同事 - 小组级特有' },
+        { field: 'mentionSelf', description: '是否@自己 - 小组级特有' },
+        { field: 'externalUserId', description: '外部用户ID - 小组级特有' },
+      ],
+      commonFields: [
+        'messageId',
+        'chatId',
+        'avatar',
+        'contactName',
+        'contactType',
+        'token',
+        'botId',
+        'payload',
+      ],
+      adapterBehavior: {
+        autoDetection: '根据数据结构特征自动检测格式类型',
+        conversion: '小组级格式会自动转换为企业级统一格式',
+        defaultValues: {
+          orgId: '从 token 提取或使用默认值 "default_org_from_group_callback"',
+          groupId: 'undefined（小组级没有此字段）',
+          source: 'MessageSource.MOBILE_PUSH（默认值）',
+        },
+      },
+    };
   }
 }

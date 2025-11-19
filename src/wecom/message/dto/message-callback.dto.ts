@@ -344,6 +344,9 @@ export class EnterpriseMessageCallbackDto {
   externalUserId?: string; // 外部用户ID
   coworker?: boolean; // 是否为同事
   avatar?: string; // 头像URL
+
+  // 内部标记（用于动态 API 选择，不参与验证）
+  _apiType?: 'enterprise' | 'group'; // API 类型标记（企业级 or 小组级）
 }
 
 /**
@@ -410,4 +413,111 @@ export function isWecomSystemPayload(
   payload: any,
 ): payload is WecomSystemPayload {
   return type === MessageType.WECOM_SYSTEM && payload && typeof payload.type === 'string';
+}
+
+/**
+ * ========================================
+ * 小组级消息回调数据结构
+ * ========================================
+ */
+
+/**
+ * 小组级消息回调 DTO（包装在 data 字段中）
+ * 参考文档: https://s.apifox.cn/acec6592-fec1-443b-8563-10c4a10e64c4
+ *
+ * 说明：
+ * - 用于接收小组级托管平台的消息回调
+ * - 数据结构与企业级有所不同，需要通过适配器转换
+ */
+export class GroupMessageCallbackDto {
+  @IsString()
+  @IsNotEmpty()
+  messageId: string; // 消息ID
+
+  @IsString()
+  @IsNotEmpty()
+  chatId: string; // 对话ID
+
+  @IsString()
+  avatar?: string; // 头像URL
+
+  @IsString()
+  roomTopic?: string; // 群聊主题（群聊时有值）
+
+  @IsString()
+  roomId?: string; // 群聊ID（群聊时有值）
+
+  @IsString()
+  @IsNotEmpty()
+  contactName: string; // 联系人名称
+
+  @IsString()
+  @IsNotEmpty()
+  contactId: string; // 联系人系统ID（对应企业级的 imContactId）
+
+  @IsObject()
+  @IsNotEmpty()
+  payload:
+    | TextPayload
+    | ImagePayload
+    | FilePayload
+    | VoicePayload
+    | ContactCardPayload
+    | LocationPayload
+    | MiniProgramPayload
+    | VideoPayload
+    | LinkPayload
+    | WecomSystemPayload
+    | any; // 消息内容
+
+  @IsNumber()
+  @IsNotEmpty()
+  type: MessageType; // 消息类型（对应企业级的 messageType）
+
+  @IsNumber()
+  @IsNotEmpty()
+  timestamp: number; // 消息时间戳（毫秒）
+
+  @IsString()
+  @IsNotEmpty()
+  token: string; // 小组级token
+
+  @IsNumber()
+  @IsNotEmpty()
+  contactType: ContactType; // 客户类型
+
+  @IsBoolean()
+  coworker?: boolean; // 是否为同事
+
+  @IsString()
+  @IsNotEmpty()
+  botId: string; // bot账号ID
+
+  @IsString()
+  @IsNotEmpty()
+  botWxid: string; // bot微信ID（对应企业级的 imBotId）
+
+  @IsString()
+  botWeixin?: string; // bot用户ID（对应企业级的 botUserId）
+
+  @IsBoolean()
+  isSelf?: boolean; // 是否自己发送
+
+  @IsString()
+  externalUserId?: string; // 外部用户ID
+
+  @IsString()
+  roomWecomChatId?: string; // 企微群聊ID
+
+  @IsBoolean()
+  mentionSelf?: boolean; // 是否@自己
+}
+
+/**
+ * 小组级消息回调包装器（外层结构）
+ */
+export class GroupMessageCallbackWrapperDto {
+  @IsObject()
+  @IsNotEmpty()
+  data: GroupMessageCallbackDto; // 实际消息数据包装在 data 字段中
 }

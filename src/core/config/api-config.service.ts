@@ -77,7 +77,8 @@ export class ApiConfigService {
     // 消息相关
     message: {
       history: () => this.buildApiUrl('/message/history'),
-      send: () => this.buildApiUrl('/message/send', 'enterprise-v2'), // 使用企业级接口
+      send: () => this.buildApiUrl('/message/send', 'enterprise-v2'), // 企业级接口
+      sendGroup: () => this.buildApiUrl('/message/send', 'stream-api'), // 小组级接口 (使用 stream-api)
       sentResult: () => this.buildApiUrl('/sentResult'),
     },
     // 联系人相关

@@ -91,6 +91,8 @@ export interface DeliveryContext {
   messageId: string;
   /** 会话 ID */
   chatId: string;
+  /** API 类型（用于动态选择发送接口） */
+  _apiType?: 'enterprise' | 'group';
 }
 
 /**

@@ -45,6 +45,7 @@ export class MessageParser {
       externalUserId: messageData.externalUserId,
       coworker: messageData.coworker,
       avatar: messageData.avatar,
+      _apiType: messageData._apiType, // 传递 API 类型标记（小组级 or 企业级）
     };
   }
 

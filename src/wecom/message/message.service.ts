@@ -392,8 +392,17 @@ export class MessageService {
     parsed: any,
     options?: { errorType?: AlertErrorType; scenario?: ScenarioType },
   ): Promise<void> {
-    const { chatId, content, contactName, messageId, token, imBotId, imContactId, imRoomId } =
-      parsed;
+    const {
+      chatId,
+      content,
+      contactName,
+      messageId,
+      token,
+      imBotId,
+      imContactId,
+      imRoomId,
+      _apiType,
+    } = parsed;
     const scenario = options?.scenario || MessageParser.determineScenario();
     const errorType: AlertErrorType = options?.errorType || 'message';
 
@@ -436,6 +445,7 @@ export class MessageService {
         contactName,
         messageId,
         chatId,
+        _apiType, // 传递 API 类型标记
       };
 
       await this.deliveryService.deliverReply(
@@ -468,6 +478,7 @@ export class MessageService {
       contactName: parsed.contactName || '客户',
       messageId: parsed.messageId,
       chatId: parsed.chatId,
+      _apiType: parsed._apiType, // 传递 API 类型标记（小组级 or 企业级）
     };
   }
 

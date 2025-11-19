@@ -105,16 +105,21 @@ export class MessageDeliveryService {
    * 发送单条完整消息
    */
   private async deliverSingle(content: string, context: DeliveryContext): Promise<DeliveryResult> {
-    const { token, imBotId, imContactId, imRoomId, contactName } = context;
+    const { token, imBotId, imContactId, imRoomId, contactName, chatId, _apiType } = context;
 
     try {
       await this.messageSenderService.sendMessage({
         token,
+        // 企业级字段
         imBotId,
         imContactId,
         imRoomId,
+        // 小组级字段
+        chatId,
+        // 通用字段
         messageType: SendMessageType.TEXT,
         payload: { text: content },
+        _apiType, // 传递 API 类型标记
       });
 
       this.logger.log(`[${contactName}] 单条消息发送成功: "${this.truncate(content)}"`);
@@ -138,7 +143,7 @@ export class MessageDeliveryService {
     content: string,
     context: DeliveryContext,
   ): Promise<DeliveryResult> {
-    const { token, imBotId, imContactId, imRoomId, contactName } = context;
+    const { token, imBotId, imContactId, imRoomId, contactName, chatId, _apiType } = context;
     const segments = MessageSplitter.split(content);
 
     this.logger.log(
@@ -168,11 +173,16 @@ export class MessageDeliveryService {
       try {
         await this.messageSenderService.sendMessage({
           token,
+          // 企业级字段
           imBotId,
           imContactId,
           imRoomId,
+          // 小组级字段
+          chatId,
+          // 通用字段
           messageType: SendMessageType.TEXT,
           payload: { text: segment },
+          _apiType, // 传递 API 类型标记
         });
 
         successCount++;

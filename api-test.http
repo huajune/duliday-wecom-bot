@@ -2,13 +2,13 @@
 @baseUrl = http://localhost:8080
 
 ### Token 配置
-@tokenGroup = 68f88a31d53018ed04950739
+@tokenGroup = 691d3b1c77279273a79275f5
 @tokenEnterprise = 9eaebbf614104879b81c2da7c41819bd
 
 ### ChatId 配置
 @chatIdGroup = 68e763179d6d3a463bac17d0
 @RoomId = R:10760500454131407
-@ArielChatId = 68e7618f9d6d3a463b8dec3d
+@ArielChatId = 691d3db49d6d3a463b1a0af3
 // 通过小组联系人列表获取
 @GroupChatId = 68e763179d6d3a463bac17d0
 

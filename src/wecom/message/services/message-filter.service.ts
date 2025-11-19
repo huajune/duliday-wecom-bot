@@ -21,6 +21,7 @@ export interface FilterResult {
  * 消息过滤服务
  * 负责对接收到的消息进行各种过滤检查
  * 只处理：私聊、用户发送、手机推送、文本消息、非空内容
+ * 排除：特定企业级 groupId (68d368d1fa2192479454c365)
  */
 @Injectable()
 export class MessageFilterService {
@@ -58,7 +59,22 @@ export class MessageFilterService {
       };
     }
 
-    // 3. 暂时跳过群聊消息
+    // 3. 过滤企业级特定 groupId 的消息
+    if (messageData.groupId === '68d368d1fa2192479454c365') {
+      this.logger.log(
+        `[过滤-企业级分组] 跳过特定企业级分组的消息 [${messageData.messageId}], groupId=${messageData.groupId}`,
+      );
+      return {
+        pass: false,
+        reason: 'blocked-enterprise-group',
+        details: {
+          groupId: messageData.groupId,
+          orgId: messageData.orgId,
+        },
+      };
+    }
+
+    // 4. 暂时跳过群聊消息
     const isRoom = !!messageData.imRoomId;
     if (isRoom) {
       this.logger.log(
@@ -74,7 +90,7 @@ export class MessageFilterService {
       };
     }
 
-    // 4. 只处理文本消息
+    // 5. 只处理文本消息
     if (messageData.messageType !== MessageType.TEXT) {
       this.logger.log(
         `[过滤-非文本] 跳过非文本消息 [${messageData.messageId}], messageType=${messageData.messageType}`,
@@ -88,7 +104,7 @@ export class MessageFilterService {
       };
     }
 
-    // 5. 检查消息内容是否为空
+    // 6. 检查消息内容是否为空
     const content = MessageParser.extractContent(messageData);
     if (!content || content.trim().length === 0) {
       this.logger.log(`[过滤-空内容] 跳过空内容消息 [${messageData.messageId}]`);
