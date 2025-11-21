@@ -75,6 +75,29 @@ export interface ConversationState {
 }
 
 /**
+ * 可持久化的会话状态（不含 timer，用于 Redis 存储）
+ */
+export interface PersistableConversationState {
+  /** 会话 ID (chatId) */
+  chatId: string;
+
+  /** 当前状态 */
+  status: ConversationStatus;
+
+  /** 首次消息到达时间 */
+  firstMessageTime: number;
+
+  /** 待处理的消息队列 */
+  pendingMessages: PendingMessage[];
+
+  /** 当前 Agent 请求元数据（PROCESSING 状态时有效） */
+  currentRequest?: AgentRequestMetadata;
+
+  /** 上次状态更新时间 */
+  lastUpdateTime: number;
+}
+
+/**
  * 溢出策略枚举
  */
 export enum OverflowStrategy {

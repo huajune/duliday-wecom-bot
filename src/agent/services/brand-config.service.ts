@@ -243,7 +243,7 @@ export class BrandConfigService implements OnModuleInit, OnModuleDestroy {
     this.supabaseHttpClient = this.httpClientFactory.createWithBearerAuth(
       {
         baseURL: `${supabaseUrl}/storage/v1`,
-        timeout: 10000,
+        timeout: 20000, // 20秒超时，考虑到网络延迟和文件大小
         logPrefix: '[Supabase Storage]',
         verbose: false,
       },

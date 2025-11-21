@@ -83,6 +83,12 @@ export class MessageService {
       `[handleMessage] 收到消息 [${messageData.messageId}], source=${messageData.source}(${getMessageSourceDescription(messageData.source)}), isSelf=${messageData.isSelf}`,
     );
 
+    // 管线步骤 0: 处理 bot 自己发送的消息（存储为 assistant 历史）
+    if (messageData.isSelf === true) {
+      await this.handleSelfMessage(messageData);
+      return { success: true, message: 'Self message stored' };
+    }
+
     // 管线步骤 1: 检查 AI 回复开关
     const switchResult = this.checkAiReplySwitch();
     if (!switchResult.continue) {
@@ -112,6 +118,27 @@ export class MessageService {
 
     // 立即返回成功，避免企微超时重试
     return { success: true, message: 'Message received' };
+  }
+
+  /**
+   * 管线步骤 0: 处理 bot 自己发送的消息
+   * 将 isSelf=true 的消息存储为 assistant 历史记录
+   */
+  private async handleSelfMessage(messageData: EnterpriseMessageCallbackDto): Promise<void> {
+    const parsed = MessageParser.parse(messageData);
+    const { chatId, content } = parsed;
+
+    if (!content || content.trim().length === 0) {
+      this.logger.debug(`[自发消息] 消息内容为空，跳过存储 [${messageData.messageId}]`);
+      return;
+    }
+
+    // 存储为 assistant 消息
+    await this.historyService.addMessageToHistory(chatId, 'assistant', content);
+
+    this.logger.log(
+      `[自发消息] 已存储为 assistant 历史 [${messageData.messageId}]: "${content.substring(0, 50)}${content.length > 50 ? '...' : ''}"`,
+    );
   }
 
   /**
@@ -182,13 +209,10 @@ export class MessageService {
   private async dispatchMessage(messageData: EnterpriseMessageCallbackDto): Promise<void> {
     if (this.enableMessageMerge) {
       // 启用消息聚合：交给 MergeService 处理
-      this.mergeService
-        .handleMessage(messageData, (messages) => this.processMergedMessages(messages))
-        .catch((error) => {
-          this.logger.error(
-            `[聚合调度] 处理消息 [${messageData.messageId}] 失败: ${error.message}`,
-          );
-        });
+      // MergeService 会在聚合完成后将任务添加到 Bull 队列
+      this.mergeService.handleMessage(messageData).catch((error) => {
+        this.logger.error(`[聚合调度] 处理消息 [${messageData.messageId}] 失败: ${error.message}`);
+      });
       return;
     }
 
@@ -213,10 +237,10 @@ export class MessageService {
 
     try {
       // 1. 获取历史消息
-      const historyMessages = this.historyService.getHistory(chatId);
+      const historyMessages = await this.historyService.getHistory(chatId);
 
       // 2. 添加当前消息到历史
-      this.historyService.addMessageToHistory(chatId, 'user', content);
+      await this.historyService.addMessageToHistory(chatId, 'user', content);
 
       // 3. 调用 Agent
       const agentResult = await this.agentGateway.invoke({
@@ -228,15 +252,14 @@ export class MessageService {
         recordMonitoring: true,
       });
 
-      // 5. 将 AI 回复添加到历史
-      this.historyService.addMessageToHistory(chatId, 'assistant', agentResult.reply.content);
+      // 注意：assistant 消息历史由 isSelf=true 的回调存储，这里不再重复存储
 
       this.logger.log(
         `[${contactName}] Agent 处理完成，耗时 ${agentResult.processingTime}ms，` +
           `tokens=${agentResult.reply.usage?.totalTokens || 'N/A'}`,
       );
 
-      // 6. 发送回复
+      // 5. 发送回复
       const deliveryContext = this.buildDeliveryContext(parsed);
       const deliveryResult = await this.deliveryService.deliverReply(
         agentResult.reply,
@@ -284,11 +307,11 @@ export class MessageService {
       // 1. 将所有消息添加到历史（除了最后一条，留给 Agent 作为 userMessage）
       for (let i = 0; i < messages.length - 1; i++) {
         const content = MessageParser.extractContent(messages[i]);
-        this.historyService.addMessageToHistory(chatId, 'user', content);
+        await this.historyService.addMessageToHistory(chatId, 'user', content);
       }
 
       // 2. 获取历史消息
-      const historyMessages = this.historyService.getHistory(chatId);
+      const historyMessages = await this.historyService.getHistory(chatId);
 
       // 3. 最后一条消息作为 userMessage
       const lastMessage = messages[messages.length - 1];
@@ -305,16 +328,16 @@ export class MessageService {
         messageId: lastMessageId,
       });
 
-      // 6. 将最后一条用户消息和 AI 回复添加到历史
-      this.historyService.addMessageToHistory(chatId, 'user', lastContent);
-      this.historyService.addMessageToHistory(chatId, 'assistant', agentResult.reply.content);
+      // 6. 将最后一条用户消息添加到历史
+      // 注意：assistant 消息历史由 isSelf=true 的回调存储，这里不再重复存储
+      await this.historyService.addMessageToHistory(chatId, 'user', lastContent);
 
       this.logger.log(
         `[聚合处理][${contactName}] Agent 处理完成，耗时 ${agentResult.processingTime}ms`,
       );
 
       // 7. 先重置会话状态为 IDLE，再发送回复（避免竞态条件）
-      this.mergeService.resetToIdle(chatId);
+      await this.mergeService.resetToIdle(chatId);
 
       // 8. 发送回复
       const deliveryContext = this.buildDeliveryContext(MessageParser.parse(lastMessage));
@@ -370,7 +393,7 @@ export class MessageService {
 
       const chatId = messages.length > 0 ? MessageParser.parse(messages[0]).chatId : 'unknown';
       if (chatId !== 'unknown') {
-        this.mergeService.resetToIdle(chatId);
+        await this.mergeService.resetToIdle(chatId);
       }
     } finally {
       this.processingCount--;
@@ -529,17 +552,25 @@ export class MessageService {
   /**
    * 获取历史记录
    */
-  getAllHistory(chatId?: string) {
+  async getAllHistory(chatId?: string) {
     if (chatId) {
-      const history = this.historyService.getHistory(chatId);
+      const detail = await this.historyService.getHistoryDetail(chatId);
+      if (detail) {
+        return {
+          chatId,
+          messages: detail.messages,
+          count: detail.messageCount,
+        };
+      }
       return {
         chatId,
-        messages: history,
-        count: history.length,
+        messages: [],
+        count: 0,
       };
     }
 
-    return this.historyService.getAllHistory();
+    // Redis 模式下不支持获取所有历史，返回统计信息
+    return this.historyService.getStats();
   }
 
   /**

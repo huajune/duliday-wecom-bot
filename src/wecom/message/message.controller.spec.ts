@@ -3,6 +3,7 @@ import { MessageController } from './message.controller';
 import { MessageService } from './message.service';
 import { MessageType, ContactType, MessageSource } from './dto/message-callback.dto';
 import { AgentService } from '@agent';
+import { MessageCallbackAdapterService } from './services/message-callback-adapter.service';
 
 describe('MessageController', () => {
   let controller: MessageController;
@@ -17,6 +18,11 @@ describe('MessageController', () => {
     chat: jest.fn(),
   };
 
+  const mockCallbackAdapterService = {
+    detectCallbackType: jest.fn().mockReturnValue('enterprise'),
+    normalizeCallback: jest.fn().mockImplementation((body) => body),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [MessageController],
@@ -28,6 +34,10 @@ describe('MessageController', () => {
         {
           provide: AgentService,
           useValue: mockAgentService,
+        },
+        {
+          provide: MessageCallbackAdapterService,
+          useValue: mockCallbackAdapterService,
         },
       ],
     }).compile();

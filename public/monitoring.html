@@ -6,20 +6,44 @@
     <title>Bot 监控仪表盘 - DuLiDay</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <style>
+      /* ========================================
+         浅色玻璃风设计系统 - Light Glass Design
+         ======================================== */
+
       :root {
-        --bg-dark: #050505;
-        --bg-card: #111319;
-        --bg-card-light: #161923;
-        --border: rgba(255, 255, 255, 0.08);
-        --text-primary: #f9fafb;
-        --text-secondary: #9ca3af;
-        --text-muted: #6b7280;
-        --primary: #3b82f6;
-        --primary-dark: #2563eb;
+        /* 主色调 - 紫蓝渐变 */
+        --primary: #8b5cf6;
+        --primary-dark: #7c3aed;
+        --primary-light: #a78bfa;
+        --accent: #6366f1;
+        --accent-light: #818cf8;
         --success: #10b981;
         --warning: #f59e0b;
         --danger: #ef4444;
-        --info: #38bdf8;
+        --info: #06b6d4;
+
+        /* 文字颜色 */
+        --text-primary: #1e293b;
+        --text-secondary: #475569;
+        --text-muted: #94a3b8;
+        --text-on-gradient: rgba(255, 255, 255, 0.95);
+        --text-on-gradient-muted: rgba(255, 255, 255, 0.7);
+
+        /* 背景与边框 */
+        --bg-page: #f0f4ff;
+        --bg-card: rgba(255, 255, 255, 0.85);
+        --bg-card-hover: rgba(255, 255, 255, 0.98);
+        --border: rgba(139, 92, 246, 0.12);
+        --border-hover: rgba(139, 92, 246, 0.25);
+
+        /* 渐变 */
+        --gradient-sidebar: linear-gradient(180deg, #a78bfa 0%, #818cf8 50%, #6366f1 100%);
+        --gradient-primary: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%);
+
+        /* 毛玻璃效果 */
+        --glass-blur: 20px;
+        --glass-shadow: 0 8px 32px rgba(139, 92, 246, 0.1);
+        --glass-shadow-hover: 0 16px 48px rgba(139, 92, 246, 0.18);
       }
 
       * {
@@ -29,38 +53,54 @@
       body {
         margin: 0;
         min-height: 100vh;
-        font-family: 'PingFang SC', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI',
-          sans-serif;
-        background: var(--bg-dark);
+        font-family: 'PingFang SC', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        background: var(--bg-page);
         color: var(--text-primary);
-        padding: 40px 24px 80px;
+        padding: 0;
       }
 
+      /* 动态背景渐变 */
       .background-gradients {
         position: fixed;
-        inset: 0;
-        pointer-events: none;
-        z-index: 0;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        z-index: -1;
+        overflow: hidden;
+        background: linear-gradient(135deg, #f5f3ff 0%, #e0e7ff 50%, #dbeafe 100%);
       }
 
-      .background-gradients span {
+      .bg-blue, .bg-purple {
         position: absolute;
-        width: 400px;
-        height: 400px;
-        filter: blur(150px);
-        opacity: 0.3;
+        border-radius: 50%;
+        filter: blur(120px);
+        opacity: 0.6;
+        animation: float 25s infinite ease-in-out;
       }
 
       .bg-blue {
-        background: #1e3a8a;
-        top: -120px;
-        left: -100px;
+        top: -15%;
+        left: -10%;
+        width: 60vw;
+        height: 60vw;
+        background: radial-gradient(circle, rgba(99, 102, 241, 0.25), transparent 70%);
+        animation-delay: 0s;
       }
 
       .bg-purple {
-        background: #6d28d9;
-        right: -120px;
-        bottom: 40px;
+        bottom: -15%;
+        right: -10%;
+        width: 55vw;
+        height: 55vw;
+        background: radial-gradient(circle, rgba(139, 92, 246, 0.3), transparent 70%);
+        animation-delay: -12s;
+      }
+
+      @keyframes float {
+        0%, 100% { transform: translate(0, 0) scale(1); }
+        33% { transform: translate(40px, -60px) scale(1.1); }
+        66% { transform: translate(-30px, 30px) scale(0.95); }
       }
 
       .container {
@@ -88,6 +128,138 @@
         justify-content: space-between;
         gap: 24px;
         flex-wrap: wrap;
+      }
+
+      /* 统一控制面板 - 合并 header 和健康状态 */
+      .control-panel {
+        background: linear-gradient(135deg, rgba(59, 130, 246, 0.06) 0%, rgba(147, 51, 234, 0.06) 50%, rgba(236, 72, 153, 0.04) 100%);
+        border: 1px solid var(--border);
+        border-radius: 20px;
+        padding: 24px 32px;
+        position: relative;
+        overflow: hidden;
+        margin-bottom: 0;
+      }
+
+      .control-panel::before {
+        content: '';
+        position: absolute;
+        top: -60%;
+        right: -15%;
+        width: 400px;
+        height: 400px;
+        background: radial-gradient(circle, rgba(59, 130, 246, 0.12) 0%, transparent 70%);
+        pointer-events: none;
+      }
+
+      .control-panel::after {
+        content: '';
+        position: absolute;
+        bottom: -40%;
+        left: -5%;
+        width: 250px;
+        height: 250px;
+        background: radial-gradient(circle, rgba(147, 51, 234, 0.08) 0%, transparent 70%);
+        pointer-events: none;
+      }
+
+      .control-panel-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding-bottom: 20px;
+        margin-bottom: 20px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        position: relative;
+        z-index: 1;
+      }
+
+      .control-panel-left {
+        display: flex;
+        align-items: center;
+        gap: 24px;
+      }
+
+      .control-panel-right {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+      }
+
+      .control-panel-title {
+        font-size: 15px;
+        font-weight: 600;
+        color: var(--text-primary);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding-right: 20px;
+        border-right: 1px solid rgba(255, 255, 255, 0.1);
+      }
+
+      .control-panel-title::before {
+        content: '⚡';
+        font-size: 16px;
+      }
+
+      .control-panel .filters {
+        margin: 0;
+      }
+
+      .control-panel .health-grid {
+        position: relative;
+        z-index: 1;
+      }
+
+      .control-panel .health-panel-badge {
+        font-size: 11px;
+        padding: 4px 10px;
+        border-radius: 12px;
+        background: rgba(34, 197, 94, 0.15);
+        color: var(--success);
+        font-weight: 500;
+      }
+
+      .control-panel .health-panel-badge.warning {
+        background: rgba(245, 158, 11, 0.15);
+        color: var(--warning);
+      }
+
+      .control-panel .health-panel-badge.error {
+        background: rgba(239, 68, 68, 0.15);
+        color: var(--danger);
+      }
+
+      /* 装饰性光点效果 */
+      .control-panel .decorative-dot {
+        position: absolute;
+        border-radius: 50%;
+        background: rgba(59, 130, 246, 0.3);
+        filter: blur(1px);
+        pointer-events: none;
+        z-index: 0;
+      }
+
+      .control-panel .decorative-dot:nth-child(1) {
+        top: 20px;
+        right: 100px;
+        width: 6px;
+        height: 6px;
+        animation: pulse-dot 3s infinite;
+      }
+
+      .control-panel .decorative-dot:nth-child(2) {
+        bottom: 30px;
+        right: 200px;
+        width: 4px;
+        height: 4px;
+        background: rgba(147, 51, 234, 0.4);
+        animation: pulse-dot 4s infinite 1s;
+      }
+
+      @keyframes pulse-dot {
+        0%, 100% { opacity: 0.3; transform: scale(1); }
+        50% { opacity: 0.8; transform: scale(1.5); }
       }
 
       .header h1 {
@@ -121,7 +293,7 @@
       }
 
       .filters button {
-        background: transparent;
+        background: rgba(255, 255, 255, 0.6);
         border: 1px solid var(--border);
         color: var(--text-secondary);
         border-radius: 999px;
@@ -133,12 +305,15 @@
 
       .filters button:hover {
         border-color: var(--primary);
+        background: rgba(139, 92, 246, 0.08);
+        color: var(--primary);
       }
 
       .filters button.active {
-        background: rgba(59, 130, 246, 0.15);
-        border-color: var(--primary);
-        color: var(--text-primary);
+        background: var(--gradient-primary);
+        border-color: transparent;
+        color: #fff;
+        box-shadow: 0 2px 8px rgba(139, 92, 246, 0.3);
       }
 
       .header-controls {
@@ -158,14 +333,26 @@
       }
 
       .btn-primary {
-        background: var(--primary);
+        background: var(--gradient-primary);
         color: #fff;
+        box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3);
+      }
+
+      .btn-primary:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 6px 16px rgba(139, 92, 246, 0.4);
       }
 
       .btn-ghost {
-        background: transparent;
+        background: rgba(255, 255, 255, 0.6);
         border-color: var(--border);
         color: var(--text-secondary);
+      }
+
+      .btn-ghost:hover {
+        background: rgba(255, 255, 255, 0.9);
+        border-color: var(--border-hover);
+        color: var(--text-primary);
       }
 
       .auto-refresh {
@@ -197,7 +384,7 @@
         appearance: none;
         width: 44px;
         height: 24px;
-        background: rgba(255, 255, 255, 0.1);
+        background: rgba(148, 163, 184, 0.2);
         border: 1px solid var(--border);
         border-radius: 12px;
         position: relative;
@@ -211,10 +398,11 @@
         width: 18px;
         height: 18px;
         border-radius: 50%;
-        background: var(--text-secondary);
+        background: var(--text-muted);
         top: 2px;
         left: 2px;
         transition: all 0.3s ease;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
       }
 
       .toggle-switch input[type='checkbox']:checked {
@@ -283,55 +471,151 @@
         border-color: rgba(239, 68, 68, 0.3);
       }
 
+      .health-panel {
+        background: linear-gradient(135deg, rgba(59, 130, 246, 0.08) 0%, rgba(147, 51, 234, 0.08) 100%);
+        border: 1px solid var(--border);
+        border-radius: 20px;
+        padding: 24px 32px;
+        position: relative;
+        overflow: hidden;
+      }
+
+      .health-panel::before {
+        content: '';
+        position: absolute;
+        top: -50%;
+        right: -20%;
+        width: 300px;
+        height: 300px;
+        background: radial-gradient(circle, rgba(59, 130, 246, 0.15) 0%, transparent 70%);
+        pointer-events: none;
+      }
+
+      .health-panel::after {
+        content: '';
+        position: absolute;
+        bottom: -30%;
+        left: -10%;
+        width: 200px;
+        height: 200px;
+        background: radial-gradient(circle, rgba(147, 51, 234, 0.1) 0%, transparent 70%);
+        pointer-events: none;
+      }
+
+      .health-panel-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+        position: relative;
+        z-index: 1;
+      }
+
+      .health-panel-title {
+        font-size: 16px;
+        font-weight: 600;
+        color: var(--text-primary);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .health-panel-title::before {
+        content: '⚡';
+        font-size: 18px;
+      }
+
+      .health-panel-badge {
+        font-size: 11px;
+        padding: 4px 10px;
+        border-radius: 12px;
+        background: rgba(34, 197, 94, 0.15);
+        color: var(--success);
+        font-weight: 500;
+      }
+
+      .health-panel-badge.warning {
+        background: rgba(245, 158, 11, 0.15);
+        color: var(--warning);
+      }
+
+      .health-panel-badge.error {
+        background: rgba(239, 68, 68, 0.15);
+        color: var(--danger);
+      }
+
       .health-grid {
         display: grid;
-        gap: 16px;
-        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+        gap: 20px;
+        grid-template-columns: repeat(3, 1fr);
+        position: relative;
+        z-index: 1;
       }
 
-      .health-card {
-        border: 1px solid var(--border);
-        border-radius: 16px;
-        padding: 20px;
+      .health-item {
         display: flex;
-        gap: 16px;
+        gap: 12px;
         align-items: center;
-        background: var(--bg-card-light);
+        padding: 16px;
+        background: rgba(255, 255, 255, 0.5);
+        border-radius: 12px;
+        border: 1px solid rgba(148, 163, 184, 0.15);
+        transition: all 0.2s ease;
       }
 
-      .health-card[data-state='error'] {
-        border-color: rgba(239, 68, 68, 0.4);
-        background: rgba(239, 68, 68, 0.08);
+      .health-item:hover {
+        background: rgba(255, 255, 255, 0.8);
+        border-color: rgba(148, 163, 184, 0.25);
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(148, 163, 184, 0.15);
       }
 
-      .health-card[data-state='warning'] {
-        border-color: rgba(245, 158, 11, 0.4);
-        background: rgba(245, 158, 11, 0.08);
+      .health-item[data-state='error'] {
+        border-color: rgba(239, 68, 68, 0.3);
+        background: rgba(239, 68, 68, 0.06);
+      }
+
+      .health-item[data-state='warning'] {
+        border-color: rgba(245, 158, 11, 0.3);
+        background: rgba(245, 158, 11, 0.06);
       }
 
       .health-icon {
-        font-size: 30px;
+        font-size: 28px;
+        width: 48px;
+        height: 48px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(139, 92, 246, 0.1);
+        border-radius: 12px;
+      }
+
+      .health-info {
+        flex: 1;
       }
 
       .health-title {
-        font-size: 13px;
+        font-size: 12px;
         color: var(--text-muted);
-        letter-spacing: 0.08em;
+        letter-spacing: 0.05em;
+        margin-bottom: 4px;
       }
 
       .health-status {
-        font-size: 18px;
+        font-size: 16px;
         font-weight: 600;
+        margin-bottom: 2px;
       }
 
       .health-desc {
         color: var(--text-secondary);
-        font-size: 13px;
+        font-size: 12px;
       }
 
       .metric-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        grid-template-columns: repeat(5, 1fr);
         gap: 16px;
       }
 
@@ -351,16 +635,55 @@
         content: '';
         position: absolute;
         inset: 0;
-        opacity: 0.2;
+        opacity: 0.6;
         pointer-events: none;
+        border-radius: inherit;
       }
 
       .metric-card.primary::after {
-        background: radial-gradient(circle at top right, rgba(59, 130, 246, 0.4), transparent);
+        background: radial-gradient(circle at top right, rgba(59, 130, 246, 0.15), transparent 70%);
+      }
+
+      /* 统一毛玻璃卡片样式 */
+      .metric-card, .chart-card, .insight-card, .health-panel, .control-panel, .section, .sidebar {
+        background: var(--bg-card);
+        backdrop-filter: blur(var(--glass-blur));
+        -webkit-backdrop-filter: blur(var(--glass-blur));
+        border: 1px solid var(--border);
+        box-shadow: var(--glass-shadow);
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      }
+
+      .metric-card:hover, .chart-card:hover, .insight-card:hover {
+        transform: translateY(-4px);
+        box-shadow: var(--glass-shadow-hover);
+        border-color: var(--border-hover);
+        background: var(--bg-card-hover);
+      }
+
+      .metric-value {
+        background: var(--gradient-primary);
+        -webkit-background-clip: text;
+        background-clip: text;
+        -webkit-text-fill-color: transparent;
+        font-weight: 700;
+        letter-spacing: -0.02em;
       }
 
       .metric-card.success::after {
-        background: radial-gradient(circle at top right, rgba(16, 185, 129, 0.4), transparent);
+        background: radial-gradient(circle at top right, rgba(16, 185, 129, 0.15), transparent 70%);
+      }
+
+      .metric-card.warning::after {
+        background: radial-gradient(circle at top right, rgba(245, 158, 11, 0.15), transparent 70%);
+      }
+
+      .metric-card.danger::after {
+        background: radial-gradient(circle at top right, rgba(239, 68, 68, 0.15), transparent 70%);
+      }
+
+      .metric-card.info::after {
+        background: radial-gradient(circle at top right, rgba(6, 182, 212, 0.15), transparent 70%);
       }
 
       .metric-label {
@@ -368,11 +691,6 @@
         color: var(--text-muted);
         text-transform: uppercase;
         letter-spacing: 0.08em;
-      }
-
-      .metric-value {
-        font-size: 28px;
-        font-weight: 600;
       }
 
       .metric-subtitle {
@@ -417,8 +735,9 @@
       }
 
       .chart-header h3 {
-        margin: 0;
-        font-size: 18px;
+        font-size: 16px;
+        font-weight: 600;
+        color: var(--text-primary);
       }
 
       .chart-header p {
@@ -439,28 +758,74 @@
         color: var(--text-primary);
       }
 
+      /* Custom Scrollbar */
+      ::-webkit-scrollbar {
+        width: 6px;
+        height: 6px;
+      }
+
+      ::-webkit-scrollbar-track {
+        background: transparent;
+      }
+
+      ::-webkit-scrollbar-thumb {
+        background: rgba(148, 163, 184, 0.3);
+        border-radius: 3px;
+      }
+
+      ::-webkit-scrollbar-thumb:hover {
+        background: rgba(148, 163, 184, 0.5);
+      }
+
       canvas {
         width: 100% !important;
-        height: 320px !important;
+        height: 280px !important;
+        filter: drop-shadow(0 4px 8px rgba(148, 163, 184, 0.15));
+      }
+
+      .chart-container {
+        position: relative;
+        width: 100%;
+        height: 280px;
       }
 
       .insight-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-        gap: 16px;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 20px;
       }
 
       .insight-card {
-        border: 1px solid var(--border);
         border-radius: 18px;
-        padding: 20px;
-        background: var(--bg-card);
+        padding: 24px;
+        min-height: 140px;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        position: relative;
+        overflow: hidden;
+      }
+      
+      .insight-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(45deg, transparent, rgba(139, 92, 246, 0.08), transparent);
+        transform: translateX(-100%);
+        transition: transform 0.6s;
+      }
+
+      .insight-card:hover::before {
+        transform: translateX(100%);
       }
 
       .insight-title {
-        font-size: 14px;
+        font-size: 13px;
         text-transform: uppercase;
-        letter-spacing: 0.08em;
+        letter-spacing: 0.05em;
         color: var(--text-muted);
         margin-bottom: 12px;
       }
@@ -561,7 +926,7 @@
       .alert-type-bar {
         flex: 1;
         height: 6px;
-        background: rgba(255, 255, 255, 0.05);
+        background: rgba(148, 163, 184, 0.15);
         border-radius: 3px;
         overflow: hidden;
         position: relative;
@@ -650,7 +1015,7 @@
       }
 
       tbody tr:hover {
-        background: rgba(255, 255, 255, 0.02);
+        background: rgba(139, 92, 246, 0.04);
       }
 
       .status-badge {
@@ -684,10 +1049,239 @@
         color: var(--text-secondary);
       }
 
+      /* 加载动画 */
+      @keyframes shimmer {
+        0% { background-position: -200% 0; }
+        100% { background-position: 200% 0; }
+      }
+
+      .skeleton {
+        background: linear-gradient(90deg,
+          rgba(148, 163, 184, 0.1) 25%,
+          rgba(148, 163, 184, 0.2) 50%,
+          rgba(148, 163, 184, 0.1) 75%
+        );
+        background-size: 200% 100%;
+        animation: shimmer 1.5s infinite;
+        border-radius: 4px;
+      }
+
+      /* 选中状态 */
+      ::selection {
+        background: rgba(139, 92, 246, 0.3);
+        color: var(--text-primary);
+      }
+
+      @media (max-width: 1200px) {
+        .metric-grid {
+          grid-template-columns: repeat(3, 1fr);
+        }
+        .insight-grid {
+          grid-template-columns: repeat(2, 1fr);
+        }
+      }
+
       @media (max-width: 960px) {
         .charts-row {
           grid-template-columns: 1fr;
         }
+        .health-grid {
+          grid-template-columns: 1fr;
+        }
+        .metric-grid {
+          grid-template-columns: repeat(2, 1fr);
+        }
+        .insight-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      /* App Layout & Sidebar */
+
+      .app-layout {
+        display: flex;
+        min-height: 100vh;
+      }
+
+      .sidebar {
+        width: 260px;
+        background: var(--gradient-sidebar);
+        border-right: none;
+        display: flex;
+        flex-direction: column;
+        position: fixed;
+        top: 0;
+        bottom: 0;
+        left: 0;
+        z-index: 50;
+        padding: 24px;
+        box-shadow: 4px 0 32px rgba(139, 92, 246, 0.2);
+      }
+
+      .content {
+        flex: 1;
+        margin-left: 260px;
+        padding: 40px 40px 80px;
+        min-width: 0;
+      }
+
+      .sidebar-header {
+        margin-bottom: 40px;
+        padding: 0 12px;
+      }
+
+      .sidebar-logo {
+        font-size: 20px;
+        font-weight: 700;
+        color: var(--text-on-gradient);
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .nav-menu {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      .nav-item {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px 16px;
+        border-radius: 12px;
+        color: var(--text-on-gradient-muted);
+        text-decoration: none;
+        transition: all 0.2s ease;
+        cursor: pointer;
+        font-size: 14px;
+        font-weight: 500;
+      }
+
+      .nav-item:hover {
+        background: rgba(255, 255, 255, 0.15);
+        color: var(--text-on-gradient);
+      }
+
+      .nav-item.active {
+        background: rgba(255, 255, 255, 0.95);
+        color: var(--primary-dark);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+      }
+
+      .page-section {
+        display: none;
+        flex-direction: column;
+        gap: 24px;
+        animation: fadeIn 0.3s ease;
+      }
+
+      .page-section.active {
+        display: flex;
+      }
+
+      @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+
+      /* Adjust container to fit in content area */
+      .container {
+        margin: 0;
+        max-width: 1200px;
+      }
+
+      /* Pagination styles */
+      .pagination {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-top: 16px;
+        padding-top: 16px;
+        border-top: 1px solid var(--border);
+      }
+
+      .pagination-info {
+        font-size: 13px;
+        color: var(--text-secondary);
+      }
+
+      .pagination-controls {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+      }
+
+      .pagination-btn {
+        background: transparent;
+        border: 1px solid var(--border);
+        color: var(--text-secondary);
+        border-radius: 8px;
+        padding: 6px 12px;
+        font-size: 13px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+      }
+
+      .pagination-btn:hover:not(:disabled) {
+        border-color: var(--primary);
+        color: var(--text-primary);
+      }
+
+      .pagination-btn:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+      }
+
+      .pagination-pages {
+        display: flex;
+        gap: 4px;
+      }
+
+      .pagination-page {
+        background: transparent;
+        border: 1px solid var(--border);
+        color: var(--text-secondary);
+        border-radius: 6px;
+        padding: 6px 10px;
+        font-size: 12px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        min-width: 32px;
+        text-align: center;
+      }
+
+      .pagination-page:hover {
+        border-color: var(--primary);
+        color: var(--text-primary);
+      }
+
+      .pagination-page.active {
+        background: var(--primary);
+        border-color: var(--primary);
+        color: white;
+      }
+
+      .page-size-select {
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        color: var(--text-secondary);
+        border-radius: 8px;
+        padding: 6px 8px;
+        font-size: 13px;
+        cursor: pointer;
+      }
+
+      .page-size-select:focus {
+        outline: none;
+        border-color: var(--primary);
+      }
+      .nav-icon {
+        width: 24px;
+        height: 24px;
+        object-fit: contain;
+        border-radius: 4px;
       }
     </style>
   </head>
@@ -696,312 +1290,421 @@
       <span class="bg-blue"></span>
       <span class="bg-purple"></span>
     </div>
-    <div class="container">
-      <div class="header">
-        <div class="header-top">
-          <div>
-            <div class="eyebrow">独立日 Bot</div>
-            <h1>运营监控仪表盘</h1>
-            <p>实时洞察代理健康、消息吞吐、告警与功能使用情况，及时定位异常。</p>
-          </div>
-          <div class="last-update">
-            <span class="status-indicator"></span>
-            <span>最后更新: <span id="lastUpdate">-</span></span>
+    <div class="app-layout">
+      <aside class="sidebar">
+        <div class="sidebar-header">
+          <div class="sidebar-logo">
+            <span>🚀</span> 独立日 Bot
           </div>
         </div>
-        <div class="header-actions">
-          <div class="filters">
-            <button class="active" data-range="today">本日</button>
-            <button data-range="week">本周</button>
-            <button data-range="month">本月</button>
+        <nav class="nav-menu">
+          <div class="nav-item active" onclick="switchPage('dashboard')" id="nav-dashboard">
+            <img src="icons/dashboard.png" class="nav-icon" alt="Dashboard"> 仪表盘
           </div>
-          <div class="header-controls">
-            <label class="toggle-switch">
-              <span>🤖 智能回复</span>
-              <input type="checkbox" id="aiReplyToggle" />
-              <span class="status-text" id="aiReplyStatus">-</span>
-            </label>
-            <label class="auto-refresh">
-              <input type="checkbox" id="autoRefresh" checked />
-              自动刷新 (5秒)
-            </label>
+          <div class="nav-item" onclick="switchPage('users')" id="nav-users">
+            <img src="icons/users.png" class="nav-icon" alt="Users"> 用户管理
           </div>
-        </div>
-      </div>
+          <div class="nav-item" onclick="switchPage('system')" id="nav-system">
+            <img src="icons/system.png" class="nav-icon" alt="System"> 系统监控
+          </div>
+          <div class="nav-item" onclick="switchPage('logs')" id="nav-logs">
+            <img src="icons/logs.png" class="nav-icon" alt="Logs"> 消息日志
+          </div>
+        </nav>
+      </aside>
+      <main class="content">
+        <div class="container">
+          <!-- Page: Dashboard (仪表盘) -->
+          <div id="page-dashboard" class="page-section active">
+            <!-- 统一控制面板 - 合并筛选和健康状态 -->
+            <section class="control-panel">
+              <!-- 装饰性光点 -->
+              <span class="decorative-dot"></span>
+              <span class="decorative-dot"></span>
+              <div class="control-panel-header">
+                <div class="control-panel-left">
+                  <div class="control-panel-title">系统控制</div>
+                  <div class="filters">
+                    <button class="active" data-range="today">本日</button>
+                    <button data-range="week">本周</button>
+                    <button data-range="month">本月</button>
+                  </div>
+                  <label class="toggle-switch">
+                    <span>🤖 智能回复</span>
+                    <input type="checkbox" id="aiReplyToggle" />
+                    <span class="status-text" id="aiReplyStatus">-</span>
+                  </label>
+                </div>
+                <div class="control-panel-right">
+                  <span class="health-panel-badge" id="overallHealthBadge">检查中...</span>
+                  <label class="auto-refresh">
+                    <input type="checkbox" id="autoRefresh" checked />
+                    自动刷新
+                  </label>
+                  <div class="last-update">
+                    <span class="status-indicator"></span>
+                    <span id="lastUpdate">-</span>
+                  </div>
+                </div>
+              </div>
+              <div class="health-grid">
+                <article class="health-item" id="overallHealthCard" data-state="loading">
+                  <div class="health-icon">🛰️</div>
+                  <div class="health-info">
+                    <div class="health-title">整体状态</div>
+                    <div class="health-status" id="overallHealthStatus">-</div>
+                    <div class="health-desc" id="overallHealthMessage">检查中...</div>
+                  </div>
+                </article>
+                <article class="health-item" id="modelHealthCard" data-state="loading">
+                  <div class="health-icon">🤖</div>
+                  <div class="health-info">
+                    <div class="health-title">AI 模型</div>
+                    <div class="health-status" id="modelHealthStatus">-</div>
+                    <div class="health-desc" id="modelHealthDetails">检查中...</div>
+                  </div>
+                </article>
+                <article class="health-item" id="toolHealthCard" data-state="loading">
+                  <div class="health-icon">🧰</div>
+                  <div class="health-info">
+                    <div class="health-title">工具服务</div>
+                    <div class="health-status" id="toolHealthStatus">-</div>
+                    <div class="health-desc" id="toolHealthDetails">检查中...</div>
+                  </div>
+                </article>
+              </div>
+            </section>
 
-      <section class="health-grid">
-        <article class="health-card" id="overallHealthCard" data-state="loading">
-          <div class="health-icon">🛰️</div>
-          <div>
-            <div class="health-title">整体状态</div>
-            <div class="health-status" id="overallHealthStatus">-</div>
-            <div class="health-desc" id="overallHealthMessage">检查中...</div>
-          </div>
-        </article>
-        <article class="health-card" id="modelHealthCard" data-state="loading">
-          <div class="health-icon">🤖</div>
-          <div>
-            <div class="health-title">AI 模型</div>
-            <div class="health-status" id="modelHealthStatus">-</div>
-            <div class="health-desc" id="modelHealthDetails">检查中...</div>
-          </div>
-        </article>
-        <article class="health-card" id="toolHealthCard" data-state="loading">
-          <div class="health-icon">🧰</div>
-          <div>
-            <div class="health-title">工具服务</div>
-            <div class="health-status" id="toolHealthStatus">-</div>
-            <div class="health-desc" id="toolHealthDetails">检查中...</div>
-          </div>
-        </article>
-      </section>
+            <!-- 核心指标 -->
+            <section class="metric-grid">
+              <article class="metric-card primary">
+                <div class="metric-label">
+                  消息总量
+                  <span class="time-range-badge" id="timeRangeBadge" style="font-size: 11px; opacity: 0.7;"></span>
+                </div>
+                <div class="metric-value" id="totalMessages">-</div>
+                <div class="metric-subtitle">成功 + 失败</div>
+                <div class="metric-delta" id="totalMessagesDelta">-</div>
+              </article>
+              <article class="metric-card success">
+                <div class="metric-label">成功率</div>
+                <div class="metric-value" id="successRate">-</div>
+                <div class="metric-subtitle" id="successCount">-</div>
+                <div class="metric-delta" id="successRateDelta">-</div>
+              </article>
+              <article class="metric-card">
+                <div class="metric-label">平均响应</div>
+                <div class="metric-value" id="avgDuration">-</div>
+                <div class="metric-subtitle">秒</div>
+                <div class="metric-delta" id="avgDurationDelta">-</div>
+              </article>
+              <article class="metric-card">
+                <div class="metric-label">活跃用户</div>
+                <div class="metric-value" id="activeUsers">-</div>
+                <div class="metric-subtitle" id="activeChats">-</div>
+                <div class="metric-delta" id="activeUsersDelta">-</div>
+              </article>
+              <article class="metric-card" style="border: 1px solid rgba(245, 158, 11, 0.3);">
+                <div class="metric-label">降级次数</div>
+                <div class="metric-value" id="fallbackCount">-</div>
+                <div class="metric-subtitle" id="fallbackRate">-</div>
+                <div class="metric-delta" id="fallbackDelta">-</div>
+              </article>
+            </section>
 
-      <section class="metric-grid">
-        <article class="metric-card primary">
-          <div class="metric-label">
-            消息总量
-            <span class="time-range-badge" id="timeRangeBadge" style="font-size: 11px; opacity: 0.7;"></span>
-          </div>
-          <div class="metric-value" id="totalMessages">-</div>
-          <div class="metric-subtitle">成功 + 失败</div>
-          <div class="metric-delta" id="totalMessagesDelta">-</div>
-        </article>
-        <article class="metric-card success">
-          <div class="metric-label">成功率</div>
-          <div class="metric-value" id="successRate">-</div>
-          <div class="metric-subtitle" id="successCount">-</div>
-          <div class="metric-delta" id="successRateDelta">-</div>
-        </article>
-        <article class="metric-card">
-          <div class="metric-label">平均响应</div>
-          <div class="metric-value" id="avgDuration">-</div>
-          <div class="metric-subtitle">秒</div>
-          <div class="metric-delta" id="avgDurationDelta">-</div>
-        </article>
-        <article class="metric-card">
-          <div class="metric-label">活跃用户</div>
-          <div class="metric-value" id="activeUsers">-</div>
-          <div class="metric-subtitle" id="activeChats">-</div>
-          <div class="metric-delta" id="activeUsersDelta">-</div>
-        </article>
-        <article class="metric-card" style="border: 1px solid rgba(245, 158, 11, 0.3);">
-          <div class="metric-label">降级次数</div>
-          <div class="metric-value" id="fallbackCount">-</div>
-          <div class="metric-subtitle" id="fallbackRate">-</div>
-          <div class="metric-delta" id="fallbackDelta">-</div>
-        </article>
-      </section>
+            <!-- 业务指标卡片 -->
+            <section class="metric-grid" style="grid-template-columns: repeat(3, 1fr);">
+              <article class="metric-card" style="border: 1px solid rgba(99, 102, 241, 0.3);">
+                <div class="metric-label">
+                  总咨询人数
+                  <span class="time-range-badge" id="businessTimeRangeBadge" style="font-size: 11px; opacity: 0.7;"></span>
+                </div>
+                <div class="metric-value" id="businessConsultationsTotal">-</div>
+                <div class="metric-subtitle">
+                  新增 <span id="businessConsultationsNew">-</span> 人
+                </div>
+                <div class="metric-delta" id="businessConsultationsDelta">-</div>
+              </article>
 
-      <!-- 业务指标区域 -->
-      <section class="business-metrics">
-        <div class="section-header" style="margin-bottom: 16px;">
-          <h3 style="font-size: 18px; font-weight: 600; color: var(--text-primary); display: flex; align-items: center; gap: 8px;">
-            <span>📊</span>
-            <span>业务指标</span>
-            <span class="time-range-badge" id="businessTimeRangeBadge" style="font-size: 11px; opacity: 0.7;"></span>
-          </h3>
-          <p style="font-size: 13px; color: var(--text-secondary); margin-top: 4px;">核心业务转化与用户行为洞察</p>
-        </div>
-        <div class="metric-grid" style="grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));">
-          <!-- 总咨询人数 -->
-          <article class="metric-card" style="border: 1px solid rgba(99, 102, 241, 0.3);">
-            <div class="metric-label">总咨询人数</div>
-            <div class="metric-value" id="businessConsultationsTotal">-</div>
-            <div class="metric-subtitle">
-              新增 <span id="businessConsultationsNew">-</span> 人
-            </div>
-            <div class="metric-delta" id="businessConsultationsDelta">-</div>
-          </article>
+              <article class="metric-card" style="border: 1px solid rgba(168, 85, 247, 0.3);">
+                <div class="metric-label">预约面试次数</div>
+                <div class="metric-value" id="businessBookingAttempts">-</div>
+                <div class="metric-subtitle">
+                  成功 <span id="businessBookingSuccessful" style="color: var(--success);">-</span> /
+                  失败 <span id="businessBookingFailed" style="color: var(--danger);">-</span>
+                </div>
+                <div class="metric-delta" id="businessBookingAttemptsDelta">-</div>
+              </article>
 
-          <!-- 预约面试人数 -->
-          <article class="metric-card" style="border: 1px solid rgba(168, 85, 247, 0.3);">
-            <div class="metric-label">预约面试次数</div>
-            <div class="metric-value" id="businessBookingAttempts">-</div>
-            <div class="metric-subtitle">
-              成功 <span id="businessBookingSuccessful" style="color: var(--success);">-</span> /
-              失败 <span id="businessBookingFailed" style="color: var(--danger);">-</span>
-            </div>
-            <div class="metric-delta" id="businessBookingAttemptsDelta">-</div>
-          </article>
+              <article class="metric-card success" style="border: 1px solid rgba(16, 185, 129, 0.3);">
+                <div class="metric-label">预约成功率</div>
+                <div class="metric-value" id="businessBookingSuccessRate">-</div>
+                <div class="metric-subtitle">
+                  咨询转化率 <span id="businessConversionRate">-</span>
+                </div>
+                <div class="metric-delta" id="businessBookingSuccessRateDelta">-</div>
+              </article>
+            </section>
 
-          <!-- 预约成功率 -->
-          <article class="metric-card success" style="border: 1px solid rgba(16, 185, 129, 0.3);">
-            <div class="metric-label">预约成功率</div>
-            <div class="metric-value" id="businessBookingSuccessRate">-</div>
-            <div class="metric-subtitle">
-              咨询转化率 <span id="businessConversionRate">-</span>
-            </div>
-            <div class="metric-delta" id="businessBookingSuccessRateDelta">-</div>
-          </article>
-        </div>
-      </section>
+            <!-- 趋势图表 -->
+            <section class="charts-row">
+              <div class="chart-card">
+                <div class="chart-header">
+                  <div>
+                    <h3>咨询人数趋势</h3>
+                    <p>活跃用户数量变化</p>
+                  </div>
+                </div>
+                <div class="chart-container">
+                  <canvas id="consultationsTrendChart"></canvas>
+                </div>
+              </div>
+              <div class="chart-card">
+                <div class="chart-header">
+                  <div>
+                    <h3>预约转化趋势</h3>
+                    <p>预约次数与成功率</p>
+                  </div>
+                </div>
+                <div class="chart-container">
+                  <canvas id="bookingTrendChart"></canvas>
+                </div>
+              </div>
+            </section>
 
-      <!-- 业务指标趋势 -->
-      <section class="charts-row">
-        <div class="chart-card">
-          <div class="chart-header">
-            <div>
-              <h3>咨询人数趋势</h3>
-              <p>活跃用户数量变化</p>
-            </div>
           </div>
-          <div class="chart-container">
-            <canvas id="consultationsTrendChart"></canvas>
-          </div>
-        </div>
-        <div class="chart-card">
-          <div class="chart-header">
-            <div>
-              <h3>预约转化趋势</h3>
-              <p>预约次数与成功率</p>
-            </div>
-          </div>
-          <div class="chart-container">
-            <canvas id="bookingTrendChart"></canvas>
-          </div>
-        </div>
-      </section>
 
-      <section class="charts-row">
-        <div class="chart-card">
-          <div class="chart-header">
-            <div>
-              <h3>响应耗时（秒）</h3>
-              <p>最近 <span id="chartRangeLabel">60</span> 分钟</p>
-            </div>
-            <div class="chart-kpi">
-              <span>当前平均耗时</span>
-              <strong id="responseChartAvg">-</strong>
-            </div>
-          </div>
-          <canvas id="responseTrendChart"></canvas>
-        </div>
-        <div class="chart-card">
-          <div class="chart-header">
-            <div>
-              <h3>告警量趋势</h3>
-              <p>最近 60 分钟</p>
-            </div>
-            <div class="chart-kpi">
-              <span>近5分钟告警</span>
-              <strong id="alertTrendRecent">-</strong>
-            </div>
-          </div>
-          <canvas id="alertTrendChart"></canvas>
-        </div>
-      </section>
+          <!-- Page: System (系统监控) -->
+          <div id="page-system" class="page-section">
+            <!-- 运维洞察 -->
+            <section class="insight-grid">
+              <article class="insight-card">
+                <div class="insight-title">排队与响应</div>
+                <div class="insight-metrics">
+                  <div>
+                    <span>实时处理中</span>
+                    <strong id="queueCurrent">-</strong>
+                  </div>
+                  <div>
+                    <span>峰值队列</span>
+                    <strong id="queuePeak">-</strong>
+                  </div>
+                  <div>
+                    <span>平均等待</span>
+                    <strong id="queueAvgWait">-</strong>
+                  </div>
+                </div>
+              </article>
+              <article class="insight-card">
+                <div class="insight-title">延迟分布</div>
+                <div class="percentiles">
+                  <div>
+                    <span>P50</span>
+                    <strong id="p50Duration">-</strong>
+                  </div>
+                  <div>
+                    <span>P95</span>
+                    <strong id="p95Duration">-</strong>
+                  </div>
+                  <div>
+                    <span>P99</span>
+                    <strong id="p99Duration">-</strong>
+                  </div>
+                </div>
+              </article>
+              <article class="insight-card">
+                <div class="insight-title">告警概览</div>
+                <div class="insight-metrics">
+                  <div>
+                    <span>累计</span>
+                    <strong id="alertTotal">-</strong>
+                  </div>
+                  <div>
+                    <span>近24小时</span>
+                    <strong id="alertRecent">-</strong>
+                  </div>
+                </div>
+              </article>
+              <article class="insight-card">
+                <div class="insight-title">告警类型分布</div>
+                <div id="alertTypeList" class="alert-type-list">
+                  <div class="loading" style="padding: 12px 0; font-size: 13px;">暂无数据</div>
+                </div>
+              </article>
+            </section>
 
-      <section class="insight-grid">
-        <article class="insight-card">
-          <div class="insight-title">排队与响应</div>
-          <div class="insight-metrics">
-            <div>
-              <span>实时处理中</span>
-              <strong id="queueCurrent">-</strong>
-            </div>
-            <div>
-              <span>峰值队列</span>
-              <strong id="queuePeak">-</strong>
-            </div>
-            <div>
-              <span>平均等待</span>
-              <strong id="queueAvgWait">-</strong>
-            </div>
-          </div>
-        </article>
-        <article class="insight-card">
-          <div class="insight-title">延迟分布</div>
-          <div class="percentiles">
-            <div>
-              <span>P50</span>
-              <strong id="p50Duration">-</strong>
-            </div>
-            <div>
-              <span>P95</span>
-              <strong id="p95Duration">-</strong>
-            </div>
-            <div>
-              <span>P99</span>
-              <strong id="p99Duration">-</strong>
-            </div>
-          </div>
-        </article>
-        <article class="insight-card">
-          <div class="insight-title">告警概览</div>
-          <div class="insight-metrics">
-            <div>
-              <span>累计</span>
-              <strong id="alertTotal">-</strong>
-            </div>
-            <div>
-              <span>近24小时</span>
-              <strong id="alertRecent">-</strong>
-            </div>
-          </div>
-        </article>
-        <article class="insight-card">
-          <div class="insight-title">告警类型分布</div>
-          <div id="alertTypeList" class="alert-type-list">
-            <div class="loading" style="padding: 12px 0; font-size: 13px;">暂无数据</div>
-          </div>
-        </article>
-      </section>
+            <!-- 每日趋势 -->
+            <section class="charts-row">
+              <div class="chart-card">
+                <div class="chart-header">
+                  <div>
+                    <h3>每日 Token 消耗</h3>
+                    <p>最近 7 天使用量</p>
+                  </div>
+                  <div class="chart-kpi">
+                    <span>今日消耗</span>
+                    <strong id="dailyTokenUsage">-</strong>
+                  </div>
+                </div>
+                <canvas id="dailyTokenChart"></canvas>
+              </div>
+              <div class="chart-card">
+                <div class="chart-header">
+                  <div>
+                    <h3>每日咨询人数</h3>
+                    <p>最近 7 天唯一用户</p>
+                  </div>
+                  <div class="chart-kpi">
+                    <span>今日人数</span>
+                    <strong id="dailyUserCount">-</strong>
+                  </div>
+                </div>
+                <canvas id="dailyUserChart"></canvas>
+              </div>
+            </section>
 
-      <section class="section">
-        <div class="section-header">
-          <h3>最慢记录 (Top 10)</h3>
-        </div>
-        <div class="table-wrapper">
-          <table>
-            <thead>
-              <tr>
-                <th>时间</th>
-                <th>用户</th>
-                <th>消息预览</th>
-                <th>总耗时</th>
-                <th>AI 耗时</th>
-                <th>回复条数</th>
-                <th>状态</th>
-              </tr>
-            </thead>
-            <tbody id="slowestRecords">
-              <tr>
-                <td colspan="7" class="loading">加载中</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </section>
+            <!-- 实时性能 -->
+            <section class="charts-row">
+              <div class="chart-card">
+                <div class="chart-header">
+                  <div>
+                    <h3>响应耗时</h3>
+                    <p>最近 <span id="chartRangeLabel">60</span> 分钟</p>
+                  </div>
+                  <div class="chart-kpi">
+                    <span>当前平均</span>
+                    <strong id="responseChartAvg">-</strong>
+                  </div>
+                </div>
+                <canvas id="responseTrendChart"></canvas>
+              </div>
+              <div class="chart-card">
+                <div class="chart-header">
+                  <div>
+                    <h3>告警趋势</h3>
+                    <p>最近 60 分钟</p>
+                  </div>
+                  <div class="chart-kpi">
+                    <span>近5分钟</span>
+                    <strong id="alertTrendRecent">-</strong>
+                  </div>
+                </div>
+                <canvas id="alertTrendChart"></canvas>
+              </div>
+            </section>
 
-      <section class="section">
-        <div class="section-header">
-          <h3>实时消息（最新 50 条）</h3>
-        </div>
-        <div class="table-wrapper">
-          <table>
-            <thead>
-              <tr>
-                <th>时间</th>
-                <th>用户</th>
-                <th>用户消息</th>
-                <th>回复预览</th>
-                <th>总耗时</th>
-                <th>状态</th>
-              </tr>
-            </thead>
-            <tbody id="recentMessages">
-              <tr>
-                <td colspan="6" class="loading">加载中</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </section>
+            <!-- 最慢记录 -->
+            <section class="section">
+              <div class="section-header">
+                <h3>最慢记录 (Top 10)</h3>
+              </div>
+              <div class="table-wrapper">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>时间</th>
+                      <th>用户</th>
+                      <th>消息预览</th>
+                      <th>总耗时</th>
+                      <th>AI 耗时</th>
+                      <th>回复条数</th>
+                      <th>状态</th>
+                    </tr>
+                  </thead>
+                  <tbody id="slowestRecords">
+                    <tr>
+                      <td colspan="7" class="loading">加载中</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          </div>
 
-      <div class="page-footnote">
-        <button class="btn btn-ghost danger-link" type="button" onclick="clearData()">清空监控数据</button>
-        <span>仅在需要重置统计时使用</span>
-      </div>
+          <!-- Page: Users (用户管理) -->
+          <div id="page-users" class="page-section">
+            <!-- 用户列表 -->
+            <section class="section">
+              <div class="section-header">
+                <h3>今日咨询用户 <span id="todayUserCount" style="font-size: 14px; color: var(--text-secondary); font-weight: normal;">(0 人)</span></h3>
+              </div>
+              <div class="table-wrapper">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>用户</th>
+                      <th>会话</th>
+                      <th>消息数</th>
+                      <th>Token 消耗</th>
+                      <th>首次活跃</th>
+                      <th>最后活跃</th>
+                      <th>托管状态</th>
+                    </tr>
+                  </thead>
+                  <tbody id="todayUsersList">
+                    <tr>
+                      <td colspan="7" class="loading">加载中</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          </div>
+
+          <!-- Page: Logs (消息日志) -->
+          <div id="page-logs" class="page-section">
+            <!-- 实时消息 -->
+            <section class="section">
+              <div class="section-header">
+                <h3>实时消息 <span id="recentMessagesTotal" style="font-size: 14px; color: var(--text-secondary); font-weight: normal;">(0 条)</span></h3>
+              </div>
+              <div class="table-wrapper">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>时间</th>
+                      <th>用户</th>
+                      <th>用户消息</th>
+                      <th>回复预览</th>
+                      <th>总耗时</th>
+                      <th>状态</th>
+                    </tr>
+                  </thead>
+                  <tbody id="recentMessages">
+                    <tr>
+                      <td colspan="6" class="loading">加载中</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <!-- 分页控件 -->
+              <div class="pagination" id="recentMessagesPagination">
+                <div class="pagination-info">
+                  显示 <span id="paginationStart">0</span>-<span id="paginationEnd">0</span> 条，共 <span id="paginationTotal">0</span> 条
+                </div>
+                <div class="pagination-controls">
+                  <select class="page-size-select" id="pageSizeSelect" onchange="changePageSize()">
+                    <option value="10" selected>10 条/页</option>
+                    <option value="20">20 条/页</option>
+                    <option value="50">50 条/页</option>
+                    <option value="100">100 条/页</option>
+                  </select>
+                  <button class="pagination-btn" onclick="goToPage(1)" id="paginationFirst">首页</button>
+                  <button class="pagination-btn" onclick="goToPage(currentPage - 1)" id="paginationPrev">上一页</button>
+                  <div class="pagination-pages" id="paginationPages"></div>
+                  <button class="pagination-btn" onclick="goToPage(currentPage + 1)" id="paginationNext">下一页</button>
+                  <button class="pagination-btn" onclick="goToPage(totalPages)" id="paginationLast">末页</button>
+                </div>
+              </div>
+            </section>
+          </div>
+
+          <div class="page-footnote">
+            <button class="btn btn-ghost danger-link" type="button" onclick="clearData()">清空监控数据</button>
+            <span>仅在需要重置统计时使用</span>
+          </div>
+        </div>
+      </main>
     </div>
 
     <script>
@@ -1010,9 +1713,40 @@
       let alertTrendChart = null;
       let consultationsTrendChart = null;
       let bookingTrendChart = null;
+      let dailyTokenChart = null;
+      let dailyUserChart = null;
       let cachedDashboard = null;
       let cachedMetrics = null;
       let currentTimeRange = 'today';
+      let pausedUsersCache = new Set();
+
+      // 分页相关变量
+      let allRecentMessages = [];
+      let currentPage = 1;
+      let pageSize = 10;
+      let totalPages = 1;
+
+      function switchPage(pageId) {
+        // Update Menu
+        document.querySelectorAll('.nav-item').forEach(el => {
+          el.classList.remove('active');
+        });
+        const navItem = document.getElementById(`nav-${pageId}`);
+        if (navItem) navItem.classList.add('active');
+
+        // Update Page
+        document.querySelectorAll('.page-section').forEach(el => {
+          el.classList.remove('active');
+        });
+        const pageSection = document.getElementById(`page-${pageId}`);
+        if (pageSection) pageSection.classList.add('active');
+
+        // Trigger chart resize
+        setTimeout(() => {
+          window.dispatchEvent(new Event('resize'));
+        }, 50);
+      }
+
       const unwrapResponse = (payload) => {
         let current = payload;
         while (current && typeof current === 'object' && 'data' in current) {
@@ -1028,6 +1762,9 @@
         setupTimeRangeFilters();
         refreshAll();
         loadAiReplyStatus();
+
+        // 默认显示仪表盘页面
+        switchPage('dashboard');
       });
 
       async function refreshAll() {
@@ -1146,6 +1883,8 @@
         updateSlowestTable(metrics.slowestRecords);
         updateRecentMessages(dashboard.recentMessages);
         updateCharts(dashboard);
+        updateDailyCharts(dashboard.dailyTrend);
+        updateTodayUsersList(dashboard.todayUsers);
       }
 
       function updateOverview(data) {
@@ -1314,13 +2053,47 @@
       }
 
       function updateRecentMessages(records) {
+        // 存储所有记录用于分页
+        allRecentMessages = records || [];
+
+        // 更新总数显示
+        document.getElementById('recentMessagesTotal').textContent = `(${allRecentMessages.length} 条)`;
+
+        // 计算新的总页数
+        const newTotalPages = allRecentMessages.length > 0
+          ? Math.ceil(allRecentMessages.length / pageSize)
+          : 1;
+
+        // 如果当前页超出范围，调整到最后一页
+        if (currentPage > newTotalPages) {
+          currentPage = newTotalPages;
+        }
+
+        // 保持当前页码，不重置
+        renderCurrentPage();
+      }
+
+      function renderCurrentPage() {
         const tbody = document.getElementById('recentMessages');
         tbody.innerHTML = '';
-        if (!records || records.length === 0) {
+
+        if (!allRecentMessages || allRecentMessages.length === 0) {
           tbody.innerHTML = '<tr><td colspan="6" class="loading">暂无数据</td></tr>';
+          updatePaginationUI(0, 0, 0);
           return;
         }
-        records.forEach((record) => {
+
+        // 计算分页
+        totalPages = Math.ceil(allRecentMessages.length / pageSize);
+        currentPage = Math.min(currentPage, totalPages);
+        currentPage = Math.max(currentPage, 1);
+
+        const startIndex = (currentPage - 1) * pageSize;
+        const endIndex = Math.min(startIndex + pageSize, allRecentMessages.length);
+        const pageRecords = allRecentMessages.slice(startIndex, endIndex);
+
+        // 渲染当前页数据
+        pageRecords.forEach((record) => {
           const row = document.createElement('tr');
           row.innerHTML = `
             <td>${formatTime(record.receivedAt)}</td>
@@ -1338,140 +2111,210 @@
           `;
           tbody.appendChild(row);
         });
+
+        // 更新分页 UI
+        updatePaginationUI(startIndex + 1, endIndex, allRecentMessages.length);
+      }
+
+      function updatePaginationUI(start, end, total) {
+        document.getElementById('paginationStart').textContent = total > 0 ? start : 0;
+        document.getElementById('paginationEnd').textContent = end;
+        document.getElementById('paginationTotal').textContent = total;
+
+        // 更新按钮状态
+        document.getElementById('paginationFirst').disabled = currentPage <= 1;
+        document.getElementById('paginationPrev').disabled = currentPage <= 1;
+        document.getElementById('paginationNext').disabled = currentPage >= totalPages;
+        document.getElementById('paginationLast').disabled = currentPage >= totalPages;
+
+        // 渲染页码按钮
+        renderPageNumbers();
+      }
+
+      function renderPageNumbers() {
+        const container = document.getElementById('paginationPages');
+        container.innerHTML = '';
+
+        if (totalPages <= 1) return;
+
+        // 显示最多 5 个页码按钮
+        let startPage = Math.max(1, currentPage - 2);
+        let endPage = Math.min(totalPages, startPage + 4);
+
+        if (endPage - startPage < 4) {
+          startPage = Math.max(1, endPage - 4);
+        }
+
+        for (let i = startPage; i <= endPage; i++) {
+          const btn = document.createElement('button');
+          btn.className = `pagination-page ${i === currentPage ? 'active' : ''}`;
+          btn.textContent = i;
+          btn.onclick = () => goToPage(i);
+          container.appendChild(btn);
+        }
+      }
+
+      function goToPage(page) {
+        // 确保 totalPages 已计算
+        if (allRecentMessages.length > 0) {
+          totalPages = Math.ceil(allRecentMessages.length / pageSize);
+        }
+        if (page < 1 || page > totalPages || page === currentPage) return;
+        currentPage = page;
+        renderCurrentPage();
+      }
+
+      function changePageSize() {
+        const select = document.getElementById('pageSizeSelect');
+        pageSize = parseInt(select.value, 10);
+        currentPage = 1;
+        renderCurrentPage();
+      }
+
+      function createGradient(ctx, colorStart, colorEnd) {
+        const gradient = ctx.createLinearGradient(0, 0, 0, 400);
+        gradient.addColorStop(0, colorStart);
+        gradient.addColorStop(1, colorEnd);
+        return gradient;
       }
 
       function initCharts() {
+        Chart.defaults.font.family = "'Inter', system-ui, -apple-system, sans-serif";
+        Chart.defaults.color = '#64748b'; // Darker text for light mode
+        Chart.defaults.scale.grid.color = 'rgba(0, 0, 0, 0.05)'; // Darker grid lines
+        Chart.defaults.scale.grid.borderColor = 'transparent';
+
+        const commonOptions = {
+          responsive: true,
+          maintainAspectRatio: false,
+          interaction: {
+            mode: 'index',
+            intersect: false,
+          },
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              backgroundColor: 'rgba(255, 255, 255, 0.95)', // Light tooltip
+              titleColor: '#1e293b', // Dark title
+              bodyColor: '#475569', // Dark body
+              borderColor: 'rgba(148, 163, 184, 0.2)',
+              borderWidth: 1,
+              padding: 12,
+              cornerRadius: 8,
+              displayColors: false,
+              callbacks: {
+                label: (context) => `${context.dataset.label}: ${context.parsed.y}`
+              }
+            }
+          },
+          scales: {
+            x: {
+              grid: { display: false },
+              ticks: { color: '#94a3b8', font: { size: 11 } },
+            },
+            y: {
+              beginAtZero: true,
+              border: { display: false },
+              grid: { color: 'rgba(0, 0, 0, 0.03)' },
+              ticks: { color: '#94a3b8', font: { size: 11 }, padding: 10 },
+            },
+          },
+          elements: {
+            line: { tension: 0.4, borderWidth: 3 },
+            point: { radius: 0, hoverRadius: 6, borderWidth: 2, hoverBorderWidth: 3 }
+          }
+        };
+
+        // 响应耗时趋势图表
         const responseCtx = document.getElementById('responseTrendChart').getContext('2d');
+        const responseGradient = createGradient(responseCtx, 'rgba(59, 130, 246, 0.2)', 'rgba(59, 130, 246, 0)');
+        
         responseTrendChart = new Chart(responseCtx, {
           type: 'line',
           data: {
             labels: [],
-            datasets: [
-              {
-                label: '平均耗时 (秒)',
-                data: [],
-                borderColor: '#3b82f6',
-                backgroundColor: 'rgba(59, 130, 246, 0.15)',
-                fill: true,
-                tension: 0.35,
-                borderWidth: 2,
-                pointRadius: 0,
-              },
-            ],
+            datasets: [{
+              label: '平均耗时 (秒)',
+              data: [],
+              borderColor: '#60a5fa',
+              backgroundColor: responseGradient,
+              fill: true,
+              pointBackgroundColor: '#1e293b',
+              pointBorderColor: '#60a5fa',
+            }],
           },
           options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-              legend: { display: false },
-            },
+            ...commonOptions,
             scales: {
-              x: {
-                grid: { display: false },
-                ticks: { color: '#94a3b8' },
-              },
+              ...commonOptions.scales,
               y: {
-                beginAtZero: true,
-                grid: { color: 'rgba(255, 255, 255, 0.05)' },
-                ticks: {
-                  color: '#94a3b8',
-                  callback: (value) => `${value.toFixed(2)} 秒`,
-                },
-              },
-            },
-          },
+                ...commonOptions.scales.y,
+                ticks: { callback: (value) => `${value.toFixed(1)}s` }
+              }
+            }
+          }
         });
 
+        // 告警趋势图表
         const alertCtx = document.getElementById('alertTrendChart').getContext('2d');
         alertTrendChart = new Chart(alertCtx, {
           type: 'bar',
           data: {
             labels: [],
-            datasets: [
-              {
-                label: '告警次数',
-                data: [],
-                backgroundColor: 'rgba(239, 68, 68, 0.6)',
-                borderRadius: 8,
-              },
-            ],
+            datasets: [{
+              label: '告警次数',
+              data: [],
+              backgroundColor: '#f87171',
+              borderRadius: 4,
+              hoverBackgroundColor: '#ef4444',
+            }],
           },
           options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-              legend: { display: false },
-            },
+            ...commonOptions,
             scales: {
-              x: {
-                grid: { display: false },
-                ticks: { color: '#94a3b8' },
-              },
+              ...commonOptions.scales,
               y: {
-                beginAtZero: true,
-                grid: { color: 'rgba(255, 255, 255, 0.05)' },
-                ticks: {
-                  color: '#94a3b8',
-                  stepSize: 1,
-                  precision: 0,
-                },
-              },
-            },
-          },
+                ...commonOptions.scales.y,
+                ticks: { stepSize: 1, precision: 0 }
+              }
+            }
+          }
         });
 
         // 咨询人数趋势图表
         const consultationsCtx = document.getElementById('consultationsTrendChart').getContext('2d');
+        const consultGradient = createGradient(consultationsCtx, 'rgba(139, 92, 246, 0.2)', 'rgba(139, 92, 246, 0)');
+
         consultationsTrendChart = new Chart(consultationsCtx, {
           type: 'line',
           data: {
             labels: [],
-            datasets: [
-              {
-                label: '咨询人数',
-                data: [],
-                borderColor: 'rgb(99, 102, 241)',
-                backgroundColor: 'rgba(99, 102, 241, 0.15)',
-                fill: true,
-                tension: 0.35,
-                borderWidth: 2,
-                pointRadius: 3,
-                pointHoverRadius: 5,
-              },
-            ],
+            datasets: [{
+              label: '咨询人数',
+              data: [],
+              borderColor: '#a78bfa',
+              backgroundColor: consultGradient,
+              fill: true,
+              pointBackgroundColor: '#1e293b',
+              pointBorderColor: '#a78bfa',
+            }],
           },
           options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-              legend: { display: false },
-              tooltip: {
-                callbacks: {
-                  label: (context) => `咨询人数: ${context.parsed.y} 人`,
-                },
-              },
-            },
+            ...commonOptions,
             scales: {
-              x: {
-                grid: { display: false },
-                ticks: { color: '#94a3b8' },
-              },
+              ...commonOptions.scales,
               y: {
-                beginAtZero: true,
-                grid: { color: 'rgba(255, 255, 255, 0.05)' },
-                ticks: {
-                  color: '#94a3b8',
-                  stepSize: 1,
-                  precision: 0,
-                  callback: (value) => `${Math.round(value)} 人`,
-                },
-              },
-            },
-          },
+                ...commonOptions.scales.y,
+                ticks: { stepSize: 1, precision: 0 }
+              }
+            }
+          }
         });
 
         // 预约转化趋势图表（双轴）
         const bookingCtx = document.getElementById('bookingTrendChart').getContext('2d');
+        const bookingGradient = createGradient(bookingCtx, 'rgba(236, 72, 153, 0.2)', 'rgba(236, 72, 153, 0)');
+
         bookingTrendChart = new Chart(bookingCtx, {
           type: 'line',
           data: {
@@ -1480,97 +2323,107 @@
               {
                 label: '预约次数',
                 data: [],
-                borderColor: 'rgb(168, 85, 247)',
-                backgroundColor: 'rgba(168, 85, 247, 0.15)',
+                borderColor: '#f472b6',
+                backgroundColor: bookingGradient,
                 fill: true,
-                tension: 0.35,
-                borderWidth: 2,
-                pointRadius: 3,
-                pointHoverRadius: 5,
                 yAxisID: 'y',
+                pointBackgroundColor: '#1e293b',
+                pointBorderColor: '#f472b6',
               },
               {
                 label: '预约成功率',
                 data: [],
-                borderColor: 'rgb(16, 185, 129)',
-                backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                borderColor: '#34d399',
+                backgroundColor: 'transparent',
+                borderDash: [5, 5],
                 fill: false,
-                tension: 0.35,
-                borderWidth: 2,
-                pointRadius: 3,
-                pointHoverRadius: 5,
                 yAxisID: 'y1',
+                pointBackgroundColor: '#1e293b',
+                pointBorderColor: '#34d399',
               },
             ],
           },
           options: {
-            responsive: true,
-            maintainAspectRatio: false,
+            ...commonOptions,
             plugins: {
+              ...commonOptions.plugins,
               legend: {
                 display: true,
-                position: 'top',
-                labels: {
-                  color: '#94a3b8',
-                  usePointStyle: true,
-                  padding: 15,
-                },
-              },
-              tooltip: {
-                callbacks: {
-                  label: (context) => {
-                    const label = context.dataset.label || '';
-                    const value = context.parsed.y;
-                    if (label.includes('成功率')) {
-                      return `${label}: ${value.toFixed(1)}%`;
-                    }
-                    return `${label}: ${value} 次`;
-                  },
-                },
-              },
+                labels: { color: '#94a3b8', usePointStyle: true, boxWidth: 8 }
+              }
             },
             scales: {
-              x: {
-                grid: { display: false },
-                ticks: { color: '#94a3b8' },
-              },
+              x: commonOptions.scales.x,
               y: {
-                type: 'linear',
-                display: true,
+                ...commonOptions.scales.y,
                 position: 'left',
-                beginAtZero: true,
-                grid: { color: 'rgba(255, 255, 255, 0.05)' },
-                ticks: {
-                  color: '#94a3b8',
-                  stepSize: 1,
-                  precision: 0,
-                  callback: (value) => `${Math.round(value)} 次`,
-                },
-                title: {
-                  display: true,
-                  text: '预约次数',
-                  color: 'rgb(168, 85, 247)',
-                },
+                title: { display: true, text: '预约次数', color: '#f472b6', font: {size: 10} }
               },
               y1: {
-                type: 'linear',
-                display: true,
+                ...commonOptions.scales.y,
                 position: 'right',
-                beginAtZero: true,
-                max: 100,
                 grid: { drawOnChartArea: false },
-                ticks: {
-                  color: '#94a3b8',
-                  callback: (value) => `${value}%`,
-                },
-                title: {
-                  display: true,
-                  text: '成功率 (%)',
-                  color: 'rgb(16, 185, 129)',
-                },
+                title: { display: true, text: '成功率 (%)', color: '#34d399', font: {size: 10} },
+                ticks: { callback: (value) => `${value}%` }
               },
             },
           },
+        });
+
+        // 每日 Token 消耗趋势图表
+        const dailyTokenCtx = document.getElementById('dailyTokenChart').getContext('2d');
+        dailyTokenChart = new Chart(dailyTokenCtx, {
+          type: 'bar',
+          data: {
+            labels: [],
+            datasets: [{
+              label: 'Token 消耗',
+              data: [],
+              backgroundColor: '#fbbf24',
+              borderRadius: 4,
+              hoverBackgroundColor: '#f59e0b',
+            }],
+          },
+          options: {
+            ...commonOptions,
+            scales: {
+              ...commonOptions.scales,
+              y: {
+                ...commonOptions.scales.y,
+                ticks: { callback: (value) => value >= 1000 ? `${(value / 1000).toFixed(1)}k` : value }
+              }
+            }
+          }
+        });
+
+        // 每日用户数趋势图表
+        const dailyUserCtx = document.getElementById('dailyUserChart').getContext('2d');
+        const userGradient = createGradient(dailyUserCtx, 'rgba(59, 130, 246, 0.2)', 'rgba(59, 130, 246, 0)');
+
+        dailyUserChart = new Chart(dailyUserCtx, {
+          type: 'line',
+          data: {
+            labels: [],
+            datasets: [{
+              label: '咨询人数',
+              data: [],
+              borderColor: '#60a5fa',
+              backgroundColor: userGradient,
+              fill: true,
+              pointBackgroundColor: '#1e293b',
+              pointBorderColor: '#60a5fa',
+            }],
+          },
+          options: {
+            ...commonOptions,
+            scales: {
+              ...commonOptions.scales,
+              y: {
+                ...commonOptions.scales.y,
+                ticks: { stepSize: 1, precision: 0 }
+              }
+            }
+          }
         });
       }
 
@@ -1633,6 +2486,105 @@
         bookingTrendChart.update();
       }
 
+      function updateDailyCharts(dailyTrend) {
+        if (!dailyTrend || dailyTrend.length === 0) {
+          document.getElementById('dailyTokenUsage').textContent = '-';
+          document.getElementById('dailyUserCount').textContent = '-';
+          return;
+        }
+
+        // 格式化日期标签为 MM-DD
+        const labels = dailyTrend.map(day => {
+          const date = day.date;
+          return date.substring(5); // "2025-11-21" -> "11-21"
+        });
+
+        // 更新 Token 消耗图表
+        dailyTokenChart.data.labels = labels;
+        dailyTokenChart.data.datasets[0].data = dailyTrend.map(day => day.tokenUsage);
+        dailyTokenChart.update();
+
+        // 更新用户数图表
+        dailyUserChart.data.labels = labels;
+        dailyUserChart.data.datasets[0].data = dailyTrend.map(day => day.uniqueUsers);
+        dailyUserChart.update();
+
+        // 更新 KPI 显示（今日数据）
+        const today = dailyTrend[dailyTrend.length - 1];
+        document.getElementById('dailyTokenUsage').textContent =
+          today.tokenUsage >= 1000
+            ? `${(today.tokenUsage / 1000).toFixed(1)}k`
+            : today.tokenUsage.toLocaleString();
+        document.getElementById('dailyUserCount').textContent = `${today.uniqueUsers} 人`;
+      }
+
+      function updateTodayUsersList(users) {
+        const tbody = document.getElementById('todayUsersList');
+        const countSpan = document.getElementById('todayUserCount');
+
+        if (!users || users.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="7" class="loading">暂无今日咨询用户</td></tr>';
+          countSpan.textContent = '(0 人)';
+          return;
+        }
+
+        countSpan.textContent = `(${users.length} 人)`;
+
+        tbody.innerHTML = users.map(user => {
+          const isPaused = user.isPaused;
+          const statusBadge = isPaused
+            ? '<span class="status-badge warning">已暂停</span>'
+            : '<span class="status-badge success">托管中</span>';
+          const toggleBtn = isPaused
+            ? `<button class="btn btn-ghost" style="padding: 4px 8px; font-size: 11px;" onclick="toggleUserHosting('${user.chatId}', false)">恢复</button>`
+            : `<button class="btn btn-ghost" style="padding: 4px 8px; font-size: 11px; color: var(--warning);" onclick="toggleUserHosting('${user.chatId}', true)">暂停</button>`;
+
+          // 显示小组信息（如果有）
+          const groupInfo = user.groupName ? `<br><span style="font-size: 11px; color: var(--text-muted);">${user.groupName}</span>` : '';
+
+          return `
+            <tr>
+              <td>
+                <strong>${user.odName || user.odId}</strong>
+                ${groupInfo}
+              </td>
+              <td style="font-size: 11px; color: var(--text-muted);">${user.chatId.substring(0, 8)}...</td>
+              <td>${user.messageCount}</td>
+              <td>${user.tokenUsage >= 1000 ? `${(user.tokenUsage / 1000).toFixed(1)}k` : user.tokenUsage}</td>
+              <td>${formatTime(user.firstActiveAt)}</td>
+              <td>${formatTime(user.lastActiveAt)}</td>
+              <td>
+                ${statusBadge}
+                ${toggleBtn}
+              </td>
+            </tr>
+          `;
+        }).join('');
+      }
+
+      async function toggleUserHosting(userId, pause) {
+        try {
+          const action = pause ? 'pause' : 'resume';
+          const response = await fetch(`/monitoring/users/${encodeURIComponent(userId)}/${action}`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+          });
+
+          const result = await response.json();
+          const data = unwrapResponse(result);
+
+          if (data) {
+            // 刷新仪表盘以更新用户状态
+            await refreshDashboard();
+            console.log(data.message);
+          }
+        } catch (error) {
+          console.error('切换用户托管状态失败', error);
+        }
+      }
+
       async function refreshHealthStatus() {
         try {
           const response = await fetch('/agent/health');
@@ -1665,8 +2617,33 @@
             health.tools?.message || '工具链检查中',
           );
 
+          // 更新顶部健康状态徽章
+          const badge = document.getElementById('overallHealthBadge');
+          if (badge) {
+            const isHealthy = health.status === 'healthy';
+            const isModelOk = health.models?.status === 'available';
+            const isToolOk = health.tools?.status === 'healthy';
+
+            if (isHealthy && isModelOk && isToolOk) {
+              badge.textContent = '全部正常';
+              badge.className = 'health-panel-badge';
+            } else if (!isHealthy) {
+              badge.textContent = '服务异常';
+              badge.className = 'health-panel-badge error';
+            } else {
+              badge.textContent = '部分异常';
+              badge.className = 'health-panel-badge warning';
+            }
+          }
+
         } catch (error) {
           console.error('获取健康状态失败', error);
+          // 更新徽章为错误状态
+          const badge = document.getElementById('overallHealthBadge');
+          if (badge) {
+            badge.textContent = '检查失败';
+            badge.className = 'health-panel-badge error';
+          }
         }
       }
 

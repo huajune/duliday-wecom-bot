@@ -64,6 +64,34 @@ export interface AlertTrendPoint {
   count: number;
 }
 
+/**
+ * 每日统计数据
+ */
+export interface DailyStats {
+  date: string; // "2025-11-21"
+  tokenUsage: number; // 当日 token 消耗
+  uniqueUsers: number; // 当日咨询人头数（去重）
+  messageCount: number; // 消息数
+  successCount: number; // 成功数
+  avgDuration: number; // 平均响应时间
+}
+
+/**
+ * 今日咨询用户
+ */
+export interface TodayUser {
+  odId: string;
+  odName: string;
+  groupId?: string; // 小组 ID（可选）
+  groupName?: string; // 小组名称（可选）
+  chatId: string;
+  messageCount: number;
+  tokenUsage: number;
+  firstActiveAt: number; // 首次活跃时间
+  lastActiveAt: number; // 最后活跃时间
+  isPaused: boolean; // 是否暂停托管
+}
+
 export interface BusinessMetricTrendPoint {
   minute: string;
   consultations: number; // 咨询人数
@@ -241,6 +269,12 @@ export interface DashboardData {
   responseTrend: ResponseMinuteTrendPoint[];
   alertTrend: AlertTrendPoint[];
   businessTrend: BusinessMetricTrendPoint[];
+
+  // 每日统计趋势
+  dailyTrend: DailyStats[];
+
+  // 今日用户列表
+  todayUsers: TodayUser[];
 
   // 最近消息（最新50条）
   recentMessages: MessageProcessingRecord[];

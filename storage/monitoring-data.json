@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "savedAt": 1763534496102,
+  "savedAt": 1763702000218,
   "detailRecords": [
     {
       "messageId": "f959b7ad4a382d052b7352fc391d07f4",
@@ -1025,40 +1025,6 @@
     }
   ],
   "hourlyStats": [
-    {
-      "hour": "2025-11-17T07:00:00.000Z",
-      "messageCount": 2,
-      "successCount": 1,
-      "failureCount": 1,
-      "successRate": 50,
-      "avgDuration": 15921.5,
-      "minDuration": 12027,
-      "maxDuration": 19816,
-      "p50Duration": 12027,
-      "p95Duration": 19816,
-      "p99Duration": 19816,
-      "avgAiDuration": 7546.5,
-      "avgSendDuration": 0,
-      "activeUsers": 2,
-      "activeChats": 2
-    },
-    {
-      "hour": "2025-11-17T08:00:00.000Z",
-      "messageCount": 25,
-      "successCount": 18,
-      "failureCount": 7,
-      "successRate": 72,
-      "avgDuration": 21410.44,
-      "minDuration": 9581,
-      "maxDuration": 41902,
-      "p50Duration": 20999,
-      "p95Duration": 38985,
-      "p99Duration": 41902,
-      "avgAiDuration": 9933.54,
-      "avgSendDuration": 0,
-      "activeUsers": 8,
-      "activeChats": 9
-    },
     {
       "hour": "2025-11-19T04:00:00.000Z",
       "messageCount": 3,

@@ -14,6 +14,7 @@ import { EnterpriseMessageCallbackDto } from './dto/message-callback.dto';
 // 导入新的子服务
 import { MessageHistoryService } from './services/message-history.service';
 import { MessageFilterService } from './services/message-filter.service';
+import { MessageMergeService } from './services/message-merge.service';
 
 // 导入工具类
 import { MessageParser } from './utils/message-parser.util';
@@ -38,14 +39,16 @@ export class MessageProcessor {
     // 注入新的子服务
     private readonly historyService: MessageHistoryService,
     private readonly filterService: MessageFilterService,
+    private readonly mergeService: MessageMergeService,
   ) {
-    this.logger.log('MessageProcessor 已初始化（重构版，使用共享服务）');
+    this.logger.log('MessageProcessor 已初始化（Bull Queue 模式，并发数: 3）');
   }
 
   /**
    * 处理消息聚合任务
+   * 设置并发数为 3，限制同时处理的 Agent API 调用数量
    */
-  @Process('merge')
+  @Process({ name: 'merge', concurrency: 3 })
   async handleMessageMerge(job: Job<{ messages: EnterpriseMessageCallbackDto[] }>) {
     const { messages } = job.data;
 
@@ -74,6 +77,8 @@ export class MessageProcessor {
 
       if (validMessages.length === 0) {
         this.logger.debug(`[Bull] 任务 ${job.id} 没有有效内容`);
+        // 检查是否有在处理期间到达的新消息（不直接重置，避免丢失待处理消息）
+        await this.mergeService.onAgentResponseReceived(chatId);
         return;
       }
 
@@ -90,8 +95,20 @@ export class MessageProcessor {
 
       // 更新任务进度
       await job.progress(100);
+
+      // 检查是否有在处理期间到达的新消息
+      // onAgentResponseReceived 会检查并自动添加新任务到队列
+      await this.mergeService.onAgentResponseReceived(chatId);
     } catch (error) {
       this.logger.error(`[Bull] 任务 ${job.id} 处理失败: ${error.message}`);
+      // 检查是否有在处理期间到达的新消息
+      // 如果有，将它们重新入队，避免丢失
+      const hasNewMessages = await this.mergeService.requeuePendingMessagesOnFailure(chatId);
+      if (hasNewMessages) {
+        this.logger.log(`[Bull] 已将处理期间收到的新消息重新入队`);
+      }
+      // 重置会话状态
+      await this.mergeService.resetToIdle(chatId);
       throw error; // 抛出错误触发重试
     }
   }
@@ -132,11 +149,11 @@ export class MessageProcessor {
       }
 
       // 获取会话历史消息（复用 HistoryService）
-      const historyMessages = this.historyService.getHistory(chatId);
+      const historyMessages = await this.historyService.getHistory(chatId);
       this.logger.debug(`[Bull] 使用历史消息: ${historyMessages.length} 条`);
 
       // 添加当前用户消息到历史（复用 HistoryService）
-      this.historyService.addMessageToHistory(chatId, 'user', mergedContent);
+      await this.historyService.addMessageToHistory(chatId, 'user', mergedContent);
 
       // 调用 Agent API 生成回复
       const agentResult = await this.agentService.chat({
@@ -170,8 +187,7 @@ export class MessageProcessor {
       // 提取回复内容
       const replyContent = this.extractReplyContent(aiResponse);
 
-      // 将 AI 回复添加到历史记录（复用 HistoryService）
-      this.historyService.addMessageToHistory(chatId, 'assistant', replyContent);
+      // 注意：assistant 消息历史由 isSelf=true 的回调存储，这里不再重复存储
 
       // 记录 token 使用情况
       const tokenInfo = aiResponse.usage ? `tokens=${aiResponse.usage.totalTokens}` : 'tokens=N/A';

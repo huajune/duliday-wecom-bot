@@ -30,9 +30,7 @@ export class MessageStatisticsService {
       processingCount,
       maxConcurrentProcessing,
       dedupeCache: this.deduplicationService.getStats(),
-      historyCache: {
-        conversationCount: this.historyService.getStats().totalConversations,
-      },
+      historyCache: this.historyService.getStats(),
       aiReplyEnabled: enableAiReply,
       messageMergeEnabled: enableMessageMerge,
       messageSplitSendEnabled: enableMessageSplitSend,
@@ -44,12 +42,16 @@ export class MessageStatisticsService {
    * 用于深度监控和分析
    */
   getCacheStats(processingCount: number, maxConcurrentProcessing: number) {
+    // 避免除零错误：如果 maxConcurrentProcessing 为 0，则利用率显示为 0%
+    const utilizationPercent =
+      maxConcurrentProcessing > 0 ? (processingCount / maxConcurrentProcessing) * 100 : 0;
+
     return {
       timestamp: new Date().toISOString(),
       processing: {
         currentCount: processingCount,
         maxConcurrent: maxConcurrentProcessing,
-        utilizationPercent: (processingCount / maxConcurrentProcessing) * 100,
+        utilizationPercent,
       },
       messageDeduplication: this.deduplicationService.getStats(),
       conversationHistory: this.historyService.getStats(),
@@ -60,7 +62,7 @@ export class MessageStatisticsService {
   /**
    * 手动清理内存缓存
    */
-  clearCache(options?: {
+  async clearCache(options?: {
     deduplication?: boolean;
     history?: boolean;
     mergeQueues?: boolean;
@@ -90,14 +92,14 @@ export class MessageStatisticsService {
 
     // 清理聊天历史
     if (opts.history) {
-      this.historyService.clearHistory(opts.chatId);
+      await this.historyService.clearHistory(opts.chatId);
       result.cleared.history = true;
     }
 
     // 清理消息聚合队列
     if (opts.mergeQueues) {
       if (opts.chatId) {
-        this.mergeService.clearConversation(opts.chatId);
+        await this.mergeService.clearConversation(opts.chatId);
       }
       result.cleared.mergeQueues = true;
     }
@@ -108,10 +110,10 @@ export class MessageStatisticsService {
   /**
    * 执行定期清理任务
    * 清理过期的数据
+   * 注意：历史记录现在由 Redis TTL 自动清理
    */
   performScheduledCleanup() {
     const dedupeCleanedCount = this.deduplicationService.cleanupExpiredMessages();
-    const historyCleanupResult = this.historyService.cleanupExpiredHistory();
 
     return {
       timestamp: new Date().toISOString(),
@@ -119,8 +121,7 @@ export class MessageStatisticsService {
         cleanedMessages: dedupeCleanedCount,
       },
       history: {
-        cleanedConversations: historyCleanupResult.conversationCount,
-        cleanedMessages: historyCleanupResult.messageCount,
+        note: 'Redis TTL 自动清理',
       },
     };
   }

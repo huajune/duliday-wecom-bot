@@ -107,4 +107,39 @@ export class RedisService implements OnModuleInit {
   async ping(): Promise<string> {
     return this.redisClient.ping();
   }
+
+  /**
+   * 便捷方法：rpush (向列表末尾添加元素)
+   */
+  async rpush(key: string, ...values: any[]): Promise<number> {
+    return this.redisClient.rpush(key, ...values);
+  }
+
+  /**
+   * 便捷方法：lrange (获取列表指定范围的元素)
+   */
+  async lrange<T = any>(key: string, start: number, stop: number): Promise<T[]> {
+    return this.redisClient.lrange<T>(key, start, stop);
+  }
+
+  /**
+   * 便捷方法：ltrim (保留列表指定范围的元素)
+   */
+  async ltrim(key: string, start: number, stop: number): Promise<void> {
+    await this.redisClient.ltrim(key, start, stop);
+  }
+
+  /**
+   * 便捷方法：llen (获取列表长度)
+   */
+  async llen(key: string): Promise<number> {
+    return this.redisClient.llen(key);
+  }
+
+  /**
+   * 便捷方法：expire (设置过期时间)
+   */
+  async expire(key: string, seconds: number): Promise<number> {
+    return this.redisClient.expire(key, seconds);
+  }
 }

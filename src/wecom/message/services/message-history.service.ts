@@ -1,5 +1,6 @@
-import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { RedisService } from '@core/redis';
 
 /**
  * 消息历史记录项
@@ -13,221 +14,176 @@ interface MessageHistoryItem {
 /**
  * 消息历史管理服务
  * 负责管理每个会话的消息历史记录，用于 Agent 上下文
+ * 使用 Redis 持久化存储，支持服务重启后恢复
  */
 @Injectable()
-export class MessageHistoryService implements OnModuleDestroy {
+export class MessageHistoryService {
   private readonly logger = new Logger(MessageHistoryService.name);
 
-  // 基于 chatId 的消息历史缓存 (chatId -> messages)
-  private readonly messageHistory = new Map<string, MessageHistoryItem[]>();
+  // Redis key 前缀
+  private readonly HISTORY_KEY_PREFIX = 'chat:history:';
+
+  // 配置参数
   private readonly maxHistoryPerChat: number;
-  private readonly historyTTL: number; // 历史记录过期时间（毫秒）
+  private readonly historyTTLSeconds: number; // Redis TTL（秒）
 
-  // 定时清理任务的句柄
-  private cleanupIntervalHandle: NodeJS.Timeout | null = null;
-
-  constructor(private readonly configService: ConfigService) {
-    // 从环境变量读取历史消息配置（提高默认值以支持更长对话）
+  constructor(
+    private readonly configService: ConfigService,
+    private readonly redisService: RedisService,
+  ) {
+    // 从环境变量读取历史消息配置
     this.maxHistoryPerChat = parseInt(
       this.configService.get<string>('MAX_HISTORY_PER_CHAT', '60'),
       10,
     );
-    this.historyTTL = parseInt(this.configService.get<string>('HISTORY_TTL_MS', '7200000'), 10); // 默认2小时
+    const historyTTLMs = parseInt(this.configService.get<string>('HISTORY_TTL_MS', '7200000'), 10); // 默认2小时
+    this.historyTTLSeconds = Math.floor(historyTTLMs / 1000);
 
     this.logger.log(
-      `消息历史服务已初始化: 每个会话最多保留 ${this.maxHistoryPerChat} 条消息（约 ${Math.floor(this.maxHistoryPerChat / 2)} 轮对话），过期时间 ${this.historyTTL / 1000 / 60} 分钟`,
+      `消息历史服务已初始化 (Redis 持久化): 每个会话最多保留 ${this.maxHistoryPerChat} 条消息（约 ${Math.floor(this.maxHistoryPerChat / 2)} 轮对话），TTL ${this.historyTTLSeconds / 60} 分钟`,
     );
-
-    // 启动定期清理任务
-    this.startCleanup();
   }
 
   /**
    * 获取指定会话的历史消息
+   * 使用 Redis List (lrange) 获取列表
    */
-  getHistory(chatId: string): Array<{ role: 'user' | 'assistant'; content: string }> {
-    const history = this.messageHistory.get(chatId) || [];
-    const now = Date.now();
+  async getHistory(
+    chatId: string,
+  ): Promise<Array<{ role: 'user' | 'assistant'; content: string }>> {
+    try {
+      const key = `${this.HISTORY_KEY_PREFIX}${chatId}`;
+      // 使用 lrange 获取最近 N 条消息
+      const rawHistory = await this.redisService.lrange<string>(key, -this.maxHistoryPerChat, -1);
 
-    // 过滤掉过期的消息
-    const validHistory = history.filter((msg) => now - msg.timestamp < this.historyTTL);
+      if (!rawHistory || rawHistory.length === 0) {
+        return [];
+      }
 
-    // 只返回最近 N 条消息
-    const recentHistory = validHistory.slice(-this.maxHistoryPerChat);
-
-    return recentHistory.map((msg) => ({
-      role: msg.role,
-      content: msg.content,
-    }));
+      // 解析每条消息
+      return rawHistory.map((raw) => {
+        const msg = typeof raw === 'string' ? JSON.parse(raw) : raw;
+        return {
+          role: msg.role,
+          content: msg.content,
+        };
+      });
+    } catch (error) {
+      this.logger.error(`获取会话历史失败 [${chatId}]:`, error);
+      return [];
+    }
   }
 
   /**
    * 添加消息到历史记录
+   * 使用 Redis List 原子操作 (rpush + ltrim + expire) 避免并发竞态
    */
-  addMessageToHistory(chatId: string, role: 'user' | 'assistant', content: string) {
-    let history = this.messageHistory.get(chatId) || [];
+  async addMessageToHistory(
+    chatId: string,
+    role: 'user' | 'assistant',
+    content: string,
+  ): Promise<void> {
+    try {
+      const key = `${this.HISTORY_KEY_PREFIX}${chatId}`;
 
-    // 添加新消息
-    history.push({
-      role,
-      content,
-      timestamp: Date.now(),
-    });
+      // 序列化消息
+      const message: MessageHistoryItem = {
+        role,
+        content,
+        timestamp: Date.now(),
+      };
 
-    // 只保留最近 N 条消息
-    if (history.length > this.maxHistoryPerChat) {
-      history = history.slice(-this.maxHistoryPerChat);
+      // 原子操作：追加到列表末尾
+      await this.redisService.rpush(key, JSON.stringify(message));
+
+      // 原子操作：只保留最近 N 条消息
+      await this.redisService.ltrim(key, -this.maxHistoryPerChat, -1);
+
+      // 刷新 TTL
+      await this.redisService.expire(key, this.historyTTLSeconds);
+    } catch (error) {
+      this.logger.error(`添加消息到历史失败 [${chatId}]:`, error);
     }
-
-    this.messageHistory.set(chatId, history);
   }
 
   /**
    * 清理指定会话的历史记录
+   * 使用 Redis List (llen + del)
    */
-  clearHistory(chatId?: string): number {
+  async clearHistory(chatId?: string): Promise<number> {
     if (chatId) {
       // 清理指定会话
-      const messages = this.messageHistory.get(chatId);
-      if (messages) {
-        const count = messages.length;
-        this.messageHistory.delete(chatId);
-        this.logger.log(`已清理指定会话 [${chatId}] 的历史记录: ${count} 条`);
-        return count;
+      try {
+        const key = `${this.HISTORY_KEY_PREFIX}${chatId}`;
+        const count = await this.redisService.llen(key);
+        if (count > 0) {
+          await this.redisService.del(key);
+          this.logger.log(`已清理指定会话 [${chatId}] 的历史记录: ${count} 条`);
+          return count;
+        }
+      } catch (error) {
+        this.logger.error(`清理会话历史失败 [${chatId}]:`, error);
       }
       return 0;
     } else {
-      // 清理所有会话
-      let totalMessages = 0;
-      for (const messages of this.messageHistory.values()) {
-        totalMessages += messages.length;
-      }
-      this.messageHistory.clear();
-      this.logger.log(`已清理所有会话历史记录: ${totalMessages} 条消息`);
-      return totalMessages;
+      // 清理所有会话（通过模式匹配删除）
+      this.logger.warn('清理所有会话历史记录功能在 Redis 模式下需要谨慎使用');
+      // 注意：Redis 不支持批量删除，这里只记录日志
+      // 实际生产环境建议通过 TTL 自动过期
+      return 0;
     }
-  }
-
-  /**
-   * 清理过期的历史记录
-   * @returns 清理的会话数和消息数
-   */
-  cleanupExpiredHistory(): { conversationCount: number; messageCount: number } {
-    const now = Date.now();
-    let cleanedConversations = 0;
-    let cleanedMessages = 0;
-
-    for (const [chatId, history] of this.messageHistory.entries()) {
-      const beforeCount = history.length;
-      const validHistory = history.filter((msg) => now - msg.timestamp < this.historyTTL);
-
-      if (validHistory.length === 0) {
-        // 如果所有消息都过期了，删除整个会话
-        this.messageHistory.delete(chatId);
-        cleanedConversations++;
-        cleanedMessages += beforeCount;
-      } else if (validHistory.length !== history.length) {
-        // 更新为过滤后的历史
-        this.messageHistory.set(chatId, validHistory);
-        cleanedMessages += beforeCount - validHistory.length;
-      }
-    }
-
-    if (cleanedConversations > 0 || cleanedMessages > 0) {
-      this.logger.debug(`清理过期历史: ${cleanedConversations} 个会话, ${cleanedMessages} 条消息`);
-    }
-
-    return { conversationCount: cleanedConversations, messageCount: cleanedMessages };
   }
 
   /**
    * 获取统计信息
+   * 注意：Redis 模式下无法准确统计所有会话，返回配置信息
    */
   getStats() {
-    let totalMessages = 0;
-    for (const messages of this.messageHistory.values()) {
-      totalMessages += messages.length;
-    }
-
     return {
-      totalConversations: this.messageHistory.size,
-      totalMessages,
-      averageMessagesPerConversation:
-        this.messageHistory.size > 0 ? (totalMessages / this.messageHistory.size).toFixed(2) : 0,
+      storageType: 'redis',
       maxMessagesPerConversation: this.maxHistoryPerChat,
-      ttlMinutes: this.historyTTL / 1000 / 60,
+      ttlMinutes: this.historyTTLSeconds / 60,
+      keyPrefix: this.HISTORY_KEY_PREFIX,
     };
   }
 
   /**
-   * 获取所有会话的历史记录
-   * @returns 所有会话的历史记录，包含统计信息
+   * 获取指定会话的历史记录详情
+   * 使用 Redis List (lrange)
+   * @param chatId 会话 ID
+   * @returns 会话的历史记录详情
    */
-  getAllHistory() {
-    const now = Date.now();
-    const conversations: Array<{
-      chatId: string;
-      messages: Array<{ role: 'user' | 'assistant'; content: string; timestamp: number }>;
-      messageCount: number;
-      oldestTimestamp: number;
-      newestTimestamp: number;
-    }> = [];
+  async getHistoryDetail(chatId: string): Promise<{
+    chatId: string;
+    messages: Array<{ role: 'user' | 'assistant'; content: string; timestamp: number }>;
+    messageCount: number;
+  } | null> {
+    try {
+      const key = `${this.HISTORY_KEY_PREFIX}${chatId}`;
+      const rawHistory = await this.redisService.lrange<string>(key, 0, -1);
 
-    for (const [chatId, history] of this.messageHistory.entries()) {
-      // 过滤掉过期的消息
-      const validHistory = history.filter((msg) => now - msg.timestamp < this.historyTTL);
-
-      if (validHistory.length > 0) {
-        const timestamps = validHistory.map((msg) => msg.timestamp);
-        conversations.push({
-          chatId,
-          messages: validHistory,
-          messageCount: validHistory.length,
-          oldestTimestamp: Math.min(...timestamps),
-          newestTimestamp: Math.max(...timestamps),
-        });
+      if (!rawHistory || rawHistory.length === 0) {
+        return null;
       }
+
+      // 解析每条消息
+      const messages = rawHistory.map((raw) => {
+        const msg = typeof raw === 'string' ? JSON.parse(raw) : raw;
+        return {
+          role: msg.role as 'user' | 'assistant',
+          content: msg.content,
+          timestamp: msg.timestamp,
+        };
+      });
+
+      return {
+        chatId,
+        messages,
+        messageCount: messages.length,
+      };
+    } catch (error) {
+      this.logger.error(`获取会话历史详情失败 [${chatId}]:`, error);
+      return null;
     }
-
-    // 按最新消息时间倒序排列
-    conversations.sort((a, b) => b.newestTimestamp - a.newestTimestamp);
-
-    return {
-      totalConversations: conversations.length,
-      totalMessages: conversations.reduce((sum, conv) => sum + conv.messageCount, 0),
-      conversations,
-    };
-  }
-
-  /**
-   * 启动定期清理任务
-   */
-  private startCleanup() {
-    // 每5分钟清理一次过期的历史记录
-    const cleanupInterval = 300000; // 5分钟
-
-    this.cleanupIntervalHandle = setInterval(() => {
-      this.cleanupExpiredHistory();
-    }, cleanupInterval);
-
-    this.logger.log('已启动历史记录定时清理任务 (每5分钟执行一次)');
-  }
-
-  /**
-   * 停止定期清理任务
-   */
-  stopCleanup() {
-    if (this.cleanupIntervalHandle) {
-      clearInterval(this.cleanupIntervalHandle);
-      this.cleanupIntervalHandle = null;
-      this.logger.log('已停止历史记录定时清理任务');
-    }
-  }
-
-  /**
-   * 模块销毁钩子
-   */
-  onModuleDestroy() {
-    this.stopCleanup();
   }
 }

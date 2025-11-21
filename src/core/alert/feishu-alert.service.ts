@@ -37,6 +37,10 @@ export class FeiShuAlertService {
   private readonly enabled: boolean;
   private readonly httpClient: AxiosInstance;
 
+  // 品牌配置告警频次限制（5分钟内只发一次）
+  private lastBrandConfigAlertTime: number = 0;
+  private readonly BRAND_CONFIG_ALERT_INTERVAL_MS = 5 * 60 * 1000; // 5分钟
+
   constructor(private readonly configService: ConfigService) {
     this.webhookUrl = this.configService.get<string>('FEISHU_ALERT_WEBHOOK_URL', '');
     this.secret = this.configService.get<string>('FEISHU_ALERT_SECRET', '');
@@ -131,12 +135,23 @@ export class FeiShuAlertService {
       return;
     }
 
-    const errorMessage = error.message || error.toString() || '未知错误';
-    const errorStack = error.stack || '';
+    // 频次限制：5分钟内只发送一次（首次加载失败除外，始终发送）
+    const now = Date.now();
+    if (!isFirstLoad && now - this.lastBrandConfigAlertTime < this.BRAND_CONFIG_ALERT_INTERVAL_MS) {
+      this.logger.debug(
+        `品牌配置告警被节流，距上次发送仅 ${Math.round((now - this.lastBrandConfigAlertTime) / 1000)} 秒`,
+      );
+      return;
+    }
 
-    const content = this.buildBrandConfigUnavailableMessage(errorMessage, errorStack, isFirstLoad);
+    const errorMessage = error.message || error.toString() || '未知错误';
+
+    const content = this.buildBrandConfigUnavailableMessage(errorMessage, isFirstLoad);
 
     await this.send(content);
+
+    // 更新上次发送时间
+    this.lastBrandConfigAlertTime = now;
   }
 
   /**
@@ -616,14 +631,18 @@ export class FeiShuAlertService {
   /**
    * 构建品牌配置不可用告警消息
    */
-  private buildBrandConfigUnavailableMessage(
-    errorMessage: string,
-    errorStack: string,
-    isFirstLoad: boolean,
-  ): any {
+  private buildBrandConfigUnavailableMessage(errorMessage: string, isFirstLoad: boolean): any {
     const timestamp = new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
     const env = this.configService.get<string>('NODE_ENV', 'unknown');
-    const apiBaseUrl = this.configService.get<string>('AGENT_API_BASE_URL', '未配置');
+
+    // 获取 Supabase Storage 配置（品牌配置的实际数据源）
+    const supabaseUrl = this.configService.get<string>('NEXT_PUBLIC_SUPABASE_URL', '未配置');
+    const bucketName = this.configService.get<string>('SUPABASE_BUCKET_NAME', 'brand-configs');
+    const configPath = this.configService.get<string>(
+      'SUPABASE_BRAND_CONFIG_PATH',
+      'config/brand-data.json',
+    );
+    const storageApiUrl = `${supabaseUrl}/storage/v1/object/${bucketName}/${configPath}`;
 
     const elements: any[] = [
       {
@@ -640,7 +659,7 @@ export class FeiShuAlertService {
         tag: 'div',
         text: {
           tag: 'lark_md',
-          content: `**错误信息**: ${errorMessage}\n**API 地址**: ${apiBaseUrl}/config/export`,
+          content: `**错误信息**: ${errorMessage}\n**API 地址**: ${storageApiUrl}`,
         },
       },
       {
@@ -650,24 +669,10 @@ export class FeiShuAlertService {
         tag: 'div',
         text: {
           tag: 'lark_md',
-          content: `**影响**: ${isFirstLoad ? '⚠️ 服务启动但无法提供智能回复，所有用户消息将返回降级提示' : 'ℹ️ 使用旧缓存数据，服务可继续运行'}\n**建议操作**: \n1. 检查 Agent API 服务是否正常\n2. 验证 AGENT_API_KEY 是否正确\n3. 查看服务日志获取详细错误信息`,
+          content: `**影响**: ${isFirstLoad ? '⚠️ 服务启动但无法提供智能回复，所有用户消息将返回降级提示' : 'ℹ️ 使用旧缓存数据，服务可继续运行'}\n**建议操作**: \n1. 检查 Supabase 存储服务是否正常\n2. 验证 Supabase 配置是否正确\n3. 检查网络连接到 Supabase 是否正常\n4. 查看服务日志获取详细错误信息`,
         },
       },
     ];
-
-    // 如果有错误堆栈，添加详细信息
-    if (errorStack) {
-      elements.push({
-        tag: 'hr',
-      });
-      elements.push({
-        tag: 'div',
-        text: {
-          tag: 'lark_md',
-          content: `**错误堆栈**: \n\`\`\`\n${errorStack.substring(0, 500)}${errorStack.length > 500 ? '\n...(省略)' : ''}\n\`\`\``,
-        },
-      });
-    }
 
     return {
       msg_type: 'interactive',

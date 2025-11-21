@@ -30,6 +30,43 @@ export interface FilterResult {
 export class MessageFilterService {
   private readonly logger = new Logger(MessageFilterService.name);
 
+  // 暂停托管的用户集合（userId -> 暂停时间戳）
+  private pausedUsers = new Map<string, number>();
+
+  /**
+   * 暂停用户托管
+   */
+  pauseUser(userId: string): void {
+    this.pausedUsers.set(userId, Date.now());
+    this.logger.log(`[托管暂停] 用户 ${userId} 已暂停托管`);
+  }
+
+  /**
+   * 恢复用户托管
+   */
+  resumeUser(userId: string): void {
+    if (this.pausedUsers.delete(userId)) {
+      this.logger.log(`[托管恢复] 用户 ${userId} 已恢复托管`);
+    }
+  }
+
+  /**
+   * 检查用户是否被暂停托管
+   */
+  isUserPaused(userId: string): boolean {
+    return this.pausedUsers.has(userId);
+  }
+
+  /**
+   * 获取所有暂停托管的用户列表
+   */
+  getPausedUsers(): { userId: string; pausedAt: number }[] {
+    return Array.from(this.pausedUsers.entries()).map(([userId, pausedAt]) => ({
+      userId,
+      pausedAt,
+    }));
+  }
+
   /**
    * 验证消息是否应该被处理
    * 返回过滤结果，包含是否通过和原因
@@ -58,6 +95,22 @@ export class MessageFilterService {
           actualDescription: sourceDescription,
           expected: MessageSource.MOBILE_PUSH,
           expectedDescription: getMessageSourceDescription(MessageSource.MOBILE_PUSH),
+        },
+      };
+    }
+
+    // 2.5 检查用户是否被暂停托管
+    // 使用 imContactId 作为用户标识（私聊场景）
+    const userId = messageData.imContactId || messageData.externalUserId;
+    if (userId && this.isUserPaused(userId)) {
+      this.logger.log(
+        `[过滤-暂停托管] 跳过暂停托管用户的消息 [${messageData.messageId}], userId=${userId}`,
+      );
+      return {
+        pass: false,
+        reason: 'user-paused',
+        details: {
+          userId,
         },
       };
     }

@@ -14,8 +14,11 @@ import {
   AlertTrendPoint,
   AlertTypeMetric,
   TimeRange,
+  DailyStats,
+  TodayUser,
 } from './interfaces/monitoring.interface';
 import { AlertErrorType } from '@core/alert/types';
+import { ScenarioType } from '@agent';
 import { MonitoringSnapshotService } from './monitoring-snapshot.service';
 
 /**
@@ -340,6 +343,8 @@ export class MonitoringService implements OnModuleInit {
         timeRange === 'today'
           ? this.buildBusinessMetricMinuteTrend(currentRecords)
           : this.buildBusinessMetricDayTrend(currentRecords),
+      dailyTrend: this.buildDailyTrend(this.detailRecords),
+      todayUsers: this.buildTodayUsers(currentRecords),
       recentMessages,
       recentErrors: this.errorLogs.slice(-20).reverse(),
       realtime: {
@@ -747,6 +752,152 @@ export class MonitoringService implements OnModuleInit {
   }
 
   /**
+   * 构建每日统计趋势（最近7天）
+   */
+  private buildDailyTrend(records: MessageProcessingRecord[]): DailyStats[] {
+    const buckets = new Map<
+      string,
+      {
+        users: Set<string>;
+        tokenUsage: number;
+        messageCount: number;
+        successCount: number;
+        durations: number[];
+      }
+    >();
+
+    // 只统计最近7天的数据
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
+    sevenDaysAgo.setHours(0, 0, 0, 0);
+    const cutoffTime = sevenDaysAgo.getTime();
+
+    for (const record of records) {
+      if (record.receivedAt < cutoffTime) {
+        continue;
+      }
+
+      const dayKey = this.getDayKey(record.receivedAt);
+      const bucket = buckets.get(dayKey) || {
+        users: new Set<string>(),
+        tokenUsage: 0,
+        messageCount: 0,
+        successCount: 0,
+        durations: [],
+      };
+
+      // 统计活跃用户
+      if (record.userId) {
+        bucket.users.add(record.userId);
+      }
+
+      // 统计 token 使用量
+      if (record.tokenUsage) {
+        bucket.tokenUsage += record.tokenUsage;
+      }
+
+      // 统计消息数
+      bucket.messageCount += 1;
+
+      // 统计成功数
+      if (record.status === 'success') {
+        bucket.successCount += 1;
+      }
+
+      // 统计耗时
+      if (record.totalDuration !== undefined && record.status !== 'processing') {
+        bucket.durations.push(record.totalDuration);
+      }
+
+      buckets.set(dayKey, bucket);
+    }
+
+    return Array.from(buckets.entries())
+      .sort((a, b) => new Date(a[0]).getTime() - new Date(b[0]).getTime())
+      .map(([date, bucket]) => {
+        const avgDuration =
+          bucket.durations.length > 0
+            ? parseFloat(
+                (bucket.durations.reduce((sum, d) => sum + d, 0) / bucket.durations.length).toFixed(
+                  2,
+                ),
+              )
+            : 0;
+
+        // 格式化日期为 YYYY-MM-DD
+        const dateObj = new Date(date);
+        const formattedDate = `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}-${String(dateObj.getDate()).padStart(2, '0')}`;
+
+        return {
+          date: formattedDate,
+          tokenUsage: bucket.tokenUsage,
+          uniqueUsers: bucket.users.size,
+          messageCount: bucket.messageCount,
+          successCount: bucket.successCount,
+          avgDuration,
+        };
+      });
+  }
+
+  /**
+   * 构建今日咨询用户列表
+   * TODO: isPaused 需要从 MessageService 的黑名单管理中获取实际状态
+   */
+  private buildTodayUsers(records: MessageProcessingRecord[]): TodayUser[] {
+    const userMap = new Map<
+      string,
+      {
+        odId: string;
+        odName: string;
+        groupId?: string;
+        groupName?: string;
+        chatId: string;
+        messageCount: number;
+        tokenUsage: number;
+        firstActiveAt: number;
+        lastActiveAt: number;
+      }
+    >();
+
+    for (const record of records) {
+      if (!record.userId) {
+        continue;
+      }
+
+      const existing = userMap.get(record.userId);
+
+      if (existing) {
+        // 更新现有用户数据
+        existing.messageCount += 1;
+        existing.tokenUsage += record.tokenUsage || 0;
+        existing.firstActiveAt = Math.min(existing.firstActiveAt, record.receivedAt);
+        existing.lastActiveAt = Math.max(existing.lastActiveAt, record.receivedAt);
+      } else {
+        // 新增用户
+        userMap.set(record.userId, {
+          odId: record.userId,
+          odName: record.userName || record.userId,
+          groupId: undefined, // TODO: 需要从消息记录中获取
+          groupName: undefined, // TODO: 需要从消息记录中获取
+          chatId: record.chatId,
+          messageCount: 1,
+          tokenUsage: record.tokenUsage || 0,
+          firstActiveAt: record.receivedAt,
+          lastActiveAt: record.receivedAt,
+        });
+      }
+    }
+
+    // 转换为数组并按最后活跃时间排序（最近的排前面）
+    return Array.from(userMap.values())
+      .sort((a, b) => b.lastActiveAt - a.lastActiveAt)
+      .map((user) => ({
+        ...user,
+        isPaused: false, // TODO: 需要从实际的黑名单状态中获取
+      }));
+  }
+
+  /**
    * 清空所有数据
    */
   clearAllData(): void {
@@ -760,6 +911,190 @@ export class MonitoringService implements OnModuleInit {
     this.globalCounters = this.createDefaultCounters();
     this.logger.log('所有监控数据已清空');
     this.persistSnapshot();
+  }
+
+  /**
+   * 生成测试数据（仅用于开发/演示）
+   * @param days 生成多少天的数据
+   * @returns 生成的记录数
+   */
+  generateTestData(days: number = 7): number {
+    this.logger.log(`开始生成 ${days} 天的测试数据`);
+
+    const now = Date.now();
+    const msPerDay = 24 * 60 * 60 * 1000;
+    const startTime = now - (days - 1) * msPerDay;
+
+    // 测试用户列表
+    const testUsers = [
+      { id: 'user_001', name: '张三' },
+      { id: 'user_002', name: '李四' },
+      { id: 'user_003', name: '王五' },
+      { id: 'user_004', name: '赵六' },
+      { id: 'user_005', name: '钱七' },
+      { id: 'user_006', name: '孙八' },
+      { id: 'user_007', name: '周九' },
+      { id: 'user_008', name: '吴十' },
+    ];
+
+    // 测试场景
+    const scenarios: ScenarioType[] = [ScenarioType.CANDIDATE_CONSULTATION];
+
+    // 测试工具
+    const toolSets = [
+      ['duliday_job_list'],
+      ['duliday_job_details'],
+      ['duliday_interview_booking'],
+      ['duliday_job_list', 'duliday_job_details'],
+      [],
+    ];
+
+    let recordCount = 0;
+
+    // 为每一天生成数据
+    for (let dayOffset = 0; dayOffset < days; dayOffset++) {
+      const dayStart = startTime + dayOffset * msPerDay;
+
+      // 每天生成 15-40 条记录（模拟真实场景）
+      const recordsPerDay = Math.floor(Math.random() * 26) + 15;
+
+      for (let i = 0; i < recordsPerDay; i++) {
+        // 随机时间（在当天的工作时间内：8:00-22:00）
+        const hourOffset = Math.floor(Math.random() * 14) + 8;
+        const minuteOffset = Math.floor(Math.random() * 60);
+        const secondOffset = Math.floor(Math.random() * 60);
+        const receivedAt =
+          dayStart + hourOffset * 3600000 + minuteOffset * 60000 + secondOffset * 1000;
+
+        // 如果时间超过当前时间，跳过
+        if (receivedAt > now) continue;
+
+        // 随机选择用户
+        const user = testUsers[Math.floor(Math.random() * testUsers.length)];
+        const chatId = `chat_${user.id}_${Math.floor(Math.random() * 3) + 1}`;
+
+        // 随机选择场景和工具
+        const scenario = scenarios[Math.floor(Math.random() * scenarios.length)];
+        const tools = toolSets[Math.floor(Math.random() * toolSets.length)];
+
+        // 生成消息 ID
+        const messageId = `msg_${dayOffset}_${i}_${Date.now()}`;
+
+        // 模拟处理时间（2-15秒）
+        const aiDuration = Math.floor(Math.random() * 10000) + 2000;
+        const sendDuration = Math.floor(Math.random() * 3000) + 500;
+        const queueDuration = Math.floor(Math.random() * 1000) + 100;
+        const totalDuration = queueDuration + aiDuration + sendDuration;
+
+        // 模拟成功率（90%成功）
+        const isSuccess = Math.random() > 0.1;
+        const isFallback = Math.random() < 0.05;
+        const fallbackSuccess = isFallback && Math.random() > 0.3;
+
+        // Token 使用量（500-3000）
+        const tokenUsage = Math.floor(Math.random() * 2500) + 500;
+
+        // 创建记录
+        const record: MessageProcessingRecord = {
+          messageId,
+          chatId,
+          userId: user.id,
+          userName: user.name,
+          receivedAt,
+          status: isSuccess ? 'success' : 'failure',
+          messagePreview: this.generateRandomMessage(),
+          scenario,
+          tools: tools.length > 0 ? tools : undefined,
+          tokenUsage,
+          aiStartAt: receivedAt + queueDuration,
+          aiEndAt: receivedAt + queueDuration + aiDuration,
+          aiDuration,
+          sendStartAt: receivedAt + queueDuration + aiDuration,
+          sendEndAt: receivedAt + totalDuration,
+          sendDuration,
+          queueDuration,
+          totalDuration,
+          replyPreview: isSuccess ? this.generateRandomReply() : undefined,
+          replySegments: isSuccess ? Math.floor(Math.random() * 3) + 1 : undefined,
+          isFallback,
+          fallbackSuccess,
+          error: isSuccess ? undefined : '模拟错误: Agent 响应超时',
+        };
+
+        // 添加到记录列表
+        this.addRecord(record);
+
+        // 更新计数器
+        this.globalCounters.totalMessages++;
+        if (isSuccess) {
+          this.globalCounters.totalSuccess++;
+        } else {
+          this.globalCounters.totalFailure++;
+          this.addErrorLog(messageId, record.error || '未知错误');
+        }
+
+        if (isFallback) {
+          this.globalCounters.totalFallback++;
+          if (fallbackSuccess) {
+            this.globalCounters.totalFallbackSuccess++;
+          }
+        }
+
+        this.globalCounters.totalAiDuration += aiDuration;
+        this.globalCounters.totalSendDuration += sendDuration;
+
+        // 更新活跃用户
+        this.activeUsersSet.add(user.id);
+        this.activeChatsSet.add(chatId);
+
+        // 更新小时级别统计
+        this.updateHourlyStats(record);
+
+        recordCount++;
+      }
+    }
+
+    // 更新峰值处理数
+    this.peakProcessing = Math.max(this.peakProcessing, Math.floor(Math.random() * 5) + 1);
+
+    // 持久化快照
+    this.persistSnapshot();
+
+    this.logger.log(`测试数据生成完成: ${recordCount} 条记录`);
+    return recordCount;
+  }
+
+  /**
+   * 生成随机用户消息
+   */
+  private generateRandomMessage(): string {
+    const messages = [
+      '你好，我想找一份前端开发的工作',
+      '请问有适合应届生的岗位吗？',
+      '我想预约面试',
+      '帮我查一下这个职位的详情',
+      '有没有远程工作的机会？',
+      '薪资范围是多少？',
+      '需要什么技术栈？',
+      '工作地点在哪里？',
+      '请问面试流程是怎样的？',
+      '我的简历需要更新吗？',
+    ];
+    return messages[Math.floor(Math.random() * messages.length)];
+  }
+
+  /**
+   * 生成随机回复
+   */
+  private generateRandomReply(): string {
+    const replies = [
+      '为您找到了5个匹配的职位...',
+      '已为您预约面试，时间是...',
+      '这个职位的要求是...',
+      '薪资范围在15k-25k之间...',
+      '感谢咨询，还有其他问题吗？',
+    ];
+    return replies[Math.floor(Math.random() * replies.length)];
   }
 
   // ========== 私有方法 ==========
