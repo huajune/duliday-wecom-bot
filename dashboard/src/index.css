@@ -1,0 +1,92 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* 自定义基础样式 */
+@layer base {
+  body {
+    @apply bg-gray-100 text-gray-900 antialiased;
+  }
+}
+
+/* 自定义组件样式 */
+@layer components {
+  .card {
+    @apply bg-white rounded-xl shadow-md p-6 transition-all duration-200;
+  }
+
+  .card:hover {
+    @apply shadow-lg;
+  }
+
+  .btn-primary {
+    @apply bg-gradient-primary text-white px-4 py-2 rounded-lg font-medium
+           hover:shadow-glow transition-all duration-200;
+  }
+
+  .sidebar-item {
+    @apply flex items-center gap-3 px-4 py-3 rounded-lg text-gray-600
+           hover:bg-gradient-hover hover:text-primary transition-all duration-200 cursor-pointer;
+  }
+
+  .sidebar-item.active {
+    @apply bg-primary-soft text-primary font-medium;
+  }
+
+  .stat-card {
+    @apply card flex flex-col;
+  }
+
+  .stat-value {
+    @apply text-3xl font-bold text-gray-900;
+  }
+
+  .stat-label {
+    @apply text-sm text-gray-500 mt-1;
+  }
+
+  .stat-trend {
+    @apply text-xs mt-2 flex items-center gap-1;
+  }
+
+  .stat-trend.up {
+    @apply text-success;
+  }
+
+  .stat-trend.down {
+    @apply text-danger;
+  }
+}
+
+/* 滚动条样式 */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-gray-300 rounded-full;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-gray-400;
+}
+
+/* 动画 */
+@keyframes float {
+  0%,
+  100% {
+    transform: translateY(0) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-20px) rotate(5deg);
+  }
+}
+
+.animate-float {
+  animation: float 20s infinite ease-in-out;
+}
