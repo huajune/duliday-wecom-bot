@@ -7,14 +7,20 @@
   "license": "ISC",
   "scripts": {
     "build": "nest build",
+    "build:dashboard": "cd dashboard && pnpm install && pnpm run build",
+    "build:all": "pnpm run build && pnpm run build:dashboard",
     "format": "prettier --write \"src/**/*.ts\"",
     "lint": "eslint \"src/**/*.ts\" --fix",
     "lint:check": "eslint \"src/**/*.ts\" --max-warnings=0",
     "start": "nest start",
     "start:dev": "nest start --watch",
+    "start:dev:all": "concurrently \"pnpm run start:dev\" \"cd dashboard && pnpm run dev\"",
     "start:prod": "node dist/src/main",
+    "dashboard:dev": "cd dashboard && pnpm run dev",
+    "dashboard:install": "cd dashboard && pnpm install",
     "test": "jest",
-    "test:cov": "jest --coverage"
+    "test:cov": "jest --coverage",
+    "postinstall": "cd dashboard && pnpm install || true"
   },
   "dependencies": {
     "@nestjs/bull": "^11.0.4",
@@ -46,6 +52,7 @@
     "@types/supertest": "^6.0.2",
     "@typescript-eslint/eslint-plugin": "^6.15.0",
     "@typescript-eslint/parser": "^6.15.0",
+    "concurrently": "^9.2.1",
     "eslint": "^8.56.0",
     "eslint-config-prettier": "^9.1.0",
     "eslint-plugin-prettier": "^5.1.2",

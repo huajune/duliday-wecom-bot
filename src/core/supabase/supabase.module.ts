@@ -1,4 +1,5 @@
 import { Global, Module } from '@nestjs/common';
+import { HttpModule } from '@core/http';
 import { SupabaseService } from './supabase.service';
 
 /**
@@ -7,6 +8,7 @@ import { SupabaseService } from './supabase.service';
  */
 @Global()
 @Module({
+  imports: [HttpModule],
   providers: [SupabaseService],
   exports: [SupabaseService],
 })

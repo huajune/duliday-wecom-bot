@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Logger, Get, Query } from '@nestjs/common';
+import { Controller, Post, Body, Logger, Get, Query, Delete, Param } from '@nestjs/common';
 import { MessageService } from './message.service';
 import { RawResponse } from '@core/server';
 import {
@@ -9,6 +9,7 @@ import {
 } from './dto/message-callback.dto';
 import { AgentService } from '@agent';
 import { MessageCallbackAdapterService } from './services/message-callback-adapter.service';
+import { MessageFilterService } from './services/message-filter.service';
 
 /**
  * 消息处理控制器
@@ -28,6 +29,7 @@ export class MessageController {
     private readonly messageService: MessageService,
     private readonly agentService: AgentService,
     private readonly callbackAdapter: MessageCallbackAdapterService,
+    private readonly filterService: MessageFilterService,
   ) {}
 
   /**
@@ -451,6 +453,101 @@ export class MessageController {
           groupId: 'undefined（小组级没有此字段）',
           source: 'MessageSource.MOBILE_PUSH（默认值）',
         },
+      },
+    };
+  }
+
+  // ==================== 小组黑名单管理 ====================
+
+  /**
+   * 获取小组黑名单列表
+   * @description 获取所有在黑名单中的小组（不触发AI回复但记录历史）
+   * @example GET /message/blacklist/groups
+   */
+  @Get('blacklist/groups')
+  async getGroupBlacklist() {
+    const blacklist = await this.filterService.getGroupBlacklist();
+    return {
+      success: true,
+      data: blacklist,
+      count: blacklist.length,
+      description: '黑名单中的小组不会触发AI回复，但消息仍会记录到聊天历史',
+    };
+  }
+
+  /**
+   * 添加小组到黑名单
+   * @description 添加小组到黑名单，该小组的消息不会触发AI回复但会记录历史
+   * @example POST /message/blacklist/groups
+   * @body { "groupId": "691d3b171535fed6bcc94f66", "reason": "测试小组" }
+   */
+  @Post('blacklist/groups')
+  async addGroupToBlacklist(
+    @Body()
+    body: {
+      groupId: string;
+      reason?: string;
+    },
+  ) {
+    if (!body.groupId) {
+      return {
+        success: false,
+        message: 'groupId 是必填字段',
+      };
+    }
+
+    await this.filterService.addGroupToBlacklist(body.groupId, body.reason);
+
+    return {
+      success: true,
+      message: `小组 ${body.groupId} 已添加到黑名单`,
+      data: {
+        groupId: body.groupId,
+        reason: body.reason,
+        addedAt: Date.now(),
+      },
+    };
+  }
+
+  /**
+   * 从黑名单移除小组
+   * @description 从黑名单中移除小组，恢复该小组的AI回复功能
+   * @example DELETE /message/blacklist/groups/:groupId
+   */
+  @Delete('blacklist/groups/:groupId')
+  async removeGroupFromBlacklist(@Param('groupId') groupId: string) {
+    const removed = await this.filterService.removeGroupFromBlacklist(groupId);
+
+    if (removed) {
+      return {
+        success: true,
+        message: `小组 ${groupId} 已从黑名单移除`,
+      };
+    } else {
+      return {
+        success: false,
+        message: `小组 ${groupId} 不在黑名单中`,
+      };
+    }
+  }
+
+  /**
+   * 检查小组是否在黑名单中
+   * @description 检查指定小组是否在黑名单中
+   * @example GET /message/blacklist/groups/:groupId/check
+   */
+  @Get('blacklist/groups/:groupId/check')
+  async checkGroupBlacklist(@Param('groupId') groupId: string) {
+    const isBlacklisted = await this.filterService.isGroupBlacklisted(groupId);
+
+    return {
+      success: true,
+      data: {
+        groupId,
+        isBlacklisted,
+        description: isBlacklisted
+          ? '该小组在黑名单中，消息不会触发AI回复但会记录历史'
+          : '该小组不在黑名单中，消息会正常触发AI回复',
       },
     };
   }

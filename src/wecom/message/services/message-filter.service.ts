@@ -16,6 +16,7 @@ export interface FilterResult {
   reason?: string; // 过滤原因（未通过时）
   content?: string; // 提取的消息内容（通过时）
   details?: any; // 额外的详细信息
+  historyOnly?: boolean; // 是否仅记录历史（不触发AI回复）
 }
 
 /**
@@ -65,6 +66,36 @@ export class MessageFilterService implements OnModuleInit {
     return this.supabaseService.getPausedUsers();
   }
 
+  // ==================== 小组黑名单管理 ====================
+
+  /**
+   * 检查小组是否在黑名单中
+   */
+  async isGroupBlacklisted(groupId: string): Promise<boolean> {
+    return this.supabaseService.isGroupBlacklisted(groupId);
+  }
+
+  /**
+   * 添加小组到黑名单
+   */
+  async addGroupToBlacklist(groupId: string, reason?: string): Promise<void> {
+    await this.supabaseService.addGroupToBlacklist(groupId, reason);
+  }
+
+  /**
+   * 从黑名单移除小组
+   */
+  async removeGroupFromBlacklist(groupId: string): Promise<boolean> {
+    return this.supabaseService.removeGroupFromBlacklist(groupId);
+  }
+
+  /**
+   * 获取黑名单列表
+   */
+  async getGroupBlacklist(): Promise<{ groupId: string; reason?: string; addedAt: number }[]> {
+    return this.supabaseService.getGroupBlacklist();
+  }
+
   /**
    * 验证消息是否应该被处理
    * 返回过滤结果，包含是否通过和原因
@@ -109,6 +140,24 @@ export class MessageFilterService implements OnModuleInit {
         reason: 'user-paused',
         details: {
           userId,
+        },
+      };
+    }
+
+    // 2.6 检查小组是否在黑名单中（仅记录历史，不触发AI回复）
+    if (messageData.groupId && (await this.isGroupBlacklisted(messageData.groupId))) {
+      const content = MessageParser.extractContent(messageData);
+      this.logger.log(
+        `[过滤-小组黑名单] 小组在黑名单中，仅记录历史 [${messageData.messageId}], groupId=${messageData.groupId}`,
+      );
+      return {
+        pass: true, // 标记为通过，但设置 historyOnly 标志
+        content,
+        historyOnly: true,
+        reason: 'group-blacklisted',
+        details: {
+          groupId: messageData.groupId,
+          orgId: messageData.orgId,
         },
       };
     }

@@ -3,6 +3,11 @@
 /node_modules
 /build
 
+# Dashboard
+/dashboard/node_modules
+/dashboard/dist
+/public/dashboard
+
 # Lock files (using pnpm)
 package-lock.json
 yarn.lock

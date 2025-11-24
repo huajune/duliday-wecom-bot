@@ -180,6 +180,25 @@ export class MessageService implements OnModuleInit {
       };
     }
 
+    // 处理 historyOnly 模式（小组黑名单）：记录历史但不触发 AI 回复
+    if (filterResult.historyOnly) {
+      const parsed = MessageParser.parse(messageData);
+      const { chatId, content, contactName } = parsed;
+
+      // 记录到历史
+      await this.historyService.addMessageToHistory(chatId, 'user', content);
+
+      this.logger.log(
+        `[historyOnly] 消息已记录到历史但不触发AI回复 [${messageData.messageId}], ` +
+          `chatId=${chatId}, contact=${contactName}, reason=${filterResult.reason}`,
+      );
+
+      return {
+        continue: false,
+        response: { success: true, message: 'Message recorded to history only' },
+      };
+    }
+
     return { continue: true };
   }
 

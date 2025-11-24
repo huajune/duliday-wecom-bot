@@ -14,6 +14,7 @@ import { MonitoringService } from './monitoring.service';
 import { DashboardData, MetricsData, TimeRange } from './interfaces/monitoring.interface';
 import { MessageService } from '@wecom/message/message.service';
 import { MessageFilterService } from '@wecom/message/services/message-filter.service';
+import { SupabaseService } from '@core/supabase';
 
 /**
  * 监控控制器
@@ -29,6 +30,7 @@ export class MonitoringController {
     private readonly messageService: MessageService,
     @Inject(forwardRef(() => MessageFilterService))
     private readonly filterService: MessageFilterService,
+    private readonly supabaseService: SupabaseService,
   ) {}
 
   /**
@@ -184,6 +186,20 @@ export class MonitoringController {
     return {
       message: `已生成 ${targetDays} 天的测试数据`,
       recordsGenerated: count,
+    };
+  }
+
+  /**
+   * 刷新配置缓存
+   * POST /monitoring/cache/refresh
+   */
+  @Post('cache/refresh')
+  @HttpCode(200)
+  async refreshCache(): Promise<{ message: string }> {
+    this.logger.log('刷新配置缓存');
+    await this.supabaseService.refreshCache();
+    return {
+      message: '配置缓存已刷新',
     };
   }
 }

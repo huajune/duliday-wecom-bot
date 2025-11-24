@@ -482,6 +482,79 @@
         border-color: rgba(239, 68, 68, 0.3);
       }
 
+      /* 模态框样式 */
+      .modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.6);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+        backdrop-filter: blur(4px);
+      }
+
+      .modal-content {
+        background: var(--bg-primary);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        width: 90%;
+        max-width: 500px;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      }
+
+      .modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 16px 20px;
+        border-bottom: 1px solid var(--border);
+      }
+
+      .modal-header h3 {
+        margin: 0;
+        font-size: 16px;
+        font-weight: 600;
+      }
+
+      .modal-close {
+        background: none;
+        border: none;
+        font-size: 24px;
+        color: var(--text-muted);
+        cursor: pointer;
+        padding: 0;
+        line-height: 1;
+      }
+
+      .modal-close:hover {
+        color: var(--text-primary);
+      }
+
+      .modal-body {
+        padding: 20px;
+      }
+
+      .modal-footer {
+        padding: 16px 20px;
+        border-top: 1px solid var(--border);
+      }
+
+      .form-group {
+        margin-bottom: 0;
+      }
+
+      .form-group label {
+        display: block;
+        font-size: 12px;
+        font-weight: 500;
+        color: var(--text-secondary);
+        margin-bottom: 6px;
+      }
+
       .health-panel {
         background: linear-gradient(135deg, rgba(59, 130, 246, 0.08) 0%, rgba(147, 51, 234, 0.08) 100%);
         border: 1px solid var(--border);
@@ -1631,6 +1704,11 @@
           <div class="nav-item" onclick="switchPage('users')" id="nav-users">
             <img src="icons/users.png" class="nav-icon" alt="Users"> 用户管理
           </div>
+          <div class="nav-item" onclick="switchPage('config')" id="nav-config">
+            <span class="nav-icon icon-config">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+            </span> 系统配置
+          </div>
           <div class="nav-item" onclick="switchPage('system')" id="nav-system">
             <span class="nav-icon icon-system">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20a8 8 0 1 0 0-16 8 8 0 0 0 0 16Z"></path><path d="M12 14a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z"></path><path d="M12 2v2"></path><path d="M12 22v-2"></path><path d="m17 20.66-1-1.73"></path><path d="M11 10.27 7 3.34"></path><path d="m20.66 17-1.73-1"></path><path d="m3.34 7 1.73 1"></path><path d="M14 12h8"></path><path d="M2 12h2"></path><path d="m20.66 7-1.73 1"></path><path d="m3.34 17 1.73-1"></path><path d="m17 3.34-1 1.73"></path><path d="m11 13.73-4 6.93"></path></svg>
@@ -2007,6 +2085,81 @@
             </section>
           </div>
 
+          <!-- Page: Config (系统配置) -->
+          <div id="page-config" class="page-section">
+            <!-- 小组黑名单管理 -->
+            <section class="section">
+              <div class="section-header" style="display: flex; justify-content: space-between; align-items: center;">
+                <h3>小组黑名单 <span id="blacklistCount" style="font-size: 14px; color: var(--text-secondary); font-weight: normal;">(0 个)</span></h3>
+                <button class="btn btn-primary" style="padding: 6px 12px; font-size: 12px;" onclick="showAddBlacklistDialog()">
+                  + 添加小组
+                </button>
+              </div>
+              <p style="font-size: 12px; color: var(--text-muted); margin: 8px 0 16px 0;">
+                黑名单中的小组发来的消息不会触发 AI 回复，但仍会记录聊天历史
+              </p>
+              <div class="table-wrapper">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>小组 ID</th>
+                      <th>备注原因</th>
+                      <th>添加时间</th>
+                      <th>操作</th>
+                    </tr>
+                  </thead>
+                  <tbody id="blacklistTable">
+                    <tr>
+                      <td colspan="4" class="loading">加载中</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </section>
+
+            <!-- 缓存管理 -->
+            <section class="section" style="margin-top: 24px;">
+              <div class="section-header">
+                <h3>缓存管理</h3>
+              </div>
+              <p style="font-size: 12px; color: var(--text-muted); margin: 8px 0 16px 0;">
+                管理系统缓存，包括消息去重、聊天历史等
+              </p>
+              <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+                <button class="btn btn-ghost" style="padding: 8px 16px;" onclick="refreshSupabaseCache()">
+                  🔄 刷新配置缓存
+                </button>
+                <button class="btn btn-ghost" style="padding: 8px 16px; color: var(--warning);" onclick="clearDeduplicationCache()">
+                  🗑️ 清空去重缓存
+                </button>
+              </div>
+            </section>
+          </div>
+
+          <!-- 添加黑名单对话框 -->
+          <div id="addBlacklistDialog" class="modal-overlay" style="display: none;">
+            <div class="modal-content" style="max-width: 400px;">
+              <div class="modal-header">
+                <h3>添加小组到黑名单</h3>
+                <button class="modal-close" onclick="hideAddBlacklistDialog()">&times;</button>
+              </div>
+              <div class="modal-body">
+                <div class="form-group">
+                  <label for="blacklistGroupId">小组 ID <span style="color: var(--danger);">*</span></label>
+                  <input type="text" id="blacklistGroupId" placeholder="输入小组 ID" style="width: 100%; padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-primary); color: var(--text-primary);" />
+                </div>
+                <div class="form-group" style="margin-top: 12px;">
+                  <label for="blacklistReason">备注原因（可选）</label>
+                  <input type="text" id="blacklistReason" placeholder="例如：测试小组" style="width: 100%; padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-primary); color: var(--text-primary);" />
+                </div>
+              </div>
+              <div class="modal-footer" style="display: flex; gap: 8px; justify-content: flex-end;">
+                <button class="btn btn-ghost" onclick="hideAddBlacklistDialog()">取消</button>
+                <button class="btn btn-primary" onclick="addToBlacklist()">添加</button>
+              </div>
+            </div>
+          </div>
+
           <!-- Page: Logs (消息日志) -->
           <div id="page-logs" class="page-section">
             <!-- 实时消息 -->
@@ -2097,6 +2250,7 @@
         setupTimeRangeFilters();
         refreshAll();
         loadAiReplyStatus();
+        loadGroupBlacklist();
 
         // 默认显示仪表盘页面
         switchPage('dashboard');
@@ -2849,6 +3003,164 @@
           }
         } catch (error) {
           console.error('切换用户托管状态失败', error);
+        }
+      }
+
+      // ==================== 小组黑名单管理 ====================
+
+      async function loadGroupBlacklist() {
+        try {
+          const response = await fetch('/message/blacklist/groups');
+          const result = await response.json();
+          const data = unwrapResponse(result);
+
+          if (data) {
+            renderBlacklistTable(data.data || []);
+            document.getElementById('blacklistCount').textContent = `(${data.count || 0} 个)`;
+          }
+        } catch (error) {
+          console.error('加载小组黑名单失败', error);
+          document.getElementById('blacklistTable').innerHTML = '<tr><td colspan="4" style="color: var(--danger);">加载失败</td></tr>';
+        }
+      }
+
+      function renderBlacklistTable(blacklist) {
+        const tbody = document.getElementById('blacklistTable');
+
+        if (!blacklist || blacklist.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="4" style="color: var(--text-muted);">暂无黑名单小组</td></tr>';
+          return;
+        }
+
+        tbody.innerHTML = blacklist.map(item => {
+          const addedTime = item.addedAt ? formatTime(item.addedAt) : '-';
+          return `
+            <tr>
+              <td><code style="font-size: 12px; background: var(--bg-secondary); padding: 2px 6px; border-radius: 4px;">${item.groupId}</code></td>
+              <td>${item.reason || '<span style="color: var(--text-muted);">-</span>'}</td>
+              <td>${addedTime}</td>
+              <td>
+                <button class="btn btn-ghost" style="padding: 4px 8px; font-size: 11px; color: var(--danger);" onclick="removeFromBlacklist('${item.groupId}')">
+                  移除
+                </button>
+              </td>
+            </tr>
+          `;
+        }).join('');
+      }
+
+      function showAddBlacklistDialog() {
+        document.getElementById('addBlacklistDialog').style.display = 'flex';
+        document.getElementById('blacklistGroupId').value = '';
+        document.getElementById('blacklistReason').value = '';
+        document.getElementById('blacklistGroupId').focus();
+      }
+
+      function hideAddBlacklistDialog() {
+        document.getElementById('addBlacklistDialog').style.display = 'none';
+      }
+
+      async function addToBlacklist() {
+        const groupId = document.getElementById('blacklistGroupId').value.trim();
+        const reason = document.getElementById('blacklistReason').value.trim();
+
+        if (!groupId) {
+          alert('请输入小组 ID');
+          return;
+        }
+
+        try {
+          const response = await fetch('/message/blacklist/groups', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ groupId, reason: reason || undefined }),
+          });
+
+          const result = await response.json();
+          const data = unwrapResponse(result);
+
+          if (data && data.success !== false) {
+            hideAddBlacklistDialog();
+            await loadGroupBlacklist();
+            console.log(`小组 ${groupId} 已添加到黑名单`);
+          } else {
+            alert(data?.message || '添加失败');
+          }
+        } catch (error) {
+          console.error('添加到黑名单失败', error);
+          alert('添加失败，请重试');
+        }
+      }
+
+      async function removeFromBlacklist(groupId) {
+        if (!confirm(`确定要从黑名单中移除小组 ${groupId} 吗？\n移除后该小组的消息将恢复 AI 回复功能。`)) {
+          return;
+        }
+
+        try {
+          const response = await fetch(`/message/blacklist/groups/${encodeURIComponent(groupId)}`, {
+            method: 'DELETE',
+          });
+
+          const result = await response.json();
+          const data = unwrapResponse(result);
+
+          if (data && data.success) {
+            await loadGroupBlacklist();
+            console.log(`小组 ${groupId} 已从黑名单移除`);
+          } else {
+            alert(data?.message || '移除失败');
+          }
+        } catch (error) {
+          console.error('从黑名单移除失败', error);
+          alert('移除失败，请重试');
+        }
+      }
+
+      // ==================== 缓存管理 ====================
+
+      async function refreshSupabaseCache() {
+        try {
+          const response = await fetch('/monitoring/cache/refresh', {
+            method: 'POST',
+          });
+          const result = await response.json();
+          const data = unwrapResponse(result);
+
+          if (data) {
+            alert('配置缓存已刷新');
+            await loadGroupBlacklist();
+          }
+        } catch (error) {
+          console.error('刷新缓存失败', error);
+          alert('刷新缓存失败，请重试');
+        }
+      }
+
+      async function clearDeduplicationCache() {
+        if (!confirm('确定要清空消息去重缓存吗？\n这可能导致重复消息被重新处理。')) {
+          return;
+        }
+
+        try {
+          const response = await fetch('/message/cache/clear', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ deduplication: true }),
+          });
+          const result = await response.json();
+          const data = unwrapResponse(result);
+
+          if (data) {
+            alert('去重缓存已清空');
+          }
+        } catch (error) {
+          console.error('清空缓存失败', error);
+          alert('清空缓存失败，请重试');
         }
       }
 
