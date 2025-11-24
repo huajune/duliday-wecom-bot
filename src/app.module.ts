@@ -2,6 +2,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { HttpModule, RedisModule } from './core';
+import { SupabaseModule } from './core/supabase';
 import { MonitoringModule } from './core/monitoring/monitoring.module';
 import { AlertModule } from './core/alert/alert.module';
 import { AgentModule } from './agent';
@@ -46,6 +47,7 @@ import { validate } from './core/config/env.validation';
     // ==================== 核心层 (Core Layer) ====================
     HttpModule, // HTTP 客户端服务
     RedisModule, // Redis 缓存服务（全局）
+    SupabaseModule, // Supabase 数据库服务（全局）- 系统配置和用户托管状态持久化
     MonitoringModule, // 监控服务（全局）
     AlertModule, // 告警服务（全局）
 

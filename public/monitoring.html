@@ -7,43 +7,46 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <style>
       /* ========================================
-         浅色玻璃风设计系统 - Light Glass Design
+         柔光 AI 风格设计系统 - Soft AI Design
          ======================================== */
 
       :root {
-        /* 主色调 - 紫蓝渐变 */
-        --primary: #8b5cf6;
-        --primary-dark: #7c3aed;
-        --primary-light: #a78bfa;
-        --accent: #6366f1;
-        --accent-light: #818cf8;
+        /* 主色调 - 梦幻蓝紫 */
+        --primary: #6366f1;
+        --primary-dark: #4f46e5;
+        --primary-light: #818cf8;
+        --primary-soft: rgba(99, 102, 241, 0.1);
+        
+        /* 辅助色 */
+        --accent: #8b5cf6;
         --success: #10b981;
         --warning: #f59e0b;
         --danger: #ef4444;
         --info: #06b6d4;
 
         /* 文字颜色 */
-        --text-primary: #1e293b;
-        --text-secondary: #475569;
-        --text-muted: #94a3b8;
-        --text-on-gradient: rgba(255, 255, 255, 0.95);
-        --text-on-gradient-muted: rgba(255, 255, 255, 0.7);
+        --text-primary: #1f2937;
+        --text-secondary: #6b7280;
+        --text-muted: #9ca3af;
+        --text-on-primary: #ffffff;
 
         /* 背景与边框 */
-        --bg-page: #f0f4ff;
-        --bg-card: rgba(255, 255, 255, 0.85);
-        --bg-card-hover: rgba(255, 255, 255, 0.98);
-        --border: rgba(139, 92, 246, 0.12);
-        --border-hover: rgba(139, 92, 246, 0.25);
+        --bg-page: #f3f4f6;
+        --bg-sidebar: #ffffff;
+        --bg-card: #ffffff;
+        --border: #e5e7eb;
+        --border-hover: #d1d5db;
 
         /* 渐变 */
-        --gradient-sidebar: linear-gradient(180deg, #a78bfa 0%, #818cf8 50%, #6366f1 100%);
-        --gradient-primary: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%);
+        --gradient-primary: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+        --gradient-card: linear-gradient(135deg, #ffffff 0%, #f9fafb 100%);
+        --gradient-hover: linear-gradient(135deg, rgba(99, 102, 241, 0.05) 0%, rgba(139, 92, 246, 0.05) 100%);
 
-        /* 毛玻璃效果 */
-        --glass-blur: 20px;
-        --glass-shadow: 0 8px 32px rgba(139, 92, 246, 0.1);
-        --glass-shadow-hover: 0 16px 48px rgba(139, 92, 246, 0.18);
+        /* 阴影 */
+        --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+        --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        --shadow-glow: 0 0 20px rgba(99, 102, 241, 0.15);
       }
 
       * {
@@ -59,7 +62,7 @@
         padding: 0;
       }
 
-      /* 动态背景渐变 */
+      /* 柔和背景 */
       .background-gradients {
         position: fixed;
         top: 0;
@@ -68,7 +71,15 @@
         height: 100%;
         z-index: -1;
         overflow: hidden;
-        background: linear-gradient(135deg, #f5f3ff 0%, #e0e7ff 50%, #dbeafe 100%);
+        background: #f3f4f6;
+      }
+
+      .bg-blue, .bg-purple {
+        position: absolute;
+        border-radius: 50%;
+        filter: blur(80px);
+        opacity: 0.5;
+        animation: float 20s infinite ease-in-out;
       }
 
       .bg-blue, .bg-purple {
@@ -546,17 +557,17 @@
 
       .health-grid {
         display: grid;
-        gap: 20px;
-        grid-template-columns: repeat(3, 1fr);
+        gap: 12px;
+        grid-template-columns: repeat(4, 1fr);
         position: relative;
         z-index: 1;
       }
 
       .health-item {
         display: flex;
-        gap: 12px;
+        gap: 10px;
         align-items: center;
-        padding: 16px;
+        padding: 12px;
         background: rgba(255, 255, 255, 0.5);
         border-radius: 12px;
         border: 1px solid rgba(148, 163, 184, 0.15);
@@ -621,14 +632,19 @@
 
       .metric-card {
         background: var(--bg-card);
-        border: 1px solid var(--border);
-        border-radius: 16px;
-        padding: 20px;
-        display: flex;
-        flex-direction: column;
-        gap: 6px;
+        border-radius: 20px;
+        padding: 24px;
         position: relative;
         overflow: hidden;
+        transition: all 0.3s ease;
+        border: 1px solid var(--border);
+        box-shadow: var(--shadow-sm);
+      }
+
+      .metric-card:hover {
+        transform: translateY(-4px);
+        box-shadow: var(--shadow-lg);
+        border-color: var(--primary-light);
       }
 
       .metric-card::after {
@@ -642,23 +658,6 @@
 
       .metric-card.primary::after {
         background: radial-gradient(circle at top right, rgba(59, 130, 246, 0.15), transparent 70%);
-      }
-
-      /* 统一毛玻璃卡片样式 */
-      .metric-card, .chart-card, .insight-card, .health-panel, .control-panel, .section, .sidebar {
-        background: var(--bg-card);
-        backdrop-filter: blur(var(--glass-blur));
-        -webkit-backdrop-filter: blur(var(--glass-blur));
-        border: 1px solid var(--border);
-        box-shadow: var(--glass-shadow);
-        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-      }
-
-      .metric-card:hover, .chart-card:hover, .insight-card:hover {
-        transform: translateY(-4px);
-        box-shadow: var(--glass-shadow-hover);
-        border-color: var(--border-hover);
-        background: var(--bg-card-hover);
       }
 
       .metric-value {
@@ -1086,7 +1085,7 @@
           grid-template-columns: 1fr;
         }
         .health-grid {
-          grid-template-columns: 1fr;
+          grid-template-columns: repeat(2, 1fr);
         }
         .metric-grid {
           grid-template-columns: repeat(2, 1fr);
@@ -1096,78 +1095,405 @@
         }
       }
 
-      /* App Layout & Sidebar */
-
-      .app-layout {
-        display: flex;
-        min-height: 100vh;
+      @media (max-width: 600px) {
+        .health-grid {
+          grid-template-columns: 1fr;
+        }
       }
 
+      /* App Layout & Sidebar */
+
       .sidebar {
-        width: 260px;
-        background: var(--gradient-sidebar);
-        border-right: none;
+        width: 280px;
+        /* Subtle Winter Gradient */
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.95) 0%, rgba(240, 249, 255, 0.9) 100%);
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        border: 1px solid rgba(255, 255, 255, 0.6);
         display: flex;
         flex-direction: column;
         position: fixed;
-        top: 0;
-        bottom: 0;
-        left: 0;
+        top: 16px;
+        bottom: 16px;
+        left: 16px;
         z-index: 50;
         padding: 24px;
-        box-shadow: 4px 0 32px rgba(139, 92, 246, 0.2);
+        border-radius: 24px;
+        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.04);
+        overflow: hidden; /* Clip watermarks */
+      }
+
+      .sidebar-watermark {
+        position: absolute;
+        top: 5%;
+        right: -30px;
+        font-size: 240px;
+        opacity: 0.03;
+        pointer-events: none;
+        z-index: 0;
+        filter: blur(1px);
+        transform: rotate(15deg);
+        user-select: none;
+      }
+
+      .sidebar-watermark-2 {
+        position: absolute;
+        bottom: 15%;
+        left: -30px;
+        font-size: 180px;
+        opacity: 0.04;
+        pointer-events: none;
+        z-index: 0;
+        filter: blur(1px);
+        transform: rotate(-10deg);
+        user-select: none;
       }
 
       .content {
         flex: 1;
-        margin-left: 260px;
-        padding: 40px 40px 80px;
+        margin-left: 312px; /* 280 + 16 + 16 */
+        padding: 40px 40px 80px 0;
         min-width: 0;
       }
 
-      .sidebar-header {
-        margin-bottom: 40px;
-        padding: 0 12px;
-      }
-
       .sidebar-logo {
-        font-size: 20px;
-        font-weight: 700;
-        color: var(--text-on-gradient);
+        font-size: 22px;
+        font-weight: 800;
+        color: var(--text-primary);
         display: flex;
         align-items: center;
+        gap: 14px;
+        margin-bottom: 8px;
+        padding: 0 8px;
+      }
+
+      .sidebar-logo span {
+        background: var(--gradient-primary);
+        background-clip: text;
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        font-size: 28px;
+        filter: drop-shadow(0 2px 4px rgba(99, 102, 241, 0.2));
+      }
+      /* Christmas Design Elements */
+      .christmas-card {
+        margin-top: 16px;
+        background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+        border-radius: 16px;
+        padding: 16px;
+        position: relative;
+        overflow: hidden;
+        color: white;
+        box-shadow: 0 4px 12px rgba(220, 38, 38, 0.25);
+        cursor: default;
+      }
+
+      .santa-floating {
+        position: absolute;
+        top: -10px;
+        right: 10px;
+        font-size: 32px;
+        filter: drop-shadow(0 4px 6px rgba(0,0,0,0.15));
+        animation: santaFloat 3s ease-in-out infinite;
+        z-index: 20;
+      }
+
+      @keyframes santaFloat {
+        0%, 100% { transform: rotate(-5deg) translateY(0); }
+        50% { transform: rotate(5deg) translateY(-6px); }
+      }
+
+      /* Christmas Decorations for Cards */
+      .metric-card, .chart-card, .insight-card {
+        position: relative;
+        overflow: hidden;
+      }
+
+      .metric-card::before, .chart-card::before, .insight-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 3px;
+        background: linear-gradient(90deg, #ef4444 0%, #ffffff 50%, #10b981 100%);
+        z-index: 10;
+        opacity: 0.8;
+      }
+
+      .metric-card::after, .insight-card::after {
+        content: '❄️';
+        position: absolute;
+        top: -10px;
+        right: -10px;
+        font-size: 48px;
+        opacity: 0.05;
+        transform: rotate(15deg);
+        pointer-events: none;
+      }
+
+      /* Insight Card Styling (System Page) */
+      .insight-card {
+        background: var(--bg-card);
+        border-radius: 20px;
+        padding: 24px;
+        border: 1px solid var(--border);
+        box-shadow: var(--shadow-sm);
+        transition: all 0.3s ease;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+      }
+
+      .insight-card:hover {
+        transform: translateY(-4px);
+        box-shadow: var(--shadow-lg);
+        border-color: var(--primary-light);
+      }
+
+      .insight-title {
+        font-size: 16px;
+        font-weight: 600;
+        color: var(--text-primary);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .insight-metrics {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
         gap: 12px;
       }
 
-      .nav-menu {
+      .insight-metrics div {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+
+      .insight-metrics span {
+        font-size: 12px;
+        color: var(--text-secondary);
+      }
+
+      .insight-metrics strong {
+        font-size: 18px;
+        color: var(--text-primary);
+        font-weight: 700;
+      }
+
+      /* Christmas Decorations for Sidebar Icons */
+      .nav-item {
+        position: relative;
+      }
+
+      .nav-item::after {
+        content: '🎄';
+        position: absolute;
+        right: 12px;
+        top: 50%;
+        transform: translateY(-50%);
+        font-size: 12px;
+        opacity: 0;
+        transition: all 0.3s ease;
+      }
+
+      .nav-icon {
+        width: 24px;
+        height: 24px;
+        margin-right: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        object-fit: contain;
+        transition: all 0.3s ease;
+      }
+
+      /* Style for SVG icons to match Christmas theme */
+      .nav-icon svg {
+        width: 100%;
+        height: 100%;
+      }
+
+      .icon-system { color: #ef4444; /* Christmas Red */ }
+      .icon-logs { color: #10b981; /* Christmas Green */ }
+
+      .nav-item:hover::after, .nav-item.active::after {
+        opacity: 1;
+        transform: translateY(-50%) scale(1.2);
+      }
+
+      /* =========================================
+         More Christmas Elements (Stickers & Garland)
+         ========================================= */
+      .christmas-sticker {
+        position: absolute;
+        font-size: 28px;
+        z-index: 15;
+        pointer-events: none;
+        filter: drop-shadow(0 4px 4px rgba(0,0,0,0.15));
+        transition: all 0.3s ease;
+      }
+      
+      .metric-card:hover .christmas-sticker,
+      .chart-card:hover .christmas-sticker {
+        transform: scale(1.2) rotate(10deg);
+      }
+
+      .sticker-tr { top: -8px; right: -8px; transform: rotate(15deg); }
+      .sticker-tl { top: -8px; left: -8px; transform: rotate(-15deg); }
+      .sticker-float { 
+        animation: floatSticker 4s ease-in-out infinite;
+      }
+
+      @keyframes floatSticker {
+        0%, 100% { transform: translateY(0) rotate(0deg); }
+        50% { transform: translateY(-5px) rotate(5deg); }
+      }
+
+      /* Hanging Garland */
+      .christmas-garland {
+        position: fixed;
+        top: 0;
+        left: 320px; /* Sidebar width + gap */
+        right: 40px;
+        height: 60px;
+        z-index: 40;
+        display: flex;
+        justify-content: space-between;
+        pointer-events: none;
+        padding: 0 20px;
+      }
+
+      .garland-string {
+        position: absolute;
+        top: -10px;
+        left: 0;
+        right: 0;
+        height: 20px;
+        border-bottom: 2px dashed rgba(220, 38, 38, 0.3);
+        border-radius: 50%;
+        z-index: -1;
+      }
+
+      .garland-item {
+        font-size: 32px;
+        margin-top: 10px;
+        transform-origin: top center;
+        animation: swing 3s ease-in-out infinite;
+        filter: drop-shadow(0 4px 6px rgba(0,0,0,0.1));
+      }
+
+      @keyframes swing {
+        0%, 100% { transform: rotate(-8deg); }
+        50% { transform: rotate(8deg); }
+      }
+
+      .christmas-title {
+        font-size: 14px;
+        font-weight: 700;
+        margin-bottom: 4px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        position: relative;
+        z-index: 2;
+      }
+
+      .christmas-text {
+        font-size: 11px;
+        opacity: 0.9;
+        line-height: 1.4;
+        position: relative;
+        z-index: 2;
+      }
+
+      /* Subtle Snow Animation inside card */
+      .snowflake {
+        color: rgba(255, 255, 255, 0.3);
+        font-size: 1em;
+        font-family: Arial, sans-serif;
+        text-shadow: 0 0 5px #000;
+        position: absolute;
+        top: -10%;
+        z-index: 1;
+        animation: snowflakes-fall 5s linear infinite, snowflakes-shake 3s ease-in-out infinite;
+      }
+
+      .snowflake:nth-of-type(1) { left: 10%; animation-delay: 0s, 0s; }
+      .snowflake:nth-of-type(2) { left: 50%; animation-delay: 2s, 1s; font-size: 1.5em; }
+      .snowflake:nth-of-type(3) { left: 80%; animation-delay: 4s, 2s; }
+
+      @keyframes snowflakes-fall {
+        0% { top: -10%; }
+        100% { top: 100%; }
+      }
+
+      @keyframes snowflakes-shake {
+        0%, 100% { transform: translateX(0); }
+        50% { transform: translateX(20px); }
+      }
+
+      .sidebar-menu {
         display: flex;
         flex-direction: column;
         gap: 8px;
+        flex: 1;
+        overflow-y: auto;
+        padding: 4px;
+      }
+
+      .sidebar-footer {
+        margin-top: auto;
+        padding-top: 20px;
+      }
+
+      .nav-group-title {
+        font-size: 11px;
+        color: var(--text-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        font-weight: 600;
+        margin: 24px 0 12px 12px;
+      }
+
+      .nav-group-title:first-child {
+        margin-top: 12px;
       }
 
       .nav-item {
         display: flex;
         align-items: center;
-        gap: 12px;
-        padding: 12px 16px;
-        border-radius: 12px;
-        color: var(--text-on-gradient-muted);
+        gap: 14px;
+        padding: 14px 18px;
+        border-radius: 16px;
+        color: var(--text-secondary);
         text-decoration: none;
-        transition: all 0.2s ease;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         cursor: pointer;
-        font-size: 14px;
+        font-size: 15px;
         font-weight: 500;
+        position: relative;
+        overflow: hidden;
       }
 
       .nav-item:hover {
-        background: rgba(255, 255, 255, 0.15);
-        color: var(--text-on-gradient);
+        background: rgba(99, 102, 241, 0.05);
+        color: var(--primary);
+        transform: translateX(4px);
       }
 
       .nav-item.active {
-        background: rgba(255, 255, 255, 0.95);
-        color: var(--primary-dark);
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        background: var(--gradient-primary);
+        color: #ffffff;
+        box-shadow: 0 8px 20px rgba(99, 102, 241, 0.25);
+        font-weight: 600;
+      }
+
+      .nav-item.active .nav-icon {
+        /* filter: brightness(0) invert(1);  Removed to keep emoji colors */
+        transform: scale(1.1);
       }
 
       .page-section {
@@ -1277,12 +1603,6 @@
         outline: none;
         border-color: var(--primary);
       }
-      .nav-icon {
-        width: 24px;
-        height: 24px;
-        object-fit: contain;
-        border-radius: 4px;
-      }
     </style>
   </head>
   <body>
@@ -1292,25 +1612,53 @@
     </div>
     <div class="app-layout">
       <aside class="sidebar">
+        <!-- Background Decorations -->
+        <div class="sidebar-watermark">❄️</div>
+        <div class="sidebar-watermark-2">🎄</div>
+
         <div class="sidebar-header">
           <div class="sidebar-logo">
-            <span>🚀</span> 独立日 Bot
+            <span>🤖</span> 独立日 Bot
           </div>
         </div>
-        <nav class="nav-menu">
+        <div class="sidebar-menu">
+          <div class="nav-group-title">概览</div>
           <div class="nav-item active" onclick="switchPage('dashboard')" id="nav-dashboard">
             <img src="icons/dashboard.png" class="nav-icon" alt="Dashboard"> 仪表盘
           </div>
+          
+          <div class="nav-group-title">管理</div>
           <div class="nav-item" onclick="switchPage('users')" id="nav-users">
             <img src="icons/users.png" class="nav-icon" alt="Users"> 用户管理
           </div>
           <div class="nav-item" onclick="switchPage('system')" id="nav-system">
-            <img src="icons/system.png" class="nav-icon" alt="System"> 系统监控
+            <span class="nav-icon icon-system">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20a8 8 0 1 0 0-16 8 8 0 0 0 0 16Z"></path><path d="M12 14a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z"></path><path d="M12 2v2"></path><path d="M12 22v-2"></path><path d="m17 20.66-1-1.73"></path><path d="M11 10.27 7 3.34"></path><path d="m20.66 17-1.73-1"></path><path d="m3.34 7 1.73 1"></path><path d="M14 12h8"></path><path d="M2 12h2"></path><path d="m20.66 7-1.73 1"></path><path d="m3.34 17 1.73-1"></path><path d="m17 3.34-1 1.73"></path><path d="m11 13.73-4 6.93"></path></svg>
+            </span> 系统监控
           </div>
+          
+          <div class="nav-group-title">日志</div>
           <div class="nav-item" onclick="switchPage('logs')" id="nav-logs">
-            <img src="icons/logs.png" class="nav-icon" alt="Logs"> 消息日志
+            <span class="nav-icon icon-logs">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+            </span> 消息日志
           </div>
-        </nav>
+        </div>
+
+        <div class="sidebar-footer" style="position: relative;">
+          <div class="santa-floating">🎅</div>
+          
+          <!-- Christmas Decorative Element -->
+          <div class="christmas-card">
+            <div class="christmas-title">Merry Christmas! 🎄</div>
+            <div class="christmas-text">May your code be bug-free and your holidays bright.</div>
+            <div class="snowflakes" aria-hidden="true">
+              <div class="snowflake">❅</div>
+              <div class="snowflake">❆</div>
+              <div class="snowflake">❅</div>
+            </div>
+          </div>
+        </div>
       </aside>
       <main class="content">
         <div class="container">
@@ -1370,6 +1718,14 @@
                     <div class="health-title">工具服务</div>
                     <div class="health-status" id="toolHealthStatus">-</div>
                     <div class="health-desc" id="toolHealthDetails">检查中...</div>
+                  </div>
+                </article>
+                <article class="health-item" id="brandHealthCard" data-state="loading">
+                  <div class="health-icon">🏷️</div>
+                  <div class="health-info">
+                    <div class="health-title">品牌数据</div>
+                    <div class="health-status" id="brandHealthStatus">-</div>
+                    <div class="health-desc" id="brandHealthDetails">检查中...</div>
                   </div>
                 </article>
               </div>
@@ -1479,7 +1835,7 @@
             <!-- 运维洞察 -->
             <section class="insight-grid">
               <article class="insight-card">
-                <div class="insight-title">排队与响应</div>
+                <div class="insight-title">🛷 排队与响应</div>
                 <div class="insight-metrics">
                   <div>
                     <span>实时处理中</span>
@@ -1496,7 +1852,7 @@
                 </div>
               </article>
               <article class="insight-card">
-                <div class="insight-title">延迟分布</div>
+                <div class="insight-title">🕰️ 延迟分布</div>
                 <div class="percentiles">
                   <div>
                     <span>P50</span>
@@ -1513,7 +1869,7 @@
                 </div>
               </article>
               <article class="insight-card">
-                <div class="insight-title">告警概览</div>
+                <div class="insight-title">🔔 告警概览</div>
                 <div class="insight-metrics">
                   <div>
                     <span>累计</span>
@@ -1526,7 +1882,7 @@
                 </div>
               </article>
               <article class="insight-card">
-                <div class="insight-title">告警类型分布</div>
+                <div class="insight-title">📜 告警类型分布</div>
                 <div id="alertTypeList" class="alert-type-list">
                   <div class="loading" style="padding: 12px 0; font-size: 13px;">暂无数据</div>
                 </div>
@@ -1677,25 +2033,6 @@
                   </tbody>
                 </table>
               </div>
-              <!-- 分页控件 -->
-              <div class="pagination" id="recentMessagesPagination">
-                <div class="pagination-info">
-                  显示 <span id="paginationStart">0</span>-<span id="paginationEnd">0</span> 条，共 <span id="paginationTotal">0</span> 条
-                </div>
-                <div class="pagination-controls">
-                  <select class="page-size-select" id="pageSizeSelect" onchange="changePageSize()">
-                    <option value="10" selected>10 条/页</option>
-                    <option value="20">20 条/页</option>
-                    <option value="50">50 条/页</option>
-                    <option value="100">100 条/页</option>
-                  </select>
-                  <button class="pagination-btn" onclick="goToPage(1)" id="paginationFirst">首页</button>
-                  <button class="pagination-btn" onclick="goToPage(currentPage - 1)" id="paginationPrev">上一页</button>
-                  <div class="pagination-pages" id="paginationPages"></div>
-                  <button class="pagination-btn" onclick="goToPage(currentPage + 1)" id="paginationNext">下一页</button>
-                  <button class="pagination-btn" onclick="goToPage(totalPages)" id="paginationLast">末页</button>
-                </div>
-              </div>
             </section>
           </div>
 
@@ -1720,11 +2057,9 @@
       let currentTimeRange = 'today';
       let pausedUsersCache = new Set();
 
-      // 分页相关变量
+      // 消息列表
       let allRecentMessages = [];
-      let currentPage = 1;
-      let pageSize = 10;
-      let totalPages = 1;
+      const MAX_MESSAGES = 50; // 最多显示50条
 
       function switchPage(pageId) {
         // Update Menu
@@ -2053,47 +2388,27 @@
       }
 
       function updateRecentMessages(records) {
-        // 存储所有记录用于分页
-        allRecentMessages = records || [];
+        // 存储记录（最多50条）
+        allRecentMessages = (records || []).slice(0, MAX_MESSAGES);
 
         // 更新总数显示
         document.getElementById('recentMessagesTotal').textContent = `(${allRecentMessages.length} 条)`;
 
-        // 计算新的总页数
-        const newTotalPages = allRecentMessages.length > 0
-          ? Math.ceil(allRecentMessages.length / pageSize)
-          : 1;
-
-        // 如果当前页超出范围，调整到最后一页
-        if (currentPage > newTotalPages) {
-          currentPage = newTotalPages;
-        }
-
-        // 保持当前页码，不重置
-        renderCurrentPage();
+        // 渲染消息列表
+        renderMessages();
       }
 
-      function renderCurrentPage() {
+      function renderMessages() {
         const tbody = document.getElementById('recentMessages');
         tbody.innerHTML = '';
 
         if (!allRecentMessages || allRecentMessages.length === 0) {
           tbody.innerHTML = '<tr><td colspan="6" class="loading">暂无数据</td></tr>';
-          updatePaginationUI(0, 0, 0);
           return;
         }
 
-        // 计算分页
-        totalPages = Math.ceil(allRecentMessages.length / pageSize);
-        currentPage = Math.min(currentPage, totalPages);
-        currentPage = Math.max(currentPage, 1);
-
-        const startIndex = (currentPage - 1) * pageSize;
-        const endIndex = Math.min(startIndex + pageSize, allRecentMessages.length);
-        const pageRecords = allRecentMessages.slice(startIndex, endIndex);
-
-        // 渲染当前页数据
-        pageRecords.forEach((record) => {
+        // 直接渲染所有数据（最多50条）
+        allRecentMessages.forEach((record) => {
           const row = document.createElement('tr');
           row.innerHTML = `
             <td>${formatTime(record.receivedAt)}</td>
@@ -2111,64 +2426,6 @@
           `;
           tbody.appendChild(row);
         });
-
-        // 更新分页 UI
-        updatePaginationUI(startIndex + 1, endIndex, allRecentMessages.length);
-      }
-
-      function updatePaginationUI(start, end, total) {
-        document.getElementById('paginationStart').textContent = total > 0 ? start : 0;
-        document.getElementById('paginationEnd').textContent = end;
-        document.getElementById('paginationTotal').textContent = total;
-
-        // 更新按钮状态
-        document.getElementById('paginationFirst').disabled = currentPage <= 1;
-        document.getElementById('paginationPrev').disabled = currentPage <= 1;
-        document.getElementById('paginationNext').disabled = currentPage >= totalPages;
-        document.getElementById('paginationLast').disabled = currentPage >= totalPages;
-
-        // 渲染页码按钮
-        renderPageNumbers();
-      }
-
-      function renderPageNumbers() {
-        const container = document.getElementById('paginationPages');
-        container.innerHTML = '';
-
-        if (totalPages <= 1) return;
-
-        // 显示最多 5 个页码按钮
-        let startPage = Math.max(1, currentPage - 2);
-        let endPage = Math.min(totalPages, startPage + 4);
-
-        if (endPage - startPage < 4) {
-          startPage = Math.max(1, endPage - 4);
-        }
-
-        for (let i = startPage; i <= endPage; i++) {
-          const btn = document.createElement('button');
-          btn.className = `pagination-page ${i === currentPage ? 'active' : ''}`;
-          btn.textContent = i;
-          btn.onclick = () => goToPage(i);
-          container.appendChild(btn);
-        }
-      }
-
-      function goToPage(page) {
-        // 确保 totalPages 已计算
-        if (allRecentMessages.length > 0) {
-          totalPages = Math.ceil(allRecentMessages.length / pageSize);
-        }
-        if (page < 1 || page > totalPages || page === currentPage) return;
-        currentPage = page;
-        renderCurrentPage();
-      }
-
-      function changePageSize() {
-        const select = document.getElementById('pageSizeSelect');
-        pageSize = parseInt(select.value, 10);
-        currentPage = 1;
-        renderCurrentPage();
       }
 
       function createGradient(ctx, colorStart, colorEnd) {
@@ -2225,9 +2482,9 @@
           }
         };
 
-        // 响应耗时趋势图表
+        // 响应耗时趋势图表 - 圣诞绿
         const responseCtx = document.getElementById('responseTrendChart').getContext('2d');
-        const responseGradient = createGradient(responseCtx, 'rgba(59, 130, 246, 0.2)', 'rgba(59, 130, 246, 0)');
+        const responseGradient = createGradient(responseCtx, 'rgba(16, 185, 129, 0.2)', 'rgba(16, 185, 129, 0)');
         
         responseTrendChart = new Chart(responseCtx, {
           type: 'line',
@@ -2236,11 +2493,13 @@
             datasets: [{
               label: '平均耗时 (秒)',
               data: [],
-              borderColor: '#60a5fa',
+              borderColor: '#10b981', // Christmas Green
               backgroundColor: responseGradient,
               fill: true,
-              pointBackgroundColor: '#1e293b',
-              pointBorderColor: '#60a5fa',
+              pointBackgroundColor: '#ffffff',
+              pointBorderColor: '#10b981',
+              pointRadius: 4,
+              pointHoverRadius: 6,
             }],
           },
           options: {
@@ -2255,7 +2514,7 @@
           }
         });
 
-        // 告警趋势图表
+        // 告警趋势图表 - 圣诞红
         const alertCtx = document.getElementById('alertTrendChart').getContext('2d');
         alertTrendChart = new Chart(alertCtx, {
           type: 'bar',
@@ -2264,9 +2523,9 @@
             datasets: [{
               label: '告警次数',
               data: [],
-              backgroundColor: '#f87171',
-              borderRadius: 4,
-              hoverBackgroundColor: '#ef4444',
+              backgroundColor: '#ef4444', // Christmas Red
+              borderRadius: 6,
+              hoverBackgroundColor: '#dc2626',
             }],
           },
           options: {
@@ -2281,9 +2540,9 @@
           }
         });
 
-        // 咨询人数趋势图表
+        // 咨询人数趋势图表 - 冰雪蓝
         const consultationsCtx = document.getElementById('consultationsTrendChart').getContext('2d');
-        const consultGradient = createGradient(consultationsCtx, 'rgba(139, 92, 246, 0.2)', 'rgba(139, 92, 246, 0)');
+        const consultGradient = createGradient(consultationsCtx, 'rgba(59, 130, 246, 0.2)', 'rgba(59, 130, 246, 0)');
 
         consultationsTrendChart = new Chart(consultationsCtx, {
           type: 'line',
@@ -2292,11 +2551,13 @@
             datasets: [{
               label: '咨询人数',
               data: [],
-              borderColor: '#a78bfa',
+              borderColor: '#3b82f6', // Ice Blue
               backgroundColor: consultGradient,
               fill: true,
-              pointBackgroundColor: '#1e293b',
-              pointBorderColor: '#a78bfa',
+              pointBackgroundColor: '#ffffff',
+              pointBorderColor: '#3b82f6',
+              pointRadius: 4,
+              pointHoverRadius: 6,
             }],
           },
           options: {
@@ -2311,9 +2572,9 @@
           }
         });
 
-        // 预约转化趋势图表（双轴）
+        // 预约转化趋势图表（双轴）- 红色 & 绿色
         const bookingCtx = document.getElementById('bookingTrendChart').getContext('2d');
-        const bookingGradient = createGradient(bookingCtx, 'rgba(236, 72, 153, 0.2)', 'rgba(236, 72, 153, 0)');
+        const bookingGradient = createGradient(bookingCtx, 'rgba(239, 68, 68, 0.2)', 'rgba(239, 68, 68, 0)');
 
         bookingTrendChart = new Chart(bookingCtx, {
           type: 'line',
@@ -2323,23 +2584,27 @@
               {
                 label: '预约次数',
                 data: [],
-                borderColor: '#f472b6',
+                borderColor: '#ef4444', // Red
                 backgroundColor: bookingGradient,
                 fill: true,
                 yAxisID: 'y',
-                pointBackgroundColor: '#1e293b',
-                pointBorderColor: '#f472b6',
+                pointBackgroundColor: '#ffffff',
+                pointBorderColor: '#ef4444',
+                pointRadius: 4,
+                pointHoverRadius: 6,
               },
               {
                 label: '预约成功率',
                 data: [],
-                borderColor: '#34d399',
+                borderColor: '#10b981', // Green
                 backgroundColor: 'transparent',
                 borderDash: [5, 5],
                 fill: false,
                 yAxisID: 'y1',
-                pointBackgroundColor: '#1e293b',
-                pointBorderColor: '#34d399',
+                pointBackgroundColor: '#ffffff',
+                pointBorderColor: '#10b981',
+                pointRadius: 4,
+                pointHoverRadius: 6,
               },
             ],
           },
@@ -2349,7 +2614,7 @@
               ...commonOptions.plugins,
               legend: {
                 display: true,
-                labels: { color: '#94a3b8', usePointStyle: true, boxWidth: 8 }
+                labels: { color: '#6b7280', usePointStyle: true, boxWidth: 8 }
               }
             },
             scales: {
@@ -2357,20 +2622,20 @@
               y: {
                 ...commonOptions.scales.y,
                 position: 'left',
-                title: { display: true, text: '预约次数', color: '#f472b6', font: {size: 10} }
+                title: { display: true, text: '预约次数', color: '#ef4444', font: {size: 10} }
               },
               y1: {
                 ...commonOptions.scales.y,
                 position: 'right',
                 grid: { drawOnChartArea: false },
-                title: { display: true, text: '成功率 (%)', color: '#34d399', font: {size: 10} },
+                title: { display: true, text: '成功率 (%)', color: '#10b981', font: {size: 10} },
                 ticks: { callback: (value) => `${value}%` }
               },
             },
           },
         });
 
-        // 每日 Token 消耗趋势图表
+        // 每日 Token 消耗趋势图表 - 圣诞金
         const dailyTokenCtx = document.getElementById('dailyTokenChart').getContext('2d');
         dailyTokenChart = new Chart(dailyTokenCtx, {
           type: 'bar',
@@ -2379,9 +2644,9 @@
             datasets: [{
               label: 'Token 消耗',
               data: [],
-              backgroundColor: '#fbbf24',
-              borderRadius: 4,
-              hoverBackgroundColor: '#f59e0b',
+              backgroundColor: '#f59e0b', // Gold
+              borderRadius: 6,
+              hoverBackgroundColor: '#d97706',
             }],
           },
           options: {
@@ -2396,9 +2661,9 @@
           }
         });
 
-        // 每日用户数趋势图表
+        // 每日用户数趋势图表 - 圣诞绿
         const dailyUserCtx = document.getElementById('dailyUserChart').getContext('2d');
-        const userGradient = createGradient(dailyUserCtx, 'rgba(59, 130, 246, 0.2)', 'rgba(59, 130, 246, 0)');
+        const userGradient = createGradient(dailyUserCtx, 'rgba(16, 185, 129, 0.2)', 'rgba(16, 185, 129, 0)');
 
         dailyUserChart = new Chart(dailyUserCtx, {
           type: 'line',
@@ -2407,11 +2672,13 @@
             datasets: [{
               label: '咨询人数',
               data: [],
-              borderColor: '#60a5fa',
+              borderColor: '#10b981', // Green
               backgroundColor: userGradient,
               fill: true,
-              pointBackgroundColor: '#1e293b',
-              pointBorderColor: '#60a5fa',
+              pointBackgroundColor: '#ffffff',
+              pointBorderColor: '#10b981',
+              pointRadius: 4,
+              pointHoverRadius: 6,
             }],
           },
           options: {
@@ -2599,32 +2866,59 @@
             health.message || 'Agent 服务状态未知',
           );
 
+          // 模型状态：使用后端实际返回的字段
+          const isModelOk = health.models?.configuredAvailable || health.models?.allConfiguredModelsAvailable;
+          const modelAvailableCount = health.models?.availableCount || 0;
+          const modelConfiguredCount = health.models?.configuredCount || 0;
           updateHealthCard(
             'modelHealthCard',
             'modelHealthStatus',
             'modelHealthDetails',
-            health.models?.status === 'available' ? 'success' : 'warning',
-            health.models?.status === 'available' ? '服务可用' : '需关注',
-            health.models?.message || '模型状态检查中',
+            isModelOk ? 'success' : 'warning',
+            isModelOk ? '服务可用' : '需关注',
+            isModelOk
+              ? `${modelAvailableCount}/${modelConfiguredCount} 模型可用`
+              : `${modelAvailableCount}/${modelConfiguredCount} 模型可用，部分不可用`,
           );
 
+          // 工具状态：使用后端实际返回的字段
+          const isToolOk = health.tools?.allAvailable;
+          const toolAvailableCount = health.tools?.availableCount || 0;
+          const toolConfiguredCount = health.tools?.configuredCount || 0;
           updateHealthCard(
             'toolHealthCard',
             'toolHealthStatus',
             'toolHealthDetails',
-            health.tools?.status === 'healthy' ? 'success' : 'warning',
-            health.tools?.status === 'healthy' ? '响应正常' : '响应缓慢',
-            health.tools?.message || '工具链检查中',
+            isToolOk ? 'success' : 'warning',
+            isToolOk ? '响应正常' : '响应缓慢',
+            isToolOk
+              ? `${toolAvailableCount}/${toolConfiguredCount} 工具可用`
+              : `${toolAvailableCount}/${toolConfiguredCount} 工具可用，部分不可用`,
+          );
+
+          // 品牌配置状态
+          const brandConfig = health.brandConfig;
+          const isBrandOk = brandConfig?.available && brandConfig?.synced;
+          const brandLastUpdate = brandConfig?.lastUpdated
+            ? formatTime(brandConfig.lastUpdated)
+            : '未知';
+          updateHealthCard(
+            'brandHealthCard',
+            'brandHealthStatus',
+            'brandHealthDetails',
+            isBrandOk ? 'success' : 'warning',
+            isBrandOk ? '数据同步' : '需同步',
+            isBrandOk
+              ? `更新于 ${brandLastUpdate}`
+              : brandConfig?.available ? '品牌数据待同步' : '品牌数据不可用',
           );
 
           // 更新顶部健康状态徽章
           const badge = document.getElementById('overallHealthBadge');
           if (badge) {
             const isHealthy = health.status === 'healthy';
-            const isModelOk = health.models?.status === 'available';
-            const isToolOk = health.tools?.status === 'healthy';
 
-            if (isHealthy && isModelOk && isToolOk) {
+            if (isHealthy && isModelOk && isToolOk && isBrandOk) {
               badge.textContent = '全部正常';
               badge.className = 'health-panel-badge';
             } else if (!isHealthy) {
@@ -2693,6 +2987,57 @@
         const seconds = value / 1000;
         return `${seconds.toFixed(fractionDigits)} 秒`;
       }
+    </script>
+    <script>
+      // Christmas Decoration Script
+      document.addEventListener('DOMContentLoaded', () => {
+        // 1. Decorate Cards with Stickers
+        const cards = document.querySelectorAll('.metric-card, .chart-card, .insight-card');
+        // Expanded festive emoji list
+        const decorations = ['🎀', '🧦', '⛄', '🎁', '🍬', '🔔', '🦌', '🎅', '🎄', '🍭', '🎈', '🎉', '🎊', '🥨', '🍩', '❄️', '☃️'];
+        
+        cards.forEach((card, index) => {
+          // Randomly decide to add a sticker (80% chance)
+          if (Math.random() > 0.2) {
+            const sticker = document.createElement('div');
+            sticker.className = 'christmas-sticker sticker-tr';
+            // Pick a random decoration
+            sticker.textContent = decorations[Math.floor(Math.random() * decorations.length)];
+            // Add some random delay to animations if we add them later
+            sticker.style.animationDelay = `${Math.random() * 2}s`;
+            card.appendChild(sticker);
+          }
+          
+          // Occasionally add a second sticker to the left (30% chance)
+          if (Math.random() > 0.7) {
+             const sticker2 = document.createElement('div');
+             sticker2.className = 'christmas-sticker sticker-tl';
+             sticker2.textContent = decorations[Math.floor(Math.random() * decorations.length)];
+             card.appendChild(sticker2);
+          }
+        });
+
+        // 2. Add Hanging Garland
+        const garland = document.createElement('div');
+        garland.className = 'christmas-garland';
+        
+        // Add the string visual
+        const string = document.createElement('div');
+        string.className = 'garland-string';
+        garland.appendChild(string);
+
+        // Add hanging items
+        const hangingItems = ['💡', '🎈', '🎀', '🍬', '🦌', '🔔', '🍭', '⛄', '🎁', '❄️', '🎄', '🥨'];
+        for(let i=0; i<12; i++) {
+          const item = document.createElement('div');
+          item.className = 'garland-item';
+          item.textContent = hangingItems[Math.floor(Math.random() * hangingItems.length)];
+          item.style.animationDelay = `${Math.random() * 2}s`;
+          item.style.fontSize = `${24 + Math.random() * 16}px`; // Random sizes
+          garland.appendChild(item);
+        }
+        document.body.appendChild(garland);
+      });
     </script>
   </body>
 </html>

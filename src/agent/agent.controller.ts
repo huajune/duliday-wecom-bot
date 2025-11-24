@@ -62,6 +62,7 @@ export class AgentController {
           hasBrandData: brandConfigStatus.hasBrandData,
           hasReplyPrompts: brandConfigStatus.hasReplyPrompts,
           lastRefreshTime: brandConfigStatus.lastRefreshTime,
+          lastUpdated: brandConfigStatus.lastUpdated,
           // 不返回完整的品牌配置数据，避免暴露敏感信息
         },
       },

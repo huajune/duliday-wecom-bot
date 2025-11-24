@@ -94,12 +94,14 @@ export class MonitoringController {
    */
   @Post('toggle-ai-reply')
   @HttpCode(200)
-  toggleAiReply(@Body('enabled') enabled: boolean): { enabled: boolean; message: string } {
+  async toggleAiReply(
+    @Body('enabled') enabled: boolean,
+  ): Promise<{ enabled: boolean; message: string }> {
     this.logger.log(`切换 AI 回复开关: ${enabled}`);
-    const newStatus = this.messageService.toggleAiReply(enabled);
+    const newStatus = await this.messageService.toggleAiReply(enabled);
     return {
       enabled: newStatus,
-      message: `AI 自动回复功能已${newStatus ? '启用' : '禁用'}`,
+      message: `AI 自动回复功能已${newStatus ? '启用' : '禁用'}（已持久化）`,
     };
   }
 
@@ -109,17 +111,17 @@ export class MonitoringController {
    */
   @Post('users/:userId/pause')
   @HttpCode(200)
-  pauseUserHosting(@Param('userId') userId: string): {
+  async pauseUserHosting(@Param('userId') userId: string): Promise<{
     userId: string;
     isPaused: boolean;
     message: string;
-  } {
+  }> {
     this.logger.log(`暂停用户托管: ${userId}`);
-    this.filterService.pauseUser(userId);
+    await this.filterService.pauseUser(userId);
     return {
       userId,
       isPaused: true,
-      message: `用户 ${userId} 的托管已暂停`,
+      message: `用户 ${userId} 的托管已暂停（已持久化）`,
     };
   }
 
@@ -129,17 +131,17 @@ export class MonitoringController {
    */
   @Post('users/:userId/resume')
   @HttpCode(200)
-  resumeUserHosting(@Param('userId') userId: string): {
+  async resumeUserHosting(@Param('userId') userId: string): Promise<{
     userId: string;
     isPaused: boolean;
     message: string;
-  } {
+  }> {
     this.logger.log(`恢复用户托管: ${userId}`);
-    this.filterService.resumeUser(userId);
+    await this.filterService.resumeUser(userId);
     return {
       userId,
       isPaused: false,
-      message: `用户 ${userId} 的托管已恢复`,
+      message: `用户 ${userId} 的托管已恢复（已持久化）`,
     };
   }
 
@@ -148,10 +150,10 @@ export class MonitoringController {
    * GET /monitoring/users/paused
    */
   @Get('users/paused')
-  getPausedUsers(): { users: { userId: string; pausedAt: number }[] } {
+  async getPausedUsers(): Promise<{ users: { userId: string; pausedAt: number }[] }> {
     this.logger.debug('获取暂停托管用户列表');
     return {
-      users: this.filterService.getPausedUsers(),
+      users: await this.filterService.getPausedUsers(),
     };
   }
 
@@ -160,10 +162,12 @@ export class MonitoringController {
    * GET /monitoring/users/:userId/status
    */
   @Get('users/:userId/status')
-  getUserHostingStatus(@Param('userId') userId: string): { userId: string; isPaused: boolean } {
+  async getUserHostingStatus(
+    @Param('userId') userId: string,
+  ): Promise<{ userId: string; isPaused: boolean }> {
     return {
       userId,
-      isPaused: this.filterService.isUserPaused(userId),
+      isPaused: await this.filterService.isUserPaused(userId),
     };
   }
 

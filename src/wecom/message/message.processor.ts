@@ -65,7 +65,7 @@ export class MessageProcessor {
       const validMessages: EnterpriseMessageCallbackDto[] = [];
 
       for (const messageData of messages) {
-        const filterResult = this.filterService.validate(messageData);
+        const filterResult = await this.filterService.validate(messageData);
         if (filterResult.pass) {
           validMessages.push(messageData);
         } else {

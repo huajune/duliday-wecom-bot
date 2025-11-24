@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import axios, { AxiosInstance } from 'axios';
 import * as crypto from 'crypto';
+import { networkInterfaces } from 'os';
 import { AlertErrorType } from './types';
 
 interface AgentAlertOptions {
@@ -36,6 +37,8 @@ export class FeiShuAlertService {
   private readonly secret: string;
   private readonly enabled: boolean;
   private readonly httpClient: AxiosInstance;
+  private readonly ignoredIps: string[];
+  private readonly localIps: string[];
 
   // 品牌配置告警频次限制（5分钟内只发一次）
   private lastBrandConfigAlertTime: number = 0;
@@ -45,6 +48,13 @@ export class FeiShuAlertService {
     this.webhookUrl = this.configService.get<string>('FEISHU_ALERT_WEBHOOK_URL', '');
     this.secret = this.configService.get<string>('FEISHU_ALERT_SECRET', '');
     this.enabled = this.configService.get<string>('ENABLE_FEISHU_ALERT', 'false') === 'true';
+
+    // 配置要忽略告警的 IP 地址列表（逗号分隔）
+    const ignoredIpsConfig = this.configService.get<string>('FEISHU_ALERT_IGNORED_IPS', '');
+    this.ignoredIps = ignoredIpsConfig ? ignoredIpsConfig.split(',').map((ip) => ip.trim()) : [];
+
+    // 获取本机所有 IP 地址
+    this.localIps = this.getLocalIpAddresses();
 
     if (this.enabled && !this.webhookUrl) {
       this.logger.warn('飞书告警已启用，但未配置 FEISHU_ALERT_WEBHOOK_URL，告警将被禁用');
@@ -62,9 +72,52 @@ export class FeiShuAlertService {
       } else {
         this.logger.log('飞书签名验证未启用');
       }
+      if (this.ignoredIps.length > 0) {
+        this.logger.log(`飞书告警忽略 IP: ${this.ignoredIps.join(', ')}`);
+      }
     } else {
       this.logger.log('飞书告警服务未启用');
     }
+  }
+
+  /**
+   * 获取本机所有 IP 地址
+   */
+  private getLocalIpAddresses(): string[] {
+    const ips: string[] = [];
+    const nets = networkInterfaces();
+
+    for (const name of Object.keys(nets)) {
+      const netInfo = nets[name];
+      if (!netInfo) continue;
+
+      for (const net of netInfo) {
+        // 收集所有 IPv4 地址（包括内部地址）
+        if (net.family === 'IPv4') {
+          ips.push(net.address);
+        }
+      }
+    }
+
+    return ips;
+  }
+
+  /**
+   * 检查当前机器是否在忽略列表中
+   */
+  private shouldIgnoreAlert(): boolean {
+    if (this.ignoredIps.length === 0) {
+      return false;
+    }
+
+    // 检查本机任意 IP 是否在忽略列表中
+    for (const localIp of this.localIps) {
+      if (this.ignoredIps.includes(localIp)) {
+        return true;
+      }
+    }
+
+    return false;
   }
 
   /**
@@ -714,6 +767,12 @@ export class FeiShuAlertService {
   private async send(content: any): Promise<void> {
     if (!this.enabled || !this.webhookUrl) {
       this.logger.warn('飞书告警未启用或未配置 Webhook URL，跳过发送');
+      return;
+    }
+
+    // 检查是否应该忽略当前机器的告警
+    if (this.shouldIgnoreAlert()) {
+      this.logger.log(`🔇 当前机器 IP 在忽略列表中，跳过飞书告警发送`);
       return;
     }
 

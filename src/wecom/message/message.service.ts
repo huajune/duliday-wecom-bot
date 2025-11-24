@@ -1,7 +1,8 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { MonitoringService } from '@/core/monitoring/monitoring.service';
 import { AlertOrchestratorService } from '@/core/alert/services/alert-orchestrator.service';
+import { SupabaseService } from '@core/supabase';
 import { ScenarioType } from '@agent';
 import { AgentException } from '@/agent/utils/agent-exceptions';
 
@@ -37,9 +38,9 @@ import { DeliveryContext, PipelineResult, AlertErrorType } from './types';
  * 从 990 行精简到 ~400 行（含注释）
  */
 @Injectable()
-export class MessageService {
+export class MessageService implements OnModuleInit {
   private readonly logger = new Logger(MessageService.name);
-  private enableAiReply: boolean; // 可动态切换
+  private enableAiReply: boolean; // 可动态切换，由 SupabaseService 持久化
   private readonly enableMessageMerge: boolean;
 
   // 监控统计：跟踪正在处理的消息数
@@ -58,13 +59,23 @@ export class MessageService {
     // 监控和告警
     private readonly monitoringService: MonitoringService,
     private readonly alertOrchestrator: AlertOrchestratorService,
+    // Supabase 持久化服务
+    private readonly supabaseService: SupabaseService,
   ) {
+    // 初始值从环境变量读取，模块初始化时会从 Supabase 加载
     this.enableAiReply = this.configService.get<string>('ENABLE_AI_REPLY', 'true') === 'true';
     this.enableMessageMerge =
       this.configService.get<string>('ENABLE_MESSAGE_MERGE', 'true') === 'true';
 
-    this.logger.log(`AI 自动回复功能: ${this.enableAiReply ? '已启用' : '已禁用'}`);
     this.logger.log(`消息聚合功能: ${this.enableMessageMerge ? '已启用' : '已禁用'}`);
+  }
+
+  /**
+   * 模块初始化 - 从 Supabase 加载 AI 回复状态
+   */
+  async onModuleInit() {
+    this.enableAiReply = await this.supabaseService.getAiReplyEnabled();
+    this.logger.log(`AI 自动回复功能: ${this.enableAiReply ? '已启用' : '已禁用'} (来自 Supabase)`);
   }
 
   /**
@@ -96,7 +107,7 @@ export class MessageService {
     }
 
     // 管线步骤 2: 消息过滤
-    const filterResult = this.filterMessage(messageData);
+    const filterResult = await this.filterMessage(messageData);
     if (!filterResult.continue) {
       return filterResult.response;
     }
@@ -159,8 +170,8 @@ export class MessageService {
   /**
    * 管线步骤 2: 消息过滤
    */
-  private filterMessage(messageData: EnterpriseMessageCallbackDto): PipelineResult {
-    const filterResult = this.filterService.validate(messageData);
+  private async filterMessage(messageData: EnterpriseMessageCallbackDto): Promise<PipelineResult> {
+    const filterResult = await this.filterService.validate(messageData);
 
     if (!filterResult.pass) {
       return {
@@ -534,11 +545,15 @@ export class MessageService {
   }
 
   /**
-   * 切换 AI 回复开关
+   * 切换 AI 回复开关（持久化到 Supabase）
    */
-  toggleAiReply(enabled: boolean): boolean {
+  async toggleAiReply(enabled: boolean): Promise<boolean> {
     this.enableAiReply = enabled;
-    this.logger.log(`AI 自动回复功能已${enabled ? '启用' : '禁用'}`);
+
+    // 持久化到 Supabase
+    await this.supabaseService.setAiReplyEnabled(enabled);
+
+    this.logger.log(`AI 自动回复功能已${enabled ? '启用' : '禁用'} (已持久化到 Supabase)`);
     return this.enableAiReply;
   }
 

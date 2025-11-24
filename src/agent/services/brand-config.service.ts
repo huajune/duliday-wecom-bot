@@ -12,6 +12,10 @@ export interface BrandConfig {
   synced: boolean;
   brandData?: any;
   replyPrompts?: any;
+  metadata?: {
+    lastUpdated?: string;
+    [key: string]: any;
+  };
   lastRefreshTime?: string;
 }
 
@@ -24,6 +28,7 @@ export interface BrandConfigStatus {
   hasBrandData: boolean;
   hasReplyPrompts: boolean;
   lastRefreshTime: string | null;
+  lastUpdated: string | null;
 }
 
 /**
@@ -142,6 +147,7 @@ export class BrandConfigService implements OnModuleInit, OnModuleDestroy {
           synced: true,
           brandData: response.data.brandData || response.data,
           replyPrompts: response.data.replyPrompts,
+          metadata: response.data.metadata,
         };
       }
 
@@ -170,7 +176,7 @@ export class BrandConfigService implements OnModuleInit, OnModuleDestroy {
       }
 
       this.logger.log(
-        `✅ 品牌配置从 Supabase 刷新成功 (同步状态: ${brandConfig.synced ? '已同步' : '未同步'})`,
+        `✅ 品牌配置从 Supabase 刷新成功 (同步状态: ${brandConfig.synced ? '已同步' : '未同步'}, 更新时间: ${brandConfig.metadata?.lastUpdated || '未知'})`,
       );
 
       if (!brandConfig.synced) {
@@ -210,6 +216,7 @@ export class BrandConfigService implements OnModuleInit, OnModuleDestroy {
       hasBrandData: !!config?.brandData,
       hasReplyPrompts: !!config?.replyPrompts,
       lastRefreshTime: config?.lastRefreshTime || null,
+      lastUpdated: config?.metadata?.lastUpdated || null,
     };
   }
 

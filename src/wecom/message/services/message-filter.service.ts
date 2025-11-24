@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import {
   EnterpriseMessageCallbackDto,
   MessageSource,
@@ -6,6 +6,7 @@ import {
   getMessageSourceDescription,
 } from '../dto/message-callback.dto';
 import { MessageParser } from '../utils/message-parser.util';
+import { SupabaseService } from '@core/supabase';
 
 /**
  * 消息过滤结果
@@ -27,51 +28,48 @@ export interface FilterResult {
  * - 小组级消息：不应用 groupId 黑名单，允许通过
  */
 @Injectable()
-export class MessageFilterService {
+export class MessageFilterService implements OnModuleInit {
   private readonly logger = new Logger(MessageFilterService.name);
 
-  // 暂停托管的用户集合（userId -> 暂停时间戳）
-  private pausedUsers = new Map<string, number>();
+  constructor(private readonly supabaseService: SupabaseService) {}
 
-  /**
-   * 暂停用户托管
-   */
-  pauseUser(userId: string): void {
-    this.pausedUsers.set(userId, Date.now());
-    this.logger.log(`[托管暂停] 用户 ${userId} 已暂停托管`);
+  async onModuleInit() {
+    this.logger.log('✅ MessageFilterService 已初始化，使用 Supabase 持久化用户托管状态');
   }
 
   /**
-   * 恢复用户托管
+   * 暂停用户托管（持久化到 Supabase）
    */
-  resumeUser(userId: string): void {
-    if (this.pausedUsers.delete(userId)) {
-      this.logger.log(`[托管恢复] 用户 ${userId} 已恢复托管`);
-    }
+  async pauseUser(userId: string): Promise<void> {
+    await this.supabaseService.pauseUser(userId);
+  }
+
+  /**
+   * 恢复用户托管（持久化到 Supabase）
+   */
+  async resumeUser(userId: string): Promise<void> {
+    await this.supabaseService.resumeUser(userId);
   }
 
   /**
    * 检查用户是否被暂停托管
    */
-  isUserPaused(userId: string): boolean {
-    return this.pausedUsers.has(userId);
+  async isUserPaused(userId: string): Promise<boolean> {
+    return this.supabaseService.isUserPaused(userId);
   }
 
   /**
    * 获取所有暂停托管的用户列表
    */
-  getPausedUsers(): { userId: string; pausedAt: number }[] {
-    return Array.from(this.pausedUsers.entries()).map(([userId, pausedAt]) => ({
-      userId,
-      pausedAt,
-    }));
+  async getPausedUsers(): Promise<{ userId: string; pausedAt: number }[]> {
+    return this.supabaseService.getPausedUsers();
   }
 
   /**
    * 验证消息是否应该被处理
    * 返回过滤结果，包含是否通过和原因
    */
-  validate(messageData: EnterpriseMessageCallbackDto): FilterResult {
+  async validate(messageData: EnterpriseMessageCallbackDto): Promise<FilterResult> {
     // 1. 拦截机器人自己发送的消息
     if (messageData.isSelf === true) {
       this.logger.log(`[过滤-自己发送] 跳过机器人自己发送的消息 [${messageData.messageId}]`);
@@ -102,7 +100,7 @@ export class MessageFilterService {
     // 2.5 检查用户是否被暂停托管
     // 使用 imContactId 作为用户标识（私聊场景）
     const userId = messageData.imContactId || messageData.externalUserId;
-    if (userId && this.isUserPaused(userId)) {
+    if (userId && (await this.isUserPaused(userId))) {
       this.logger.log(
         `[过滤-暂停托管] 跳过暂停托管用户的消息 [${messageData.messageId}], userId=${userId}`,
       );
