@@ -16,8 +16,8 @@ import {
   TimeRange,
   DailyStats,
   TodayUser,
+  AlertErrorType,
 } from './interfaces/monitoring.interface';
-import { AlertErrorType } from '@core/alert/types';
 import { ScenarioType } from '@agent';
 import { MonitoringSnapshotService } from './monitoring-snapshot.service';
 
@@ -78,12 +78,14 @@ export class MonitoringService implements OnModuleInit {
     userName?: string,
     messageContent?: string,
     metadata?: MonitoringMetadata,
+    managerName?: string,
   ): void {
     const record: MessageProcessingRecord = {
       messageId,
       chatId,
       userId,
       userName,
+      managerName,
       receivedAt: Date.now(),
       status: 'processing',
       messagePreview: messageContent ? messageContent.substring(0, 50) : undefined,

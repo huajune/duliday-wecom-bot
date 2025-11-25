@@ -115,7 +115,7 @@ export class MessageController {
       messageId: `test_msg_${Date.now()}`,
       timestamp: Date.now().toString(),
       isSelf: false,
-      source: MessageSource.NEW_CUSTOMER_ANSWER_SOP, // 新客户应答sop，触发 AI 回复
+      source: MessageSource.MOBILE_PUSH, // 手机推送消息，触发 AI 回复
       contactType: ContactType.PERSONAL_WECHAT,
       payload: {
         text: body.text,

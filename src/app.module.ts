@@ -7,8 +7,7 @@ import { MonitoringModule } from './core/monitoring/monitoring.module';
 import { AlertModule } from './core/alert/alert.module';
 import { AgentModule } from './agent';
 import { WecomModule } from './wecom/wecom.module';
-import { SpongeModule } from './sponge/sponge.module';
-import { AnalyticsModule } from './analytics/analytics.module';
+import { FeishuSyncModule } from './core/feishu-sync/feishu-sync.module';
 import { validate } from './core/config/env.validation';
 
 /**
@@ -19,16 +18,18 @@ import { validate } from './core/config/env.validation';
  * - Business Domains (业务域): 各业务领域（垂直分层）
  *
  * 目录结构: src/
- *   ├── core/              - 核心技术层（完全扁平化）
+ *   ├── core/              - 核心技术层
  *   │   ├── client-http/   - 客户端 HTTP 工具
  *   │   ├── response/      - 响应处理（拦截器、过滤器）
  *   │   ├── redis/         - Redis 缓存服务
+ *   │   ├── supabase/      - Supabase 数据库服务
+ *   │   ├── monitoring/    - 监控服务（指标、仪表盘）
+ *   │   ├── alert/         - 告警服务
+ *   │   ├── feishu-sync/   - 飞书同步服务
  *   │   └── config/        - 配置管理
  *   │
  *   ├── agent/             - AI Agent 业务域
- *   ├── wecom/             - 企业微信业务域
- *   ├── sponge/            - 海绵系统业务域（骨架）
- *   └── analytics/         - 数据分析业务域（骨架）
+ *   └── wecom/             - 企业微信业务域
  */
 @Module({
   imports: [
@@ -50,12 +51,11 @@ import { validate } from './core/config/env.validation';
     SupabaseModule, // Supabase 数据库服务（全局）- 系统配置和用户托管状态持久化
     MonitoringModule, // 监控服务（全局）
     AlertModule, // 告警服务（全局）
+    FeishuSyncModule, // 飞书同步（从监控快照导出数据）
 
     // ==================== 业务域 (Business Domains) ====================
     AgentModule, // AI Agent 业务域
     WecomModule, // 企业微信业务域
-    SpongeModule, // 海绵系统业务域（骨架）
-    AnalyticsModule, // 数据分析业务域（骨架）
   ],
 })
 export class AppModule {}

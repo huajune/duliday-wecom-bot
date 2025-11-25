@@ -4,6 +4,7 @@ import { MessageService } from './message.service';
 import { MessageType, ContactType, MessageSource } from './dto/message-callback.dto';
 import { AgentService } from '@agent';
 import { MessageCallbackAdapterService } from './services/message-callback-adapter.service';
+import { MessageFilterService } from './services/message-filter.service';
 
 describe('MessageController', () => {
   let controller: MessageController;
@@ -23,6 +24,11 @@ describe('MessageController', () => {
     normalizeCallback: jest.fn().mockImplementation((body) => body),
   };
 
+  const mockFilterService = {
+    shouldFilter: jest.fn().mockReturnValue(false),
+    getFilterReason: jest.fn().mockReturnValue(null),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [MessageController],
@@ -38,6 +44,10 @@ describe('MessageController', () => {
         {
           provide: MessageCallbackAdapterService,
           useValue: mockCallbackAdapterService,
+        },
+        {
+          provide: MessageFilterService,
+          useValue: mockFilterService,
         },
       ],
     }).compile();

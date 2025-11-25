@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { FeiShuAlertService } from '@/core/alert/feishu-alert.service';
+import { AlertService } from '@core/alert/alert.service';
 import { BrandConfigValidation } from './agent-validator';
 
 /**
@@ -15,7 +15,7 @@ import { BrandConfigValidation } from './agent-validator';
 export class BrandConfigMonitor {
   private readonly logger = new Logger(BrandConfigMonitor.name);
 
-  constructor(private readonly feiShuAlertService: FeiShuAlertService) {}
+  constructor(private readonly alertService: AlertService) {}
 
   /**
    * 处理品牌配置不可用情况
@@ -48,7 +48,11 @@ export class BrandConfigMonitor {
     try {
       const error = new Error(`品牌配置不完整: 缺失字段 ${validation.missingFields.join(', ')}`);
 
-      await this.feiShuAlertService.sendBrandConfigUnavailableAlert(error, isFirstLoad);
+      await this.alertService.sendAlert({
+        errorType: 'system',
+        error,
+        scenario: isFirstLoad ? 'BRAND_CONFIG_FIRST_LOAD_FAILED' : 'BRAND_CONFIG_UNAVAILABLE',
+      });
 
       this.logger.debug('品牌配置不可用告警已发送');
     } catch (error) {

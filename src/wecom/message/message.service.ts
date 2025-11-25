@@ -1,7 +1,7 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { MonitoringService } from '@/core/monitoring/monitoring.service';
-import { AlertOrchestratorService } from '@/core/alert/services/alert-orchestrator.service';
+import { AlertService } from '@/core/alert/alert.service';
 import { SupabaseService } from '@core/supabase';
 import { ScenarioType } from '@agent';
 import { AgentException } from '@/agent/utils/agent-exceptions';
@@ -58,7 +58,7 @@ export class MessageService implements OnModuleInit {
     private readonly agentGateway: AgentGatewayService, // 增强版：包含上下文构建和降级处理
     // 监控和告警
     private readonly monitoringService: MonitoringService,
-    private readonly alertOrchestrator: AlertOrchestratorService,
+    private readonly alertService: AlertService,
     // Supabase 持久化服务
     private readonly supabaseService: SupabaseService,
   ) {
@@ -144,8 +144,14 @@ export class MessageService implements OnModuleInit {
       return;
     }
 
-    // 存储为 assistant 消息
-    await this.historyService.addMessageToHistory(chatId, 'assistant', content);
+    // 存储为 assistant 消息（包含元数据）
+    await this.historyService.addMessageToHistory(chatId, 'assistant', content, {
+      messageId: messageData.messageId,
+      candidateName: messageData.contactName,
+      managerName: messageData.botUserId,
+      orgId: messageData.orgId,
+      botId: messageData.botId,
+    });
 
     this.logger.log(
       `[自发消息] 已存储为 assistant 历史 [${messageData.messageId}]: "${content.substring(0, 50)}${content.length > 50 ? '...' : ''}"`,
@@ -185,8 +191,14 @@ export class MessageService implements OnModuleInit {
       const parsed = MessageParser.parse(messageData);
       const { chatId, content, contactName } = parsed;
 
-      // 记录到历史
-      await this.historyService.addMessageToHistory(chatId, 'user', content);
+      // 记录到历史（包含元数据）
+      await this.historyService.addMessageToHistory(chatId, 'user', content, {
+        messageId: messageData.messageId,
+        candidateName: messageData.contactName || contactName,
+        managerName: messageData.botUserId,
+        orgId: messageData.orgId,
+        botId: messageData.botId,
+      });
 
       this.logger.log(
         `[historyOnly] 消息已记录到历史但不触发AI回复 [${messageData.messageId}], ` +
@@ -230,6 +242,7 @@ export class MessageService implements OnModuleInit {
       parsed.contactName,
       parsed.content,
       { scenario },
+      parsed.managerName,
     );
   }
 
@@ -269,8 +282,14 @@ export class MessageService implements OnModuleInit {
       // 1. 获取历史消息
       const historyMessages = await this.historyService.getHistory(chatId);
 
-      // 2. 添加当前消息到历史
-      await this.historyService.addMessageToHistory(chatId, 'user', content);
+      // 2. 添加当前消息到历史（包含元数据）
+      await this.historyService.addMessageToHistory(chatId, 'user', content, {
+        messageId: messageData.messageId,
+        candidateName: messageData.contactName || contactName,
+        managerName: messageData.botUserId,
+        orgId: messageData.orgId,
+        botId: messageData.botId,
+      });
 
       // 3. 调用 Agent
       const agentResult = await this.agentGateway.invoke({
@@ -337,7 +356,14 @@ export class MessageService implements OnModuleInit {
       // 1. 将所有消息添加到历史（除了最后一条，留给 Agent 作为 userMessage）
       for (let i = 0; i < messages.length - 1; i++) {
         const content = MessageParser.extractContent(messages[i]);
-        await this.historyService.addMessageToHistory(chatId, 'user', content);
+        const msg = messages[i];
+        await this.historyService.addMessageToHistory(chatId, 'user', content, {
+          messageId: msg.messageId,
+          candidateName: msg.contactName,
+          managerName: msg.botUserId,
+          orgId: msg.orgId,
+          botId: msg.botId,
+        });
       }
 
       // 2. 获取历史消息
@@ -358,9 +384,15 @@ export class MessageService implements OnModuleInit {
         messageId: lastMessageId,
       });
 
-      // 6. 将最后一条用户消息添加到历史
+      // 6. 将最后一条用户消息添加到历史（包含元数据）
       // 注意：assistant 消息历史由 isSelf=true 的回调存储，这里不再重复存储
-      await this.historyService.addMessageToHistory(chatId, 'user', lastContent);
+      await this.historyService.addMessageToHistory(chatId, 'user', lastContent, {
+        messageId: lastMessage.messageId,
+        candidateName: lastMessage.contactName,
+        managerName: lastMessage.botUserId,
+        orgId: lastMessage.orgId,
+        botId: lastMessage.botId,
+      });
 
       this.logger.log(
         `[聚合处理][${contactName}] Agent 处理完成，耗时 ${agentResult.processingTime}ms`,
@@ -467,10 +499,10 @@ export class MessageService implements OnModuleInit {
       alertType: errorType, // 记录错误类型，确保根因（如401认证失败）被正确追踪
     });
 
-    // 发送告警（通过编排层，支持限流、静默、聚合、恢复等高级功能）
+    // 发送告警
     const fallbackMessage = this.agentGateway.getFallbackMessage();
 
-    this.alertOrchestrator
+    this.alertService
       .sendAlert({
         errorType,
         error,
@@ -478,11 +510,7 @@ export class MessageService implements OnModuleInit {
         userMessage: content,
         apiEndpoint: '/api/v1/chat',
         scenario,
-        contactName,
         fallbackMessage,
-        requestParams: (error as any).requestParams,
-        apiKey: (error as any).apiKey,
-        requestHeaders: (error as any).requestHeaders,
       })
       .catch((alertError) => {
         this.logger.error(`告警发送失败: ${alertError.message}`);

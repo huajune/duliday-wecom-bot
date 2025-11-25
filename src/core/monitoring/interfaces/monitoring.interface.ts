@@ -1,5 +1,9 @@
 import { ScenarioType } from '@agent';
-import { AlertErrorType } from '@core/alert/types';
+
+/**
+ * 告警错误类型（简化版）
+ */
+export type AlertErrorType = 'agent' | 'message' | 'delivery' | 'system' | 'merge' | 'unknown';
 
 /**
  * 监控系统接口定义
@@ -119,6 +123,7 @@ export interface MessageProcessingRecord {
   chatId: string;
   userId?: string;
   userName?: string;
+  managerName?: string;
   scenario?: ScenarioType;
 
   // 时间戳

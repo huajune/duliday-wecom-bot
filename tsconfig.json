@@ -26,12 +26,10 @@
       "@agent": ["src/agent"],
       "@agent/*": ["src/agent/*"],
       "@wecom": ["src/wecom"],
-      "@wecom/*": ["src/wecom/*"],
-      "@sponge": ["src/sponge"],
-      "@sponge/*": ["src/sponge/*"],
-      "@analytics": ["src/analytics"],
-      "@analytics/*": ["src/analytics/*"]
+      "@wecom/*": ["src/wecom/*"]
     }
-  }
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist", "dashboard"]
 }
 

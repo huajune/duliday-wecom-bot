@@ -13,7 +13,7 @@ import {
   AgentInvocationException,
 } from '@agent';
 import { MonitoringService } from '@/core/monitoring/monitoring.service';
-import { AlertOrchestratorService } from '@/core/alert/services/alert-orchestrator.service';
+import { AlertService } from '@/core/alert/alert.service';
 import { AgentInvokeResult, AgentReply, FallbackMessageOptions } from '../types';
 import { BrandContext } from '@agent';
 import { FallbackMessageService } from './message-fallback.service';
@@ -44,7 +44,7 @@ export class AgentGatewayService {
     private readonly profileLoader: ProfileLoaderService,
     private readonly configValidator: AgentConfigValidator,
     private readonly monitoringService: MonitoringService,
-    private readonly alertOrchestrator: AlertOrchestratorService,
+    private readonly alertService: AlertService,
     private readonly brandConfigService: BrandConfigService,
     private readonly fallbackMessageService: FallbackMessageService,
   ) {}
@@ -334,8 +334,8 @@ export class AgentGatewayService {
       requestHeaders,
     };
 
-    // 异步发送告警（通过编排层，支持限流、静默、聚合、恢复等高级功能）
-    this.alertOrchestrator
+    // 异步发送告警
+    this.alertService
       .sendAlert({
         errorType: 'agent',
         error: mockError,
@@ -344,9 +344,6 @@ export class AgentGatewayService {
         apiEndpoint: '/api/v1/chat',
         scenario,
         fallbackMessage: agentResult.fallbackInfo.message,
-        requestParams: mockError.requestParams,
-        apiKey: (agentResult as any).apiKey,
-        requestHeaders: mockError.requestHeaders,
       })
       .catch((alertError) => {
         this.logger.error(`告警发送失败: ${alertError.message}`);

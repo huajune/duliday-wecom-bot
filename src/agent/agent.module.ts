@@ -36,7 +36,7 @@ import { BrandConfigService } from './services/brand-config.service';
   imports: [
     ConfigModule,
     HttpModule, // 依赖 HTTP 模块提供的 HttpClientFactory
-    AlertModule, // 依赖告警模块提供的 FeiShuAlertService
+    AlertModule, // 依赖告警模块提供的 AlertService
   ],
   controllers: [AgentController],
   providers: [

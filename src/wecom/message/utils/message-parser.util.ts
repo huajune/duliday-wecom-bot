@@ -37,6 +37,7 @@ export class MessageParser {
       imRoomId: messageData.imRoomId, // 群聊的系统wxid（企业级接口 v2，群聊时使用）
       botWxid: messageData.imBotId, // 兼容字段
       botId: messageData.botId,
+      managerName: messageData.botUserId, // 企微回调中的 botUserId 即招募经理昵称
       isSelf: messageData.isSelf,
       timestamp: parseInt(messageData.timestamp),
       payload: messageData.payload,

@@ -6,7 +6,7 @@ import { MonitoringService } from '@/core/monitoring/monitoring.service';
 import { TypingDelayService } from './message-typing-delay.service';
 import { MessageSplitter } from '../utils/message-splitter.util';
 import { DeliveryContext, DeliveryResult, MessageSegment, AgentReply } from '../types';
-import { AlertOrchestratorService } from '@core/alert/services/alert-orchestrator.service';
+import { AlertService } from '@core/alert/alert.service';
 
 /**
  * 消息发送服务
@@ -28,7 +28,7 @@ export class MessageDeliveryService {
     private readonly monitoringService: MonitoringService,
     private readonly typingDelayService: TypingDelayService,
     private readonly configService: ConfigService,
-    private readonly alertOrchestrator: AlertOrchestratorService,
+    private readonly alertService: AlertService,
   ) {
     this.enableMessageSplitSend =
       this.configService.get<string>('ENABLE_MESSAGE_SPLIT_SEND', 'true') === 'true';
@@ -223,12 +223,11 @@ export class MessageDeliveryService {
     content: string,
   ): Promise<void> {
     try {
-      await this.alertOrchestrator.sendAlert({
+      await this.alertService.sendAlert({
         errorType: 'delivery',
         error,
         conversationId: context.chatId,
         userMessage: content.substring(0, 100),
-        contactName: context.contactName,
         apiEndpoint: '/message-sender/send',
       });
     } catch (alertError) {

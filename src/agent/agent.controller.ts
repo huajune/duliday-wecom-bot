@@ -16,7 +16,7 @@ import { BrandConfigService } from './services/brand-config.service';
 import { AgentConfigValidator } from './utils/agent-validator';
 import { ConfigService } from '@nestjs/config';
 import { RawResponse } from '@/core';
-import { FeiShuAlertService } from '@/core/alert/feishu-alert.service';
+import { AlertService } from '@core/alert/alert.service';
 
 @Controller('agent')
 export class AgentController {
@@ -30,7 +30,7 @@ export class AgentController {
     private readonly registryService: AgentRegistryService,
     private readonly cacheService: AgentCacheService,
     private readonly configService: ConfigService,
-    private readonly feiShuAlertService: FeiShuAlertService,
+    private readonly alertService: AlertService,
   ) {}
 
   /**
@@ -189,16 +189,13 @@ export class AgentController {
       this.logger.error('注册表刷新失败:', error);
 
       // 发送飞书告警
-      this.feiShuAlertService
-        .sendAgentApiFailureAlert(
+      this.alertService
+        .sendAlert({
+          errorType: 'agent',
           error,
-          'agent-registry',
-          'refresh models/tools',
-          '/agent/health/refresh',
-          {
-            errorType: 'agent',
-          },
-        )
+          apiEndpoint: '/agent/health/refresh',
+          scenario: 'REGISTRY_REFRESH_FAILED',
+        })
         .catch((alertError) => {
           this.logger.error(`飞书告警发送失败: ${alertError.message}`);
         });

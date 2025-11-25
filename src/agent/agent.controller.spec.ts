@@ -7,7 +7,7 @@ import { AgentConfigValidator } from './utils/agent-validator';
 import { AgentRegistryService } from './services/agent-registry.service';
 import { AgentCacheService } from './services/agent-cache.service';
 import { ConfigService } from '@nestjs/config';
-import { FeiShuAlertService } from '@/core/alert/feishu-alert.service';
+import { AlertService } from '@core/alert/alert.service';
 
 describe('AgentController', () => {
   let controller: AgentController;
@@ -58,8 +58,9 @@ describe('AgentController', () => {
     get: jest.fn(),
   };
 
-  const mockFeiShuAlertService = {
-    sendAgentApiFailureAlert: jest.fn().mockResolvedValue(undefined),
+  const mockAlertService = {
+    sendAlert: jest.fn().mockResolvedValue(true),
+    sendSimpleAlert: jest.fn().mockResolvedValue(true),
   };
 
   beforeEach(async () => {
@@ -95,8 +96,8 @@ describe('AgentController', () => {
           useValue: mockConfigService,
         },
         {
-          provide: FeiShuAlertService,
-          useValue: mockFeiShuAlertService,
+          provide: AlertService,
+          useValue: mockAlertService,
         },
       ],
     }).compile();

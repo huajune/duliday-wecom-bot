@@ -2,7 +2,7 @@ import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/commo
 import { ConfigService } from '@nestjs/config';
 import { parseToolsFromEnv } from '../utils';
 import { AgentApiClientService } from './agent-api-client.service';
-import { FeiShuAlertService } from '@/core/alert/feishu-alert.service';
+import { AlertService } from '@core/alert/alert.service';
 
 /**
  * 工具信息接口
@@ -45,7 +45,7 @@ export class AgentRegistryService implements OnModuleInit, OnModuleDestroy {
   constructor(
     private readonly configService: ConfigService,
     private readonly apiClient: AgentApiClientService,
-    private readonly feiShuAlertService: FeiShuAlertService,
+    private readonly alertService: AlertService,
   ) {
     // 读取配置
     this.configuredModel = this.configService.get<string>('AGENT_DEFAULT_MODEL')!;
@@ -82,14 +82,13 @@ export class AgentRegistryService implements OnModuleInit, OnModuleDestroy {
       this.logger.error('注册表初始化失败，将在后续请求时重试:', error);
 
       // 发送飞书告警（异步，不阻塞服务启动）
-      this.feiShuAlertService
-        .sendAgentApiFailureAlert(
+      this.alertService
+        .sendAlert({
+          errorType: 'agent',
           error,
-          'agent-registry',
-          'initialize models/tools',
-          '/agent/onModuleInit',
-          { errorType: 'agent' },
-        )
+          apiEndpoint: '/agent/onModuleInit',
+          scenario: 'REGISTRY_INIT_FAILED',
+        })
         .catch((alertError) => {
           this.logger.error(`飞书告警发送失败: ${alertError.message}`);
         });
@@ -215,14 +214,13 @@ export class AgentRegistryService implements OnModuleInit, OnModuleDestroy {
         this.logger.error('自动刷新失败:', error);
 
         // 发送飞书告警（异步，不阻塞定时任务）
-        this.feiShuAlertService
-          .sendAgentApiFailureAlert(
+        this.alertService
+          .sendAlert({
+            errorType: 'agent',
             error,
-            'agent-registry',
-            'auto-refresh models/tools',
-            '/agent/autoRefresh',
-            { errorType: 'agent' },
-          )
+            apiEndpoint: '/agent/autoRefresh',
+            scenario: 'REGISTRY_AUTO_REFRESH_FAILED',
+          })
           .catch((alertError) => {
             this.logger.error(`飞书告警发送失败: ${alertError.message}`);
           });

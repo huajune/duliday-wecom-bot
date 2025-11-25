@@ -1,5 +1,0 @@
-# 实体目录
-# 用于存放需要持久化的数据实体，例如：
-# - daily-metrics.entity.ts（每日指标统计）
-# - api-call-stats.entity.ts（API 调用统计）
-# - chat-session-log.entity.ts（会话日志）

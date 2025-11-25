@@ -59,3 +59,4 @@ lerna-debug.log*
 .codex.md
 codex.config.yml
 
+.mcp.json

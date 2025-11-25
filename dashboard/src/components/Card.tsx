@@ -10,10 +10,14 @@ interface CardProps {
 
 export default function Card({ children, className, title, action }: CardProps) {
   return (
-    <div className={clsx('card', className)}>
+    <div className={clsx('card p-6', className)}>
       {(title || action) && (
         <div className="flex items-center justify-between mb-4">
-          {title && <h3 className="font-semibold text-gray-900">{title}</h3>}
+          {title && (
+            <h3 className="font-semibold" style={{ color: 'var(--text-primary)' }}>
+              {title}
+            </h3>
+          )}
           {action}
         </div>
       )}

@@ -121,6 +121,6 @@ import { MessageCallbackAdapterService } from './services/message-callback-adapt
     FallbackMessageService, // 用户降级话术集中管理
     MessageCallbackAdapterService, // 消息回调适配器（支持小组级和企业级格式）
   ],
-  exports: [MessageService, MessageFilterService],
+  exports: [MessageService, MessageFilterService, MessageHistoryService],
 })
 export class MessageModule {}

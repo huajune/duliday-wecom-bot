@@ -1,23 +1,25 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { MonitoringService } from './monitoring.service';
-import { AlertOrchestratorService } from '../alert/services/alert-orchestrator.service';
-import { AlertConfigService } from '../alert/services/alert-config.service';
-import { AlertSeverity } from '../alert/interfaces/alert-config.interface';
+import { AlertService } from '../alert/alert.service';
 
 /**
- * 监控告警服务
- * 定期检查业务指标，发现异常时主动告警
+ * 监控告警服务（简化版）
  *
- * 监控指标：
- * 1. 成功率下降
- * 2. 平均响应时间过高
- * 3. 队列积压
- * 4. 错误率激增
+ * 定期检查业务指标，发现异常时主动告警
+ * 阈值硬编码，无需外部配置
  */
 @Injectable()
 export class MonitoringAlertService {
   private readonly logger = new Logger(MonitoringAlertService.name);
+
+  // 告警阈值（硬编码）
+  private readonly THRESHOLDS = {
+    successRate: { warning: 90, critical: 80 }, // 百分比
+    avgDuration: { warning: 5000, critical: 10000 }, // 毫秒
+    queueDepth: { warning: 50, critical: 100 }, // 条数
+    errorRate: { warning: 10, critical: 20 }, // 每小时错误数
+  };
 
   // 状态追踪（避免重复告警）
   private lastAlertTimestamps = new Map<string, number>();
@@ -25,8 +27,7 @@ export class MonitoringAlertService {
 
   constructor(
     private readonly monitoringService: MonitoringService,
-    private readonly alertOrchestrator: AlertOrchestratorService,
-    private readonly alertConfigService: AlertConfigService,
+    private readonly alertService: AlertService,
   ) {}
 
   /**
@@ -36,161 +37,103 @@ export class MonitoringAlertService {
   async checkBusinessMetrics(): Promise<void> {
     try {
       const dashboard = this.monitoringService.getDashboardData();
-      const config = this.alertConfigService.getMetricsConfig();
 
       // 1. 成功率告警
-      await this.checkSuccessRate(dashboard.overview.successRate, config.successRate);
+      await this.checkSuccessRate(dashboard.overview.successRate);
 
       // 2. 响应时间告警
-      await this.checkAvgDuration(dashboard.overview.avgDuration, config.avgDuration);
+      await this.checkAvgDuration(dashboard.overview.avgDuration);
 
       // 3. 队列积压告警
-      await this.checkQueueDepth(dashboard.queue.currentProcessing, config.queueDepth);
+      await this.checkQueueDepth(dashboard.queue.currentProcessing);
 
-      // 4. 错误率告警（每分钟）
-      await this.checkErrorRate(dashboard.alertsSummary.last24Hours, config.errorRate);
+      // 4. 错误率告警
+      await this.checkErrorRate(dashboard.alertsSummary.last24Hours);
     } catch (error) {
-      this.logger.error(`业务指标检查失败: ${error.message}`, error.stack);
+      this.logger.error(`业务指标检查失败: ${error.message}`);
     }
   }
 
   /**
    * 检查成功率
    */
-  private async checkSuccessRate(
-    currentValue: number,
-    threshold: { warning: number; critical: number },
-  ): Promise<void> {
+  private async checkSuccessRate(currentValue: number): Promise<void> {
+    const { warning, critical } = this.THRESHOLDS.successRate;
     const key = 'success-rate';
 
-    // Critical: 成功率 < 80%
-    if (currentValue < threshold.critical) {
-      if (this.shouldSendAlert(key + '-critical')) {
-        await this.alertOrchestrator.sendMetricAlert({
-          metricName: '成功率严重下降',
-          currentValue,
-          threshold: threshold.critical,
-          severity: AlertSeverity.CRITICAL,
-          timeWindow: '当前',
-          additionalInfo: {
-            message: '成功率已降至临界值以下，大量用户受影响',
-            suggestion: '立即检查 Agent API 状态、数据库连接、网络状况',
-          },
-        });
-        this.recordAlertSent(key + '-critical');
+    if (currentValue < critical) {
+      if (this.shouldSendAlert(key)) {
+        await this.alertService.sendSimpleAlert(
+          '成功率严重下降',
+          `当前成功率: ${currentValue.toFixed(1)}%\n阈值: ${critical}%\n建议: 立即检查 Agent API 状态`,
+          'critical',
+        );
+        this.recordAlertSent(key);
       }
-      return;
-    }
-
-    // Warning: 成功率 < 90%
-    if (currentValue < threshold.warning) {
-      if (this.shouldSendAlert(key + '-warning')) {
-        await this.alertOrchestrator.sendMetricAlert({
-          metricName: '成功率下降',
-          currentValue,
-          threshold: threshold.warning,
-          severity: AlertSeverity.WARNING,
-          timeWindow: '当前',
-          additionalInfo: {
-            message: '成功率低于预期，部分用户可能受影响',
-            suggestion: '关注 Agent API 响应、查看错误日志',
-          },
-        });
-        this.recordAlertSent(key + '-warning');
+    } else if (currentValue < warning) {
+      if (this.shouldSendAlert(key)) {
+        await this.alertService.sendSimpleAlert(
+          '成功率下降',
+          `当前成功率: ${currentValue.toFixed(1)}%\n阈值: ${warning}%`,
+          'warning',
+        );
+        this.recordAlertSent(key);
       }
     }
   }
 
   /**
-   * 检查平均响应时间
+   * 检查响应时间
    */
-  private async checkAvgDuration(
-    currentValue: number,
-    threshold: { warning: number; critical: number },
-  ): Promise<void> {
+  private async checkAvgDuration(currentValue: number): Promise<void> {
+    const { warning, critical } = this.THRESHOLDS.avgDuration;
     const key = 'avg-duration';
 
-    // Critical: >10秒
-    if (currentValue > threshold.critical) {
-      if (this.shouldSendAlert(key + '-critical')) {
-        await this.alertOrchestrator.sendMetricAlert({
-          metricName: '响应时间严重超时',
-          currentValue,
-          threshold: threshold.critical,
-          severity: AlertSeverity.ERROR,
-          timeWindow: '当前',
-          additionalInfo: {
-            message: '平均响应时间严重超标，用户体验极差',
-            suggestion: '检查 Agent API 延迟、数据库慢查询、网络抖动',
-          },
-        });
-        this.recordAlertSent(key + '-critical');
+    if (currentValue > critical) {
+      if (this.shouldSendAlert(key)) {
+        await this.alertService.sendSimpleAlert(
+          '响应时间过长',
+          `当前平均响应: ${(currentValue / 1000).toFixed(1)}秒\n阈值: ${critical / 1000}秒\n建议: 检查 Agent API 性能`,
+          'critical',
+        );
+        this.recordAlertSent(key);
       }
-      return;
-    }
-
-    // Warning: >5秒
-    if (currentValue > threshold.warning) {
-      if (this.shouldSendAlert(key + '-warning')) {
-        await this.alertOrchestrator.sendMetricAlert({
-          metricName: '响应时间过高',
-          currentValue,
-          threshold: threshold.warning,
-          severity: AlertSeverity.WARNING,
-          timeWindow: '当前',
-          additionalInfo: {
-            message: '响应时间较慢，用户可能感知延迟',
-            suggestion: '关注 Agent API 性能、消息队列积压情况',
-          },
-        });
-        this.recordAlertSent(key + '-warning');
+    } else if (currentValue > warning) {
+      if (this.shouldSendAlert(key)) {
+        await this.alertService.sendSimpleAlert(
+          '响应时间偏高',
+          `当前平均响应: ${(currentValue / 1000).toFixed(1)}秒\n阈值: ${warning / 1000}秒`,
+          'warning',
+        );
+        this.recordAlertSent(key);
       }
     }
   }
 
   /**
-   * 检查队列积压
+   * 检查队列深度
    */
-  private async checkQueueDepth(
-    currentValue: number,
-    threshold: { warning: number; critical: number },
-  ): Promise<void> {
+  private async checkQueueDepth(currentValue: number): Promise<void> {
+    const { warning, critical } = this.THRESHOLDS.queueDepth;
     const key = 'queue-depth';
 
-    // Critical: >100条
-    if (currentValue > threshold.critical) {
-      if (this.shouldSendAlert(key + '-critical')) {
-        await this.alertOrchestrator.sendMetricAlert({
-          metricName: '消息队列严重积压',
-          currentValue,
-          threshold: threshold.critical,
-          severity: AlertSeverity.CRITICAL,
-          timeWindow: '当前',
-          additionalInfo: {
-            message: '队列积压严重，可能导致消息处理延迟甚至丢失',
-            suggestion: '考虑扩容、暂停接收新消息、检查处理瓶颈',
-          },
-        });
-        this.recordAlertSent(key + '-critical');
+    if (currentValue > critical) {
+      if (this.shouldSendAlert(key)) {
+        await this.alertService.sendSimpleAlert(
+          '队列严重积压',
+          `当前队列深度: ${currentValue}条\n阈值: ${critical}条\n建议: 检查消息处理速度`,
+          'critical',
+        );
+        this.recordAlertSent(key);
       }
-      return;
-    }
-
-    // Warning: >50条
-    if (currentValue > threshold.warning) {
-      if (this.shouldSendAlert(key + '-warning')) {
-        await this.alertOrchestrator.sendMetricAlert({
-          metricName: '消息队列积压',
-          currentValue,
-          threshold: threshold.warning,
-          severity: AlertSeverity.WARNING,
-          timeWindow: '当前',
-          additionalInfo: {
-            message: '队列开始积压，需要关注处理速度',
-            suggestion: '检查 Agent API 响应时间、增加处理并发',
-          },
-        });
-        this.recordAlertSent(key + '-warning');
+    } else if (currentValue > warning) {
+      if (this.shouldSendAlert(key)) {
+        await this.alertService.sendSimpleAlert(
+          '队列积压',
+          `当前队列深度: ${currentValue}条\n阈值: ${warning}条`,
+          'warning',
+        );
+        this.recordAlertSent(key);
       }
     }
   }
@@ -198,62 +141,41 @@ export class MonitoringAlertService {
   /**
    * 检查错误率
    */
-  private async checkErrorRate(
-    errors24h: number,
-    threshold: { warning: number; critical: number },
-  ): Promise<void> {
+  private async checkErrorRate(errorCount: number): Promise<void> {
+    const { warning, critical } = this.THRESHOLDS.errorRate;
     const key = 'error-rate';
-    const errorsPerMinute = errors24h / (24 * 60); // 简化计算
 
-    // Critical: >20/分钟
-    if (errorsPerMinute > threshold.critical) {
-      if (this.shouldSendAlert(key + '-critical')) {
-        await this.alertOrchestrator.sendMetricAlert({
-          metricName: '错误率激增',
-          currentValue: parseFloat(errorsPerMinute.toFixed(2)),
-          threshold: threshold.critical,
-          severity: AlertSeverity.CRITICAL,
-          timeWindow: '最近24小时平均',
-          additionalInfo: {
-            message: '错误频率异常高，系统可能存在严重问题',
-            suggestion: '立即查看错误日志、检查 Agent API 状态',
-            errors24h,
-          },
-        });
-        this.recordAlertSent(key + '-critical');
+    // 将 24 小时错误数转换为每小时平均
+    const hourlyRate = errorCount / 24;
+
+    if (hourlyRate > critical) {
+      if (this.shouldSendAlert(key)) {
+        await this.alertService.sendSimpleAlert(
+          '错误率过高',
+          `24小时错误数: ${errorCount}次\n每小时平均: ${hourlyRate.toFixed(1)}次\n阈值: ${critical}次/小时`,
+          'critical',
+        );
+        this.recordAlertSent(key);
       }
-      return;
-    }
-
-    // Warning: >10/分钟
-    if (errorsPerMinute > threshold.warning) {
-      if (this.shouldSendAlert(key + '-warning')) {
-        await this.alertOrchestrator.sendMetricAlert({
-          metricName: '错误率偏高',
-          currentValue: parseFloat(errorsPerMinute.toFixed(2)),
-          threshold: threshold.warning,
-          severity: AlertSeverity.WARNING,
-          timeWindow: '最近24小时平均',
-          additionalInfo: {
-            message: '错误发生频率高于正常水平',
-            suggestion: '查看错误类型分布、关注 Agent API 可用性',
-            errors24h,
-          },
-        });
-        this.recordAlertSent(key + '-warning');
+    } else if (hourlyRate > warning) {
+      if (this.shouldSendAlert(key)) {
+        await this.alertService.sendSimpleAlert(
+          '错误率偏高',
+          `24小时错误数: ${errorCount}次\n每小时平均: ${hourlyRate.toFixed(1)}次\n阈值: ${warning}次/小时`,
+          'warning',
+        );
+        this.recordAlertSent(key);
       }
     }
   }
 
   /**
-   * 判断是否应该发送告警（避免频繁告警）
+   * 检查是否应该发送告警（避免频繁告警）
    */
   private shouldSendAlert(key: string): boolean {
-    const lastAlert = this.lastAlertTimestamps.get(key);
-    if (!lastAlert) return true;
-
-    const elapsed = Date.now() - lastAlert;
-    return elapsed >= this.MIN_ALERT_INTERVAL;
+    const lastTime = this.lastAlertTimestamps.get(key);
+    if (!lastTime) return true;
+    return Date.now() - lastTime > this.MIN_ALERT_INTERVAL;
   }
 
   /**

@@ -607,4 +607,105 @@ export class SupabaseService implements OnModuleInit {
       }
     }
   }
+
+  // ==================== 监控数据持久化 ====================
+
+  /**
+   * 插入或更新监控小时聚合数据
+   * 使用 hour 作为唯一键进行 upsert
+   */
+  async upsertMonitoringHourly(data: {
+    hour: string;
+    message_count: number;
+    success_count: number;
+    failure_count: number;
+    avg_duration: number;
+    p95_duration: number;
+    active_users: number;
+    active_chats: number;
+    total_tokens: number;
+  }): Promise<void> {
+    if (!this.isInitialized) {
+      this.logger.warn('Supabase 未初始化，跳过监控数据持久化');
+      return;
+    }
+
+    try {
+      await this.supabaseHttpClient.post('/monitoring_hourly', data, {
+        headers: {
+          // 使用 on_conflict 进行 upsert
+          Prefer: 'resolution=merge-duplicates',
+        },
+      });
+      this.logger.debug(`监控数据已保存: ${data.hour}`);
+    } catch (error) {
+      this.logger.error('保存监控数据失败', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 删除指定日期之前的监控数据
+   */
+  async deleteMonitoringHourlyBefore(cutoffDate: Date): Promise<number> {
+    if (!this.isInitialized) {
+      return 0;
+    }
+
+    try {
+      const response = await this.supabaseHttpClient.delete('/monitoring_hourly', {
+        params: {
+          hour: `lt.${cutoffDate.toISOString()}`,
+        },
+        headers: {
+          Prefer: 'return=representation',
+        },
+      });
+
+      const deletedCount = response.data?.length ?? 0;
+      return deletedCount;
+    } catch (error) {
+      this.logger.error('删除过期监控数据失败', error);
+      return 0;
+    }
+  }
+
+  /**
+   * 获取最近 N 天的监控历史数据
+   */
+  async getMonitoringHourlyHistory(days: number = 7): Promise<
+    Array<{
+      hour: string;
+      message_count: number;
+      success_count: number;
+      failure_count: number;
+      avg_duration: number;
+      p95_duration: number;
+      active_users: number;
+      active_chats: number;
+      total_tokens: number;
+    }>
+  > {
+    if (!this.isInitialized) {
+      return [];
+    }
+
+    try {
+      const cutoffDate = new Date();
+      cutoffDate.setDate(cutoffDate.getDate() - days);
+
+      const response = await this.supabaseHttpClient.get('/monitoring_hourly', {
+        params: {
+          hour: `gte.${cutoffDate.toISOString()}`,
+          order: 'hour.desc',
+          select: '*',
+        },
+      });
+
+      return response.data ?? [];
+    } catch (error) {
+      this.logger.error('获取监控历史数据失败', error);
+      return [];
+    }
+  }
 }

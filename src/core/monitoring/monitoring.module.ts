@@ -4,12 +4,18 @@ import { MonitoringService } from './monitoring.service';
 import { MonitoringController } from './monitoring.controller';
 import { MonitoringSnapshotService } from './monitoring-snapshot.service';
 import { MonitoringAlertService } from './monitoring-alert.service';
+import { MonitoringPersistService } from './monitoring-persist.service';
 import { MessageModule } from '@wecom/message/message.module';
 
 /**
  * 监控模块
  * 全局模块，可在整个应用中使用
- * 包含业务指标主动告警功能
+ *
+ * 服务说明:
+ * - MonitoringService: 核心监控数据收集与统计
+ * - MonitoringSnapshotService: 实时快照存储 (Redis)
+ * - MonitoringPersistService: 小时聚合数据持久化 (Supabase)
+ * - MonitoringAlertService: 业务指标主动告警
  */
 @Global()
 @Module({
@@ -21,8 +27,14 @@ import { MessageModule } from '@wecom/message/message.module';
   providers: [
     MonitoringService,
     MonitoringSnapshotService,
+    MonitoringPersistService, // 每小时同步到 Supabase
     MonitoringAlertService, // 业务指标告警
   ],
-  exports: [MonitoringService, MonitoringAlertService],
+  exports: [
+    MonitoringService,
+    MonitoringAlertService,
+    MonitoringSnapshotService,
+    MonitoringPersistService,
+  ],
 })
 export class MonitoringModule {}

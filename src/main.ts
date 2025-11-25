@@ -133,7 +133,7 @@ async function bootstrap() {
   console.log(`🌍 运行环境: ${nodeEnv}`);
   console.log(`🔗 本地访问: http://localhost:${port}`);
   console.log(`🌐 局域网访问: http://${localIp}:${port}`);
-  console.log(`📊 监控仪表盘: http://${localIp}:${port}/monitoring.html`);
+  console.log(`📊 监控仪表盘: http://${localIp}:${port}/dashboard/`);
   console.log(`📦 API 响应格式: 统一包装（全局生效）`);
   console.log('========================================');
 }

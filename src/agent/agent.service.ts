@@ -27,7 +27,7 @@ import {
   createFallbackResult,
   createErrorResult,
 } from './utils/agent-result-helper';
-import { FeiShuAlertService } from '@/core/alert/feishu-alert.service';
+import { AlertService } from '@core/alert/alert.service';
 
 /**
  * Agent 服务（重构版）
@@ -58,7 +58,7 @@ export class AgentService {
     private readonly cacheService: AgentCacheService,
     private readonly registryService: AgentRegistryService,
     private readonly fallbackService: AgentFallbackService,
-    private readonly feiShuAlertService: FeiShuAlertService,
+    private readonly alertService: AlertService,
   ) {
     // 初始化日志工具
     this.agentLogger = new AgentLogger(this.logger, this.configService);
@@ -409,19 +409,16 @@ export class AgentService {
         `Agent API 认证失败 (${error.statusCode}): ${error.message}，会话: ${conversationId}`,
       );
 
-      // 【新增】立即发送飞书告警（异步，不阻塞响应）
-      this.feiShuAlertService
-        .sendAgentApiFailureAlert(
+      // 发送飞书告警（异步，不阻塞响应）
+      this.alertService
+        .sendAlert({
+          errorType: 'agent',
           error,
           conversationId,
-          requestParams?.userMessage || '无用户消息',
-          '/api/v1/chat',
-          {
-            errorType: 'agent',
-            requestParams,
-            apiKey,
-          },
-        )
+          userMessage: requestParams?.userMessage || '无用户消息',
+          apiEndpoint: '/api/v1/chat',
+          scenario: 'AUTH_ERROR',
+        })
         .catch((alertError) => {
           this.logger.error(`飞书告警发送失败: ${alertError.message}`);
         });
@@ -500,26 +497,23 @@ export class AgentService {
         `Agent API 异常，返回降级消息: "${fallbackInfo.message}"，会话: ${conversationId}`,
       );
 
-      // 【新增】发送飞书告警（异步，不阻塞响应）
-      this.feiShuAlertService
-        .sendAgentApiFailureAlert(
+      // 发送飞书告警（异步，不阻塞响应）
+      this.alertService
+        .sendAlert({
+          errorType: 'agent',
           error,
           conversationId,
-          requestParams?.userMessage || '无用户消息',
-          '/api/v1/chat',
-          {
-            errorType: 'agent',
-            requestParams,
-            apiKey,
-          },
-        )
+          userMessage: requestParams?.userMessage || '无用户消息',
+          apiEndpoint: '/api/v1/chat',
+          scenario: 'AGENT_API_ERROR',
+        })
         .catch((alertError) => {
           this.logger.error(`飞书告警发送失败: ${alertError.message}`);
         });
 
       const fallbackResponse = this.createFallbackResponse(fallbackInfo.message);
       const fallbackResult = createFallbackResult(fallbackResponse, fallbackInfo, conversationId);
-      // 【修复】附加 requestParams、apiKey 和 apiResponse
+      // 附加 requestParams、apiKey 和 apiResponse
       (fallbackResult as any).requestParams = requestParams;
       (fallbackResult as any).apiKey = apiKey;
       (fallbackResult as any).response = apiResponse;
@@ -530,19 +524,16 @@ export class AgentService {
     // 7. 其他未知错误 → 返回通用降级消息 + 发送飞书告警
     this.logger.error(`未知错误，返回降级消息，会话: ${conversationId}`, error);
 
-    // 【新增】发送飞书告警（异步，不阻塞响应）
-    this.feiShuAlertService
-      .sendAgentApiFailureAlert(
+    // 发送飞书告警（异步，不阻塞响应）
+    this.alertService
+      .sendAlert({
+        errorType: 'agent',
         error,
         conversationId,
-        requestParams?.userMessage || '无用户消息',
-        '/api/v1/chat',
-        {
-          errorType: 'agent',
-          requestParams,
-          apiKey,
-        },
-      )
+        userMessage: requestParams?.userMessage || '无用户消息',
+        apiEndpoint: '/api/v1/chat',
+        scenario: 'UNKNOWN_ERROR',
+      })
       .catch((alertError) => {
         this.logger.error(`飞书告警发送失败: ${alertError.message}`);
       });
