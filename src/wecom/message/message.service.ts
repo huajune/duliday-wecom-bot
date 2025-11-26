@@ -100,19 +100,13 @@ export class MessageService implements OnModuleInit {
       return { success: true, message: 'Self message stored' };
     }
 
-    // 管线步骤 1: 检查 AI 回复开关
-    const switchResult = this.checkAiReplySwitch();
-    if (!switchResult.continue) {
-      return switchResult.response;
-    }
-
-    // 管线步骤 2: 消息过滤
+    // 管线步骤 1: 消息过滤
     const filterResult = await this.filterMessage(messageData);
     if (!filterResult.continue) {
       return filterResult.response;
     }
 
-    // 管线步骤 3: 消息去重（检查 + 立即标记）
+    // 管线步骤 2: 消息去重（检查 + 立即标记）
     const dedupeResult = this.checkDuplication(messageData);
     if (!dedupeResult.continue) {
       return dedupeResult.response;
@@ -120,10 +114,23 @@ export class MessageService implements OnModuleInit {
     // 立即标记为已处理，防止企微重试导致重复处理
     this.deduplicationService.markMessageAsProcessed(messageData.messageId);
 
+    // 管线步骤 3: 记录历史（前置，保证无论后续是否触发 AI 都保存）
+    await this.recordUserMessageToHistory(messageData, filterResult.data?.content);
+
     // 管线步骤 4: 记录监控
     this.recordMessageReceived(messageData);
 
-    // 管线步骤 5: 分派处理（聚合 or 直接处理）
+    // 管线步骤 5: 全局开关关闭时，仅记录历史不触发 AI
+    if (!this.enableAiReply) {
+      const parsed = MessageParser.parse(messageData);
+      this.logger.log(
+        `[AI回复已禁用] 消息已记录到历史 [${messageData.messageId}]` +
+          (parsed.chatId ? `, chatId=${parsed.chatId}` : ''),
+      );
+      return { success: true, message: 'AI reply disabled, message recorded to history' };
+    }
+
+    // 管线步骤 6: 分派处理（聚合 or 直接处理）
     // 🚀 关键优化：不等待处理完成，立即返回响应
     this.dispatchMessage(messageData).catch((error) => {
       this.logger.error(`[分派异常] 消息 [${messageData.messageId}] 分派失败: ${error.message}`);
@@ -161,24 +168,11 @@ export class MessageService implements OnModuleInit {
   }
 
   /**
-   * 管线步骤 1: 检查 AI 回复开关
+   * 管线步骤 1: 消息过滤
    */
-  private checkAiReplySwitch(): PipelineResult {
-    if (!this.enableAiReply) {
-      this.logger.log(`[AI回复已禁用] 跳过消息处理`);
-      return {
-        continue: false,
-        response: { success: true, message: 'AI reply disabled' },
-      };
-    }
-
-    return { continue: true };
-  }
-
-  /**
-   * 管线步骤 2: 消息过滤
-   */
-  private async filterMessage(messageData: EnterpriseMessageCallbackDto): Promise<PipelineResult> {
+  private async filterMessage(
+    messageData: EnterpriseMessageCallbackDto,
+  ): Promise<PipelineResult<{ content?: string }>> {
     const filterResult = await this.filterService.validate(messageData);
 
     if (!filterResult.pass) {
@@ -213,11 +207,36 @@ export class MessageService implements OnModuleInit {
       };
     }
 
-    return { continue: true };
+    return { continue: true, data: { content: filterResult.content } };
   }
 
   /**
-   * 管线步骤 3: 消息去重
+   * 在 AI 回复关闭时，将用户消息记录到历史
+   */
+  private async recordUserMessageToHistory(
+    messageData: EnterpriseMessageCallbackDto,
+    contentFromFilter?: string,
+  ): Promise<void> {
+    const parsed = MessageParser.parse(messageData);
+    const { chatId, contactName } = parsed;
+    const content = contentFromFilter ?? parsed.content;
+
+    if (!content || content.trim().length === 0) {
+      this.logger.debug(`[AI回复已禁用] 消息内容为空，跳过记录历史 [${messageData.messageId}]`);
+      return;
+    }
+
+    await this.historyService.addMessageToHistory(chatId, 'user', content, {
+      messageId: messageData.messageId,
+      candidateName: messageData.contactName || contactName,
+      managerName: messageData.botUserId,
+      orgId: messageData.orgId,
+      botId: messageData.botId,
+    });
+  }
+
+  /**
+   * 管线步骤 2: 消息去重
    */
   private checkDuplication(messageData: EnterpriseMessageCallbackDto): PipelineResult {
     if (this.deduplicationService.isMessageProcessed(messageData.messageId)) {
@@ -232,7 +251,7 @@ export class MessageService implements OnModuleInit {
   }
 
   /**
-   * 管线步骤 4: 记录监控
+   * 管线步骤 3: 记录监控
    */
   private recordMessageReceived(messageData: EnterpriseMessageCallbackDto): void {
     const parsed = MessageParser.parse(messageData);
@@ -281,19 +300,10 @@ export class MessageService implements OnModuleInit {
     const scenario = MessageParser.determineScenario(messageData);
 
     try {
-      // 1. 获取历史消息
-      const historyMessages = await this.historyService.getHistory(chatId);
+      // 1. 获取历史消息（已预先写入当前消息，此处排除当前消息）
+      const historyMessages = await this.historyService.getHistoryForContext(chatId, messageId);
 
-      // 2. 添加当前消息到历史（包含元数据）
-      await this.historyService.addMessageToHistory(chatId, 'user', content, {
-        messageId: messageData.messageId,
-        candidateName: messageData.contactName || contactName,
-        managerName: messageData.botUserId,
-        orgId: messageData.orgId,
-        botId: messageData.botId,
-      });
-
-      // 3. 调用 Agent
+      // 2. 调用 Agent
       const agentResult = await this.agentGateway.invoke({
         conversationId: chatId,
         userMessage: content,
@@ -310,7 +320,7 @@ export class MessageService implements OnModuleInit {
           `tokens=${agentResult.reply.usage?.totalTokens || 'N/A'}`,
       );
 
-      // 5. 发送回复
+      // 3. 发送回复
       const deliveryContext = this.buildDeliveryContext(parsed);
       const deliveryResult = await this.deliveryService.deliverReply(
         agentResult.reply,
@@ -318,7 +328,7 @@ export class MessageService implements OnModuleInit {
         true,
       );
 
-      // 7. 记录成功（包含完整 Agent 原始响应）
+      // 4. 记录成功（包含完整 Agent 原始响应）
       const rawResponse = agentResult.reply.rawResponse;
       this.monitoringService.recordSuccess(messageId, {
         scenario,
@@ -338,7 +348,7 @@ export class MessageService implements OnModuleInit {
           : undefined,
       });
 
-      // 8. 标记消息为已处理（直发路径）
+      // 5. 标记消息为已处理（直发路径）
       this.deduplicationService.markMessageAsProcessed(messageId);
       this.logger.debug(`[${contactName}] 消息 [${messageId}] 已标记为已处理`);
     } catch (error) {
@@ -365,27 +375,17 @@ export class MessageService implements OnModuleInit {
 
       this.logger.log(`[聚合处理][${chatId}] 处理 ${messages.length} 条消息`);
 
-      // 1. 将所有消息添加到历史（除了最后一条，留给 Agent 作为 userMessage）
-      for (let i = 0; i < messages.length - 1; i++) {
-        const content = MessageParser.extractContent(messages[i]);
-        const msg = messages[i];
-        await this.historyService.addMessageToHistory(chatId, 'user', content, {
-          messageId: msg.messageId,
-          candidateName: msg.contactName,
-          managerName: msg.botUserId,
-          orgId: msg.orgId,
-          botId: msg.botId,
-        });
-      }
-
-      // 2. 获取历史消息
-      const historyMessages = await this.historyService.getHistory(chatId);
-
-      // 3. 最后一条消息作为 userMessage
+      // 1. 获取历史消息（已预先写入所有聚合消息，此处排除最后一条）
       const lastMessage = messages[messages.length - 1];
+      const historyMessages = await this.historyService.getHistoryForContext(
+        chatId,
+        lastMessage.messageId,
+      );
+
+      // 2. 最后一条消息作为 userMessage
       const lastContent = MessageParser.extractContent(lastMessage);
 
-      // 4. 调用 Agent（最后一条消息记录监控，获取 AI 耗时）
+      // 3. 调用 Agent（最后一条消息记录监控，获取 AI 耗时）
       const lastMessageId = lastMessage.messageId;
       const agentResult = await this.agentGateway.invoke({
         conversationId: chatId,
@@ -396,24 +396,14 @@ export class MessageService implements OnModuleInit {
         messageId: lastMessageId,
       });
 
-      // 6. 将最后一条用户消息添加到历史（包含元数据）
-      // 注意：assistant 消息历史由 isSelf=true 的回调存储，这里不再重复存储
-      await this.historyService.addMessageToHistory(chatId, 'user', lastContent, {
-        messageId: lastMessage.messageId,
-        candidateName: lastMessage.contactName,
-        managerName: lastMessage.botUserId,
-        orgId: lastMessage.orgId,
-        botId: lastMessage.botId,
-      });
-
       this.logger.log(
         `[聚合处理][${contactName}] Agent 处理完成，耗时 ${agentResult.processingTime}ms`,
       );
 
-      // 7. 先重置会话状态为 IDLE，再发送回复（避免竞态条件）
+      // 4. 先重置会话状态为 IDLE，再发送回复（避免竞态条件）
       await this.mergeService.resetToIdle(chatId);
 
-      // 8. 发送回复
+      // 5. 发送回复
       const deliveryContext = this.buildDeliveryContext(MessageParser.parse(lastMessage));
       const deliveryResult = await this.deliveryService.deliverReply(
         agentResult.reply,
@@ -421,7 +411,7 @@ export class MessageService implements OnModuleInit {
         false,
       );
 
-      // 9. 【修复】标记所有聚合的消息为已处理，并记录监控成功
+      // 6. 【修复】标记所有聚合的消息为已处理，并记录监控成功
       const rawResponse = agentResult.reply.rawResponse;
       const sharedSuccessMetadata = {
         scenario,

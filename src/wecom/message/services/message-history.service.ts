@@ -87,6 +87,44 @@ export class MessageHistoryService {
   }
 
   /**
+   * 获取会话历史（用于 Agent 上下文，可排除指定消息ID）
+   */
+  async getHistoryForContext(
+    chatId: string,
+    excludeMessageId?: string,
+  ): Promise<Array<{ role: 'user' | 'assistant'; content: string }>> {
+    try {
+      const key = `${this.HISTORY_KEY_PREFIX}${chatId}`;
+      const rawHistory = await this.redisService.lrange<string>(key, -this.maxHistoryPerChat, -1);
+
+      if (!rawHistory || rawHistory.length === 0) {
+        return [];
+      }
+
+      const parsed = rawHistory.map((raw) => {
+        const msg = typeof raw === 'string' ? JSON.parse(raw) : raw;
+        return {
+          role: msg.role as 'user' | 'assistant',
+          content: msg.content,
+          messageId: msg.messageId as string | undefined,
+        };
+      });
+
+      const filtered = excludeMessageId
+        ? parsed.filter((item) => item.messageId !== excludeMessageId)
+        : parsed;
+
+      return filtered.map((item) => ({
+        role: item.role,
+        content: item.content,
+      }));
+    } catch (error) {
+      this.logger.error(`获取会话历史失败 [${chatId}]:`, error);
+      return [];
+    }
+  }
+
+  /**
    * 添加消息到历史记录（增强版本，支持完整元数据）
    * 使用 Redis List 原子操作 (rpush + ltrim + expire) 避免并发竞态
    * @param chatId 会话ID
