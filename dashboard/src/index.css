@@ -610,14 +610,14 @@ body {
   background: rgba(0, 0, 0, 0.3);
   display: flex;
   justify-content: flex-end; /* 内容靠右 */
-  z-index: 100; /* 高于侧边栏的 50 */
+  z-index: 1000; /* 高于侧边栏，确保覆盖所有元素 */
   backdrop-filter: blur(4px);
   animation: fadeIn 0.3s ease;
 }
 
 .drawer-content {
   background: #ffffff;
-  width: 600px; /* 固定宽度 */
+  width: 960px; /* 宽屏展示 */
   max-width: 90vw;
   height: calc(100vh - 32px); /* 上下各留 16px */
   margin: 16px 16px 16px 0; /* 右侧留 16px，左侧不留（靠右） */
@@ -1397,7 +1397,6 @@ tbody tr:hover {
   top: 16px;
   bottom: 16px;
   left: 16px;
-  z-index: 50;
   padding: 24px;
   border-radius: 24px;
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.04);
@@ -1597,11 +1596,24 @@ tbody tr:hover {
   height: 100%;
 }
 
-.icon-dashboard { color: #6366f1; /* Primary Purple */ }
-.icon-users { color: #8b5cf6; /* Accent Purple */ }
-.icon-config { color: #6b7280; /* Gray */ }
-.icon-system { color: #ef4444; /* Christmas Red */ }
-.icon-logs { color: #10b981; /* Christmas Green */ }
+/* Default: Inherit color (Gray) */
+.nav-icon {
+  color: currentColor;
+}
+
+/* Hover State: Specific Colors */
+.nav-item:hover .icon-dashboard { color: #6366f1; }
+.nav-item:hover .icon-users { color: #8b5cf6; }
+.nav-item:hover .icon-hosting { color: #06b6d4; }
+.nav-item:hover .icon-config { color: #6b7280; }
+.nav-item:hover .icon-system { color: #ef4444; }
+.nav-item:hover .icon-logs { color: #10b981; }
+.nav-item:hover .icon-console { color: #1f2937; }
+
+/* Active State: White */
+.nav-item.active .nav-icon {
+  color: #ffffff !important;
+}
 
 .nav-item:hover::after, .nav-item.active::after {
   opacity: 1;

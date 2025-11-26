@@ -71,6 +71,46 @@ export interface DailyTrendPoint {
   uniqueUsers: number;
 }
 
+/**
+ * Agent 响应消息部分
+ */
+export interface AgentMessagePart {
+  type: 'text';
+  text: string;
+}
+
+/**
+ * Agent 响应消息
+ */
+export interface AgentResponseMessage {
+  role: 'user' | 'assistant' | 'system';
+  parts: AgentMessagePart[];
+}
+
+/**
+ * 完整 Agent 响应结构
+ */
+export interface RawAgentResponse {
+  // 完整消息数组（保留原始结构）
+  messages: AgentResponseMessage[];
+  // Token 使用统计
+  usage: {
+    inputTokens: number;
+    outputTokens: number;
+    totalTokens: number;
+    cachedInputTokens?: number;
+  };
+  // 工具使用情况
+  tools: {
+    used: string[];
+    skipped: string[];
+  };
+  // 是否降级响应
+  isFallback?: boolean;
+  // 降级原因
+  fallbackReason?: string;
+}
+
 export interface MessageRecord {
   messageId?: string;
   receivedAt: string;
@@ -91,20 +131,7 @@ export interface MessageRecord {
   isFallback?: boolean;
   fallbackSuccess?: boolean;
   // 完整 Agent 响应（用于排障）
-  rawAgentResponse?: {
-    content: string;
-    usage?: {
-      inputTokens: number;
-      outputTokens: number;
-      totalTokens: number;
-    };
-    tools?: {
-      used: string[];
-      skipped: string[];
-    };
-    isFallback?: boolean;
-    fallbackReason?: string;
-  };
+  rawAgentResponse?: RawAgentResponse;
 }
 
 export interface TodayUser {
@@ -161,17 +188,17 @@ export interface DashboardData {
 }
 
 export interface MetricsData {
+  detailRecords: MessageRecord[];
+  hourlyStats: any[];
+  globalCounters: any;
   percentiles: {
     p50: number;
     p95: number;
     p99: number;
+    p999: number;
   };
   slowestRecords: MessageRecord[];
-  pendingMessages: number;
-  processingMessages: number;
-  todayAlerts: number;
-  weekAlerts: number;
-  unhandledAlerts: number;
+  recentAlertCount: number;
 }
 
 export interface HealthStatus {
@@ -224,7 +251,8 @@ export interface AgentReplyConfig {
   maxMergedMessages: number; // 最多聚合消息数
 
   // 打字延迟配置
-  typingDelayPerCharMs: number; // 每字符延迟（毫秒）
+  typingDelayPerCharMs: number; // 每字符延迟（毫秒）- 已废弃
+  typingSpeedCharsPerSec: number; // 打字速度（字符/秒）
   paragraphGapMs: number; // 段落间隔（毫秒）
 
   // 告警节流配置

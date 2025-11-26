@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { useDashboard } from '@/hooks/useMonitoring';
-import { formatTime, formatDuration } from '@/utils/format';
+import { useDashboard, useMetrics } from '@/hooks/useMonitoring';
+import { formatDateTime, formatDuration } from '@/utils/format';
 
 import type { MessageRecord } from '@/types/monitoring';
 
@@ -20,14 +20,15 @@ function MessageDetailPanel({
   message: MessageRecord;
   onClose: () => void;
 }) {
-  const [activeTab, setActiveTab] = useState<'reply' | 'details' | 'raw'>('reply');
+  const [showRaw, setShowRaw] = useState(true);
 
   return (
     <div className="drawer-overlay" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="drawer-content">
-        <div className="modal-header">
-          <h3>
-            消息详情
+        {/* Header */}
+        <div className="modal-header" style={{ padding: '20px 24px', borderBottom: '1px solid var(--border)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <h3 style={{ margin: 0, fontSize: '18px' }}>消息详情</h3>
             <span className={`status-badge ${message.status === 'success' ? 'success' : message.status === 'failure' || message.status === 'failed' ? 'danger' : 'warning'}`}>
               {message.status}
             </span>
@@ -36,293 +37,283 @@ function MessageDetailPanel({
                 {message.fallbackSuccess ? '降级成功' : '降级失败'}
               </span>
             )}
-          </h3>
-          <button className="modal-close" onClick={onClose}>
-            &times;
-          </button>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px', fontSize: '13px', color: 'var(--text-secondary)' }}>
+            <span>🕒 {formatDateTime(message.receivedAt)}</span>
+            <span>👤 {message.userName || message.chatId}</span>
+            <button className="modal-close" onClick={onClose} style={{ marginLeft: '8px' }}>
+              &times;
+            </button>
+          </div>
         </div>
 
-        {/* Tab 切换 */}
-        <div className="modal-tabs">
-          <button
-            className={`modal-tab-btn ${activeTab === 'reply' ? 'active' : ''}`}
-            onClick={() => setActiveTab('reply')}
-          >
-            Agent 响应
-          </button>
-          <button
-            className={`modal-tab-btn ${activeTab === 'details' ? 'active' : ''}`}
-            onClick={() => setActiveTab('details')}
-          >
-            详细信息
-          </button>
-          <button
-            className={`modal-tab-btn ${activeTab === 'raw' ? 'active' : ''}`}
-            onClick={() => setActiveTab('raw')}
-          >
-            原始响应
-          </button>
-        </div>
+        {/* Unified Content Body */}
+        <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
 
-        <div className="modal-body">
-          {activeTab === 'reply' ? (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-              {/* 用户消息 */}
-              <div className="modal-section">
-                <div className="modal-label">
-                  <span style={{ fontSize: '14px' }}>👤</span>
-                  用户消息
+          {/* Left Column: Raw Data & Conversation (65%) */}
+          <div style={{ flex: '1 1 65%', padding: '24px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '24px' }}>
+
+            {/* Conversation Context */}
+            <div>
+              <h4 style={{ margin: '0 0 16px 0', fontSize: '14px', color: 'var(--text-muted)' }}>会话上下文</h4>
+
+              {/* User Message Bubble */}
+              <div className="chat-bubble user" style={{ marginBottom: '16px' }}>
+                <div className="bubble-header">
+                  <span style={{ fontSize: '16px' }}>👤</span>
+                  <span style={{ fontWeight: 600, fontSize: '13px' }}>用户消息</span>
                 </div>
-                <div className="modal-value-box">
+                <div className="bubble-content">
                   {message.messagePreview || '(无消息内容)'}
                 </div>
               </div>
 
-              {/* Agent 响应 */}
-              <div className="modal-section">
-                <div className="modal-label">
-                  <span style={{ fontSize: '14px' }}>🤖</span>
-                  Agent 响应
+              {/* Agent Reply Bubble */}
+              <div className="chat-bubble agent">
+                <div className="bubble-header">
+                  <span style={{ fontSize: '16px' }}>🤖</span>
+                  <span style={{ fontWeight: 600, fontSize: '13px' }}>Agent 响应</span>
                   {message.replySegments && (
-                    <span style={{ color: 'var(--text-secondary)', fontWeight: 'normal', marginLeft: 'auto', fontSize: '11px' }}>
-                      ({message.replySegments} 条消息)
+                    <span className="bubble-meta">
+                      {message.replySegments} 条消息
                     </span>
                   )}
                 </div>
-                <div className="modal-value-box primary" style={{ maxHeight: '400px', overflow: 'auto' }}>
+                <div className="bubble-content primary">
                   {message.replyPreview || '(无响应内容)'}
                 </div>
               </div>
 
-              {/* 错误信息 */}
+              {/* Error Box */}
               {message.error && (
-                <div className="modal-section">
-                  <div className="modal-label" style={{ color: 'var(--danger)' }}>
-                    <span style={{ fontSize: '14px' }}>⚠️</span>
-                    错误信息
+                <div className="error-box" style={{ marginTop: '24px' }}>
+                  <div className="error-header">
+                    <span>⚠️</span> 错误信息
                   </div>
-                  <div className="modal-value-box danger">
+                  <div className="error-content">
                     {message.error}
                   </div>
                 </div>
               )}
             </div>
-          ) : activeTab === 'details' ? (
 
-            <div className="modal-grid">
-              {/* 基本信息 */}
-              <div className="modal-info-card">
-                <div className="modal-label">基本信息</div>
-                <div className="modal-info-row">
-                  <span className="modal-info-label">用户</span>
-                  <span className="modal-info-value">{message.userName || message.chatId}</span>
-                </div>
-                <div className="modal-info-row">
-                  <span className="modal-info-label">会话 ID</span>
-                  <span className="modal-info-value" style={{ fontFamily: 'monospace', fontSize: '12px', color: 'var(--text-muted)' }}>
-                    {message.chatId}
-                  </span>
-                </div>
-                <div className="modal-info-row">
-                  <span className="modal-info-label">接收时间</span>
-                  <span className="modal-info-value">{formatTime(message.receivedAt)}</span>
-                </div>
-                {message.scenario && (
-                  <div className="modal-info-row">
-                    <span className="modal-info-label">场景</span>
-                    <span className="modal-info-value">
-                      {scenarioLabels[message.scenario] || message.scenario}
-                    </span>
-                  </div>
-                )}
+            {/* Raw JSON Section */}
+            <div style={{ display: 'flex', flexDirection: 'column', flex: 1, borderTop: '1px solid var(--border)', paddingTop: '24px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                <h4 style={{ margin: 0, fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)' }}>
+                  原始数据结构 (JSON)
+                </h4>
+                <button
+                  onClick={() => setShowRaw(!showRaw)}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: 'var(--primary)',
+                    cursor: 'pointer',
+                    fontSize: '12px',
+                  }}
+                >
+                  {showRaw ? '收起' : '展开'}
+                </button>
               </div>
 
-              {/* 耗时统计 */}
-              <div className="modal-info-card">
-                <div className="modal-label">耗时统计</div>
-                <div className="modal-info-row">
-                  <span className="modal-info-label">总耗时</span>
-                  <span className="modal-info-value" style={{ color: 'var(--primary)' }}>
-                    {formatDuration(message.totalDuration)}
-                  </span>
-                </div>
+              {showRaw && (
+                <pre className="code-block" style={{ flex: 1, minHeight: '400px', fontSize: '12px', overflow: 'auto', margin: 0 }}>
+                  {JSON.stringify(message.rawAgentResponse || message, null, 2)}
+                </pre>
+              )}
+            </div>
+          </div>
+
+          {/* Right Column: Technical Stats (35%) */}
+          <div style={{ flex: '0 0 320px', background: 'var(--bg-secondary)', borderLeft: '1px solid var(--border)', padding: '24px', overflowY: 'auto' }}>
+
+            <h4 style={{ margin: '0 0 16px 0', fontSize: '14px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              技术指标
+            </h4>
+
+            {/* Latency Card */}
+            <div className="stat-card">
+              <div className="stat-label">总耗时</div>
+              <div className="stat-value primary">{formatDuration(message.totalDuration)}</div>
+              <div className="stat-breakdown">
                 {message.queueDuration !== undefined && (
-                  <div className="modal-info-row">
-                    <span className="modal-info-label">排队耗时</span>
-                    <span className="modal-info-value">{formatDuration(message.queueDuration)}</span>
+                  <div className="breakdown-item">
+                    <span>排队</span>
+                    <span>{formatDuration(message.queueDuration)}</span>
                   </div>
                 )}
                 {message.aiDuration !== undefined && (
-                  <div className="modal-info-row">
-                    <span className="modal-info-label">AI 处理</span>
-                    <span className="modal-info-value">{formatDuration(message.aiDuration)}</span>
+                  <div className="breakdown-item">
+                    <span>首条响应</span>
+                    <span>{formatDuration(message.aiDuration)}</span>
                   </div>
                 )}
                 {message.sendDuration !== undefined && (
-                  <div className="modal-info-row">
-                    <span className="modal-info-label">发送耗时</span>
-                    <span className="modal-info-value">{formatDuration(message.sendDuration)}</span>
+                  <div className="breakdown-item">
+                    <span>发送</span>
+                    <span>{formatDuration(message.sendDuration)}</span>
                   </div>
                 )}
               </div>
-
-              {/* Token 使用 */}
-              {message.tokenUsage !== undefined && (
-                <div className="modal-info-card">
-                  <div className="modal-label">Token 使用</div>
-                  <div style={{ fontSize: '24px', fontWeight: 600, color: 'var(--warning)' }}>
-                    {message.tokenUsage.toLocaleString()}
-                  </div>
-                </div>
-              )}
-
-              {/* 使用的工具 */}
-              {message.tools && message.tools.length > 0 && (
-                <div className="modal-info-card">
-                  <div className="modal-label">使用的工具</div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                    {message.tools.map((tool, i) => (
-                      <span key={i} className="modal-tag success">
-                        {tool}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
             </div>
-          ) : (
-            // 原始响应 Tab
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-              {message.rawAgentResponse ? (
-                <>
-                  {/* 完整回复内容 */}
-                  <div className="modal-section">
-                    <div className="modal-label">
-                      <span style={{ fontSize: '14px' }}>📝</span>
-                      完整回复内容
+
+            {/* Token Card */}
+            {message.tokenUsage !== undefined && (
+              <div className="stat-card">
+                <div className="stat-label">Token 消耗</div>
+                <div className="stat-value warning">{message.tokenUsage.toLocaleString()}</div>
+                {message.rawAgentResponse?.usage && (
+                  <div className="stat-breakdown">
+                    <div className="breakdown-item">
+                      <span>输入</span>
+                      <span>{message.rawAgentResponse.usage.inputTokens?.toLocaleString() || '-'}</span>
                     </div>
-                    <div className="modal-value-box" style={{ maxHeight: '300px', overflow: 'auto' }}>
-                      {message.rawAgentResponse.content || '(无内容)'}
+                    <div className="breakdown-item">
+                      <span>输出</span>
+                      <span>{message.rawAgentResponse.usage.outputTokens?.toLocaleString() || '-'}</span>
                     </div>
                   </div>
+                )}
+              </div>
+            )}
 
-                  {/* Token 使用详情 */}
-                  {message.rawAgentResponse.usage && (
-                    <div className="modal-section">
-                      <div className="modal-label">
-                        <span style={{ fontSize: '14px' }}>📊</span>
-                        Token 使用详情
-                      </div>
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px' }}>
-                        <div className="modal-info-card" style={{ alignItems: 'center', textAlign: 'center' }}>
-                          <div className="modal-info-label" style={{ fontSize: '11px' }}>输入 Token</div>
-                          <div style={{ fontSize: '18px', fontWeight: 600, color: 'var(--primary)' }}>
-                            {message.rawAgentResponse.usage.inputTokens?.toLocaleString() || '-'}
-                          </div>
-                        </div>
-                        <div className="modal-info-card" style={{ alignItems: 'center', textAlign: 'center' }}>
-                          <div className="modal-info-label" style={{ fontSize: '11px' }}>输出 Token</div>
-                          <div style={{ fontSize: '18px', fontWeight: 600, color: 'var(--success)' }}>
-                            {message.rawAgentResponse.usage.outputTokens?.toLocaleString() || '-'}
-                          </div>
-                        </div>
-                        <div className="modal-info-card" style={{ alignItems: 'center', textAlign: 'center' }}>
-                          <div className="modal-info-label" style={{ fontSize: '11px' }}>总计</div>
-                          <div style={{ fontSize: '18px', fontWeight: 600, color: 'var(--warning)' }}>
-                            {message.rawAgentResponse.usage.totalTokens?.toLocaleString() || '-'}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* 工具使用详情 */}
-                  {message.rawAgentResponse.tools && (
-                    <div className="modal-section">
-                      <div className="modal-label">
-                        <span style={{ fontSize: '14px' }}>🛠️</span>
-                        工具使用详情
-                      </div>
-                      <div className="modal-grid">
-                        <div className="modal-info-card">
-                          <div className="modal-info-label" style={{ marginBottom: '8px' }}>
-                            已使用工具 ({message.rawAgentResponse.tools.used?.length || 0})
-                          </div>
-                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
-                            {message.rawAgentResponse.tools.used?.length > 0 ? (
-                              message.rawAgentResponse.tools.used.map((tool, i) => (
-                                <span key={i} className="modal-tag success">
-                                  {tool}
-                                </span>
-                              ))
-                            ) : (
-                              <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>无</span>
-                            )}
-                          </div>
-                        </div>
-                        <div className="modal-info-card">
-                          <div className="modal-info-label" style={{ marginBottom: '8px' }}>
-                            跳过的工具 ({message.rawAgentResponse.tools.skipped?.length || 0})
-                          </div>
-                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
-                            {message.rawAgentResponse.tools.skipped?.length > 0 ? (
-                              message.rawAgentResponse.tools.skipped.map((tool, i) => (
-                                <span key={i} className="modal-tag warning">
-                                  {tool}
-                                </span>
-                              ))
-                            ) : (
-                              <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>无</span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* 降级信息 */}
-                  {message.rawAgentResponse.isFallback && (
-                    <div className="modal-section">
-                      <div className="modal-label" style={{ color: 'var(--warning)' }}>
-                        <span style={{ fontSize: '14px' }}>⚡</span>
-                        降级信息
-                      </div>
-                      <div className="modal-value-box warning" style={{ background: 'var(--warning-soft)', color: 'var(--warning)', borderColor: 'rgba(245, 158, 11, 0.2)' }}>
-                        {message.rawAgentResponse.fallbackReason || '使用了降级处理'}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* 原始 JSON */}
-                  <div className="modal-section">
-                    <div className="modal-label">
-                      <span style={{ fontSize: '14px' }}>{'{ }'}</span>
-                      原始 JSON
-                    </div>
-                    <pre className="modal-value-box code" style={{ maxHeight: '300px', overflow: 'auto', margin: 0 }}>
-                      {JSON.stringify(message.rawAgentResponse, null, 2)}
-                    </pre>
-                  </div>
-                </>
-              ) : (
-                <div
-                  style={{
-                    textAlign: 'center',
-                    padding: '40px 20px',
-                    color: 'var(--text-muted)',
-                  }}
-                >
-                  <div style={{ fontSize: '40px', marginBottom: '12px' }}>📭</div>
-                  <div>暂无原始响应数据</div>
-                  <div style={{ fontSize: '12px', marginTop: '8px' }}>
-                    新的消息记录才会包含完整的 Agent 响应
-                  </div>
+            {/* Tools Card */}
+            {message.tools && message.tools.length > 0 && (
+              <div className="stat-card">
+                <div className="stat-label">使用工具</div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '8px' }}>
+                  {message.tools.map((tool, i) => (
+                    <span key={i} className="tool-tag">
+                      {tool}
+                    </span>
+                  ))}
                 </div>
-              )}
+              </div>
+            )}
+
+            {/* Metadata Card */}
+            <div className="stat-card">
+              <div className="stat-label">元数据</div>
+              <div className="stat-breakdown">
+                <div className="breakdown-item">
+                  <span>场景</span>
+                  <span>{scenarioLabels[message.scenario || ''] || message.scenario || '未知'}</span>
+                </div>
+                <div className="breakdown-item">
+                  <span>会话 ID</span>
+                  <span style={{ fontFamily: 'monospace', fontSize: '11px' }} title={message.chatId}>
+                    {message.chatId.slice(0, 8)}...
+                  </span>
+                </div>
+              </div>
             </div>
-          )}
+
+          </div>
         </div>
       </div>
+
+      {/* Local Styles for this component */}
+      <style>{`
+        .chat-bubble {
+          background: #fff;
+          border: 1px solid var(--border);
+          border-radius: 12px;
+          padding: 16px;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.02);
+        }
+        .chat-bubble.user { border-left: 4px solid var(--primary); }
+        .chat-bubble.agent { border-left: 4px solid var(--success); }
+        
+        .bubble-header {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          margin-bottom: 12px;
+          color: var(--text-primary);
+        }
+        .bubble-meta {
+          margin-left: auto;
+          font-size: 12px;
+          color: var(--text-muted);
+          background: var(--bg-secondary);
+          padding: 2px 8px;
+          border-radius: 99px;
+        }
+        .bubble-content {
+          font-size: 14px;
+          line-height: 1.6;
+          color: var(--text-secondary);
+          white-space: pre-wrap;
+        }
+        
+        .error-box {
+          background: #fef2f2;
+          border: 1px solid #fee2e2;
+          border-radius: 12px;
+          padding: 16px;
+          color: #ef4444;
+        }
+        .error-header {
+          font-weight: 600;
+          margin-bottom: 8px;
+          display: flex;
+          align-items: center;
+          gap: 6px;
+        }
+        
+        .stat-card {
+          background: #fff;
+          border-radius: 12px;
+          padding: 16px;
+          margin-bottom: 16px;
+          box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+        .stat-label {
+          font-size: 12px;
+          color: var(--text-muted);
+          margin-bottom: 4px;
+        }
+        .stat-value {
+          font-size: 20px;
+          font-weight: 700;
+          color: var(--text-primary);
+        }
+        .stat-value.primary { color: var(--primary); }
+        .stat-value.warning { color: var(--warning); }
+        
+        .stat-breakdown {
+          margin-top: 12px;
+          padding-top: 12px;
+          border-top: 1px solid var(--border);
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+        }
+        .breakdown-item {
+          display: flex;
+          justify-content: space-between;
+          font-size: 12px;
+          color: var(--text-secondary);
+        }
+        
+        .tool-tag {
+          font-size: 11px;
+          padding: 4px 8px;
+          background: rgba(16, 185, 129, 0.1);
+          color: var(--success);
+          border-radius: 6px;
+          border: 1px solid rgba(16, 185, 129, 0.2);
+        }
+        
+        .code-block {
+          background: #1e1e1e;
+          color: #d4d4d4;
+          padding: 16px;
+          border-radius: 8px;
+          font-family: 'Menlo', 'Monaco', monospace;
+        }
+      `}</style>
     </div>
   );
 }
@@ -330,25 +321,148 @@ function MessageDetailPanel({
 export default function Logs() {
   const [timeRange] = useState<'today' | 'week' | 'month'>('today');
   const { data: dashboard, isLoading } = useDashboard(timeRange);
+  const { data: metrics } = useMetrics();
   const [selectedMessage, setSelectedMessage] = useState<MessageRecord | null>(null);
+  const [activeTab, setActiveTab] = useState<'realtime' | 'slowest'>('realtime');
 
   const messages = dashboard?.recentMessages || [];
+  const slowestRecords = metrics?.slowestRecords || [];
+
+  // 计算统计数据
+  const stats = {
+    total: messages.length,
+    success: messages.filter((m) => m.status === 'success').length,
+    failed: messages.filter((m) => m.status === 'failure' || m.status === 'failed').length,
+    avgDuration:
+      messages.length > 0
+        ? Math.round(messages.reduce((sum, m) => sum + (m.aiDuration || 0), 0) / messages.length)
+        : 0,
+  };
 
   return (
     <div id="page-logs" className="page-section active">
-      {/* 实时消息 */}
-      <section className="section">
-        <div className="section-header">
-          <h3>
-            实时消息{' '}
-            <span style={{ fontSize: '14px', color: 'var(--text-secondary)', fontWeight: 'normal' }}>
-              ({messages.length} 条)
-            </span>
+      {/* 顶部控制面板 */}
+      <section
+        className="control-panel"
+        style={{
+          marginBottom: '20px',
+          padding: '16px 20px',
+        }}
+      >
+        {/* 单行布局：标题 + 统计 + Tab切换 */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '24px',
+          }}
+        >
+          {/* 左侧：标题 */}
+          <h3
+            style={{
+              margin: 0,
+              fontSize: '15px',
+              fontWeight: 600,
+              color: 'var(--text-primary)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            <span style={{ fontSize: '16px' }}>💬</span>
+            消息记录
           </h3>
-          <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: 'var(--text-muted)' }}>
-            点击任意行查看完整的 Agent 响应和详细信息
-          </p>
+
+          {/* 分隔线 */}
+          <div style={{ width: '1px', height: '24px', background: 'var(--border)' }} />
+
+          {/* 统计数据 - 紧凑横向排列 */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>总计</span>
+              <span style={{ fontSize: '15px', fontWeight: 700, color: 'var(--primary)' }}>
+                {stats.total}
+              </span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>成功</span>
+              <span style={{ fontSize: '15px', fontWeight: 700, color: 'var(--success)' }}>
+                {stats.success}
+              </span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>失败</span>
+              <span
+                style={{
+                  fontSize: '15px',
+                  fontWeight: 700,
+                  color: stats.failed > 0 ? 'var(--danger)' : 'var(--text-muted)',
+                }}
+              >
+                {stats.failed}
+              </span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>首响</span>
+              <span style={{ fontSize: '15px', fontWeight: 700, color: 'var(--warning)' }}>
+                {formatDuration(stats.avgDuration)}
+              </span>
+            </div>
+          </div>
+
+          {/* 弹性空间 */}
+          <div style={{ flex: 1 }} />
+
+          {/* Tab 切换 - 简洁样式 */}
+          <div
+            style={{
+              display: 'flex',
+              background: 'var(--bg-secondary)',
+              borderRadius: '8px',
+              padding: '3px',
+            }}
+          >
+            <button
+              onClick={() => setActiveTab('realtime')}
+              style={{
+                padding: '6px 14px',
+                background: activeTab === 'realtime' ? '#fff' : 'transparent',
+                border: 'none',
+                borderRadius: '6px',
+                color: activeTab === 'realtime' ? 'var(--primary)' : 'var(--text-muted)',
+                fontSize: '13px',
+                fontWeight: 500,
+                cursor: 'pointer',
+                transition: 'all 0.15s ease',
+                boxShadow: activeTab === 'realtime' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+              }}
+            >
+              实时 {messages.length}
+            </button>
+            <button
+              onClick={() => setActiveTab('slowest')}
+              style={{
+                padding: '6px 14px',
+                background: activeTab === 'slowest' ? '#fff' : 'transparent',
+                border: 'none',
+                borderRadius: '6px',
+                color: activeTab === 'slowest' ? 'var(--danger)' : 'var(--text-muted)',
+                fontSize: '13px',
+                fontWeight: 500,
+                cursor: 'pointer',
+                transition: 'all 0.15s ease',
+                boxShadow: activeTab === 'slowest' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+              }}
+            >
+              最慢 Top10
+            </button>
+          </div>
         </div>
+      </section>
+
+      {/* 最慢记录 Top 10 */}
+      <section className="section" style={{ display: activeTab === 'slowest' ? 'block' : 'none' }}>
         <div className="table-wrapper">
           <table>
             <thead>
@@ -357,7 +471,86 @@ export default function Logs() {
                 <th>用户</th>
                 <th>用户消息</th>
                 <th>回复预览</th>
+                <th>回复条数</th>
                 <th>Token</th>
+                <th>首条响应 ↓</th>
+                <th>总耗时</th>
+                <th>状态</th>
+              </tr>
+            </thead>
+            <tbody>
+              {slowestRecords.length === 0 ? (
+                <tr>
+                  <td colSpan={9} className="loading">
+                    暂无数据
+                  </td>
+                </tr>
+              ) : (
+                slowestRecords.map((record, i) => (
+                  <tr
+                    key={record.messageId || i}
+                    onClick={() => setSelectedMessage(record as MessageRecord)}
+                    style={{ cursor: 'pointer' }}
+                    className="clickable-row"
+                  >
+                    <td>{formatDateTime(record.receivedAt)}</td>
+                    <td>{record.userName || record.chatId}</td>
+                    <td
+                      style={{
+                        maxWidth: '180px',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {record.messagePreview || '-'}
+                    </td>
+                    <td
+                      style={{
+                        maxWidth: '200px',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {record.replyPreview || '-'}
+                    </td>
+                    <td style={{ textAlign: 'center' }}>{record.replySegments ?? '-'}</td>
+                    <td style={{ fontFamily: 'monospace', fontSize: '12px' }}>
+                      {record.tokenUsage?.toLocaleString() || '-'}
+                    </td>
+                    <td style={{ color: 'var(--danger)', fontWeight: 600 }}>
+                      {record.aiDuration !== undefined ? formatDuration(record.aiDuration) : '-'}
+                    </td>
+                    <td>{formatDuration(record.totalDuration)}</td>
+                    <td>
+                      <span
+                        className={`status-badge ${record.status === 'success' ? 'success' : 'danger'}`}
+                      >
+                        {record.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      {/* 实时消息 */}
+      <section className="section" style={{ display: activeTab === 'realtime' ? 'block' : 'none' }}>
+        <div className="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th>时间</th>
+                <th>用户</th>
+                <th>用户消息</th>
+                <th>回复预览</th>
+                <th>回复条数</th>
+                <th>Token</th>
+                <th>首条响应</th>
                 <th>总耗时</th>
                 <th>状态</th>
               </tr>
@@ -365,13 +558,13 @@ export default function Logs() {
             <tbody>
               {isLoading ? (
                 <tr>
-                  <td colSpan={7} className="loading">
+                  <td colSpan={9} className="loading">
                     加载中...
                   </td>
                 </tr>
               ) : messages.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="loading">
+                  <td colSpan={9} className="loading">
                     暂无数据
                   </td>
                 </tr>
@@ -383,7 +576,7 @@ export default function Logs() {
                     style={{ cursor: 'pointer' }}
                     className="clickable-row"
                   >
-                    <td>{formatTime(msg.receivedAt)}</td>
+                    <td>{formatDateTime(msg.receivedAt)}</td>
                     <td>{msg.userName || msg.chatId}</td>
                     <td
                       style={{
@@ -405,9 +598,13 @@ export default function Logs() {
                     >
                       {msg.replyPreview || '-'}
                     </td>
+                    <td style={{ textAlign: 'center' }}>
+                      {msg.replySegments || '-'}
+                    </td>
                     <td style={{ fontFamily: 'monospace', fontSize: '12px' }}>
                       {msg.tokenUsage?.toLocaleString() || '-'}
                     </td>
+                    <td>{msg.aiDuration !== undefined ? formatDuration(msg.aiDuration) : '-'}</td>
                     <td>{formatDuration(msg.totalDuration)}</td>
                     <td>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
@@ -441,6 +638,8 @@ export default function Logs() {
           </table>
         </div>
       </section>
+
+
 
       {/* 详情弹窗 */}
       {selectedMessage && (

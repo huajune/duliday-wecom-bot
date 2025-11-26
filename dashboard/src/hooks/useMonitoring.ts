@@ -342,6 +342,22 @@ export function useWorkerStatus(autoRefresh = true) {
   });
 }
 
+// 获取小组列表
+export function useGroupList() {
+  return useQuery({
+    queryKey: ['group-list'],
+    queryFn: async () => {
+      // 使用企业级 token 获取小组列表
+      const token = import.meta.env.VITE_ENTERPRISE_TOKEN || '9eaebbf614104879b81c2da7c41819bd';
+      const { data } = await api.get(`/group/list?token=${token}`);
+      // unwrapResponse 会递归解包所有 data 字段，直接返回数组
+      const groups = unwrapResponse<Array<{ id: string; name: string; description: string }>>(data);
+      return groups || [];
+    },
+    staleTime: 60000, // 1 分钟内不重新请求
+  });
+}
+
 // 设置 Worker 并发数
 export function useSetWorkerConcurrency() {
   const queryClient = useQueryClient();

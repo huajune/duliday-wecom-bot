@@ -30,7 +30,8 @@ export interface AgentReplyConfig {
   maxMergedMessages: number; // 最多聚合消息数
 
   // 打字延迟配置
-  typingDelayPerCharMs: number; // 每字符延迟（毫秒）
+  typingDelayPerCharMs: number; // 每字符延迟（毫秒）- 已废弃，使用 typingSpeedCharsPerSec
+  typingSpeedCharsPerSec: number; // 打字速度（字符/秒）
   paragraphGapMs: number; // 段落间隔（毫秒）
 
   // 告警节流配置
@@ -47,9 +48,10 @@ export interface AgentReplyConfig {
  * Agent 回复策略配置默认值
  */
 export const DEFAULT_AGENT_REPLY_CONFIG: AgentReplyConfig = {
-  initialMergeWindowMs: 1000,
-  maxMergedMessages: 3,
-  typingDelayPerCharMs: 100,
+  initialMergeWindowMs: 3000, // 默认 3000ms
+  maxMergedMessages: 3, // 默认 3 条
+  typingDelayPerCharMs: 125, // 兼容旧字段 (1000/8)
+  typingSpeedCharsPerSec: 8, // 默认 8 字符/秒
   paragraphGapMs: 2000,
   alertThrottleWindowMs: 5 * 60 * 1000, // 5 分钟
   alertThrottleMaxCount: 3,

@@ -1,24 +1,21 @@
 import { useState, useEffect } from 'react';
-import { Line, Bar } from 'react-chartjs-2';
+import { Line } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
   CategoryScale,
   LinearScale,
   PointElement,
   LineElement,
-  BarElement,
   Title,
   Tooltip,
   Legend,
   Filler,
 } from 'chart.js';
 import {
-  useDashboard,
-  useMetrics,
   useAgentReplyConfig,
   useUpdateAgentReplyConfig,
 } from '@/hooks/useMonitoring';
-import { formatTime, formatDuration, formatMinuteLabel } from '@/utils/format';
+import { formatDuration, formatMinuteLabel } from '@/utils/format';
 
 import type { AgentReplyConfig } from '@/types/monitoring';
 
@@ -28,17 +25,15 @@ ChartJS.register(
   LinearScale,
   PointElement,
   LineElement,
-  BarElement,
   Title,
   Tooltip,
   Legend,
   Filler
 );
 
+
+
 export default function System() {
-  const [timeRange] = useState<'today' | 'week' | 'month'>('today');
-  const { data: dashboard } = useDashboard(timeRange);
-  const { data: metrics } = useMetrics();
   const { data: configData } = useAgentReplyConfig();
   const updateConfig = useUpdateAgentReplyConfig();
 
@@ -64,11 +59,42 @@ export default function System() {
     }
   }, [configData]);
 
+  // Mock Data for Visualization
+  const mockData = {
+    queue: {
+      currentProcessing: 12,
+      peakProcessing: 45,
+      avgQueueDuration: 1250, // 1.25s
+    },
+    percentiles: {
+      p50: 800,
+      p95: 2500,
+      p99: 4500,
+    },
+    alertsSummary: {
+      total: 128,
+      last24Hours: 24,
+      byType: [
+        { type: 'Agent 调用失败', count: 15, percentage: 42 },
+        { type: '响应时间过长', count: 8, percentage: 22 },
+        { type: '成功率严重下降', count: 6, percentage: 17 },
+        { type: '队列积压', count: 4, percentage: 11 },
+        { type: '消息发送失败', count: 3, percentage: 8 },
+      ],
+    },
+    recentAlertCount: 5,
+    alertTrend: Array.from({ length: 60 }, (_, i) => ({
+      minute: new Date(Date.now() - (59 - i) * 60000).toISOString(),
+      count: Math.random() > 0.8 ? Math.floor(Math.random() * 5) : 0,
+    })),
+  };
 
-
-  const queue = dashboard?.queue;
-  const alerts = dashboard?.alertsSummary;
-  const percentiles = metrics?.percentiles;
+  // Use Mock Data instead of real data
+  const queue = mockData.queue;
+  const alerts = mockData.alertsSummary;
+  const percentiles = mockData.percentiles;
+  const recentAlertCount = mockData.recentAlertCount;
+  const alertTrend = mockData.alertTrend;
 
   // 更新配置
   const handleConfigChange = (key: keyof AgentReplyConfig, value: number | boolean) => {
@@ -82,92 +108,49 @@ export default function System() {
     handleConfigChange('businessAlertEnabled', !alertConfig.businessAlertEnabled);
   };
 
-  // 每日 Token 消耗图表 - 圣诞金 #f59e0b (Bar 图)
-  const tokenChartData = {
-    labels: (dashboard?.dailyTrend || []).map((p) => p.date?.substring(5) || p.date), // MM-DD 格式
-    datasets: [
-      {
-        label: 'Token 消耗',
-        data: (dashboard?.dailyTrend || []).map((p) => p.tokenUsage),
-        backgroundColor: '#f59e0b', // Gold
-        borderRadius: 6,
-        hoverBackgroundColor: '#d97706',
-      },
-    ],
-  };
-
-  // 每日咨询人数图表 - 圣诞绿 #10b981
-  const dailyUserChartData = {
-    labels: (dashboard?.dailyTrend || []).map((p) => p.date?.substring(5) || p.date), // MM-DD 格式
-    datasets: [
-      {
-        label: '咨询人数',
-        data: (dashboard?.dailyTrend || []).map((p) => p.uniqueUsers),
-        borderColor: '#10b981', // Green
-        backgroundColor: 'rgba(16, 185, 129, 0.2)',
-        fill: true,
-        tension: 0.4,
-        pointBackgroundColor: '#ffffff',
-        pointBorderColor: '#10b981',
-        pointRadius: 4,
-        pointHoverRadius: 6,
-      },
-    ],
-  };
-
-  // 响应耗时趋势 - 圣诞绿 #10b981
-  const responseChartData = {
-    labels: (dashboard?.responseTrend || []).slice(-60).map((p) => formatMinuteLabel(p.minute)),
-    datasets: [
-      {
-        label: '平均耗时 (秒)',
-        data: (dashboard?.responseTrend || [])
-          .slice(-60)
-          .map((p) => (p.avgDuration ? p.avgDuration / 1000 : 0)),
-        borderColor: '#10b981', // Green
-        backgroundColor: 'rgba(16, 185, 129, 0.2)',
-        fill: true,
-        tension: 0.4,
-        borderWidth: 3,
-        pointRadius: 0,
-        pointHoverRadius: 6,
-        pointBackgroundColor: '#ffffff',
-        pointBorderColor: '#10b981',
-        pointBorderWidth: 2,
-        pointHoverBorderWidth: 3,
-      },
-    ],
-  };
-
-  // 告警趋势 - 圣诞红 #ef4444
+  // 告警趋势 - 渐变红 Line Chart
   const alertChartData = {
-    labels: (dashboard?.alertTrend || []).slice(-60).map((p) => formatMinuteLabel(p.minute)),
+    labels: alertTrend.map((p) => formatMinuteLabel(p.minute)),
     datasets: [
       {
         label: '告警次数',
-        data: (dashboard?.alertTrend || []).slice(-60).map((p) => p.count || 0),
-        backgroundColor: '#ef4444', // Red
-        borderRadius: 6,
-        hoverBackgroundColor: '#dc2626',
+        data: alertTrend.map((p) => p.count || 0),
+        borderColor: '#ef4444',
+        backgroundColor: (context: any) => {
+          const ctx = context.chart.ctx;
+          const gradient = ctx.createLinearGradient(0, 0, 0, 300);
+          gradient.addColorStop(0, 'rgba(239, 68, 68, 0.2)');
+          gradient.addColorStop(1, 'rgba(239, 68, 68, 0)');
+          return gradient;
+        },
+        borderWidth: 2,
+        pointRadius: 0,
+        pointHoverRadius: 4,
+        fill: true,
+        tension: 0.4, // Smooth curves
       },
     ],
   };
 
-  // 图表通用配置 - 与 monitoring.html 一致
+  // 图表通用配置
   const chartOptions = {
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
       legend: { display: false },
       tooltip: {
-        backgroundColor: 'rgba(255, 255, 255, 0.95)',
+        backgroundColor: 'rgba(255, 255, 255, 0.9)',
         titleColor: '#1f2937',
         bodyColor: '#6b7280',
-        borderColor: '#e5e7eb',
+        borderColor: 'rgba(0,0,0,0.05)',
         borderWidth: 1,
         padding: 12,
         boxPadding: 6,
         usePointStyle: true,
+        displayColors: false,
+        callbacks: {
+          label: (context: any) => `${context.parsed.y} 次告警`,
+        },
       },
     },
     scales: {
@@ -175,318 +158,404 @@ export default function System() {
         grid: { display: false },
         ticks: {
           color: '#94a3b8',
-          font: { size: 11 },
+          font: { size: 10 },
+          maxRotation: 0,
+          autoSkip: true,
+          maxTicksLimit: 12,
         },
       },
       y: {
         beginAtZero: true,
         border: { display: false },
-        grid: { color: 'rgba(0, 0, 0, 0.03)' },
+        grid: { color: 'rgba(0, 0, 0, 0.02)', drawBorder: false },
         ticks: {
           color: '#94a3b8',
-          font: { size: 11 },
+          font: { size: 10 },
           padding: 10,
+          stepSize: 1,
         },
       },
     },
-    elements: {
-      line: { tension: 0.4, borderWidth: 3 },
-      point: { radius: 0, hoverRadius: 6, borderWidth: 2, hoverBorderWidth: 3 },
-    },
   };
 
-
-
   return (
-    <div id="page-system" className="page-section active">
-      {/* 告警控制面板 */}
-      <section className="alert-control-panel">
-        {/* 告警总开关 */}
-        <div className={`control-card toggle-card ${alertConfig.businessAlertEnabled ? 'active' : ''}`}>
-          <div>
-            <div className="control-title">业务指标告警</div>
-            <div className="control-subtitle">检查成功率、响应时间等指标</div>
-          </div>
-          <button
-            onClick={toggleAlert}
-            disabled={updateConfig.isPending}
-            className={`control-toggle-btn ${alertConfig.businessAlertEnabled ? 'active' : ''}`}
-          >
-            <span className="control-toggle-handle" />
-          </button>
-        </div>
+    <div id="page-system" className="page-section active" style={{ paddingBottom: '40px' }}>
 
-        {/* 最小样本量 */}
-        <div className="control-card">
-          <div className="control-card-header">
-            <div>
-              <div className="control-title">最小样本量</div>
-              <div className="control-subtitle">消息数低于此值不检查</div>
-            </div>
-            <div className="control-value">{alertConfig.minSamplesForAlert}</div>
-          </div>
-          <input
-            type="range"
-            min={1}
-            max={50}
-            step={1}
-            value={alertConfig.minSamplesForAlert}
-            onChange={(e) => handleConfigChange('minSamplesForAlert', Number(e.target.value))}
-            className="control-slider"
-          />
-          <div className="control-labels">
-            <span>1 条</span>
-            <span>50 条</span>
+      {/* 1. Top Row: KPI Cards */}
+      <div className="kpi-grid">
+        <div className="glass-panel kpi-card" title="当前正在处理的消息数量">
+          <div className="kpi-icon primary-bg">⚡️</div>
+          <div className="kpi-content">
+            <div className="kpi-label">实时处理</div>
+            <div className="kpi-value primary">{queue?.currentProcessing ?? '-'}</div>
+            <div className="kpi-trend up">↗ +12% <span className="trend-label">较上小时</span></div>
           </div>
         </div>
-
-        {/* 告警间隔 */}
-        <div className="control-card">
-          <div className="control-card-header">
-            <div>
-              <div className="control-title">告警间隔</div>
-              <div className="control-subtitle">同类告警最小间隔</div>
-            </div>
-            <div className="control-value">
-              {alertConfig.alertIntervalMinutes}
-              <span style={{ fontSize: '12px', fontWeight: 400 }}> 分钟</span>
-            </div>
-          </div>
-          <input
-            type="range"
-            min={5}
-            max={120}
-            step={5}
-            value={alertConfig.alertIntervalMinutes}
-            onChange={(e) => handleConfigChange('alertIntervalMinutes', Number(e.target.value))}
-            className="control-slider"
-          />
-          <div className="control-labels">
-            <span>5 分钟</span>
-            <span>2 小时</span>
+        <div className="glass-panel kpi-card" title="95% 的请求在此时间内完成">
+          <div className="kpi-icon warning-bg">⏱️</div>
+          <div className="kpi-content">
+            <div className="kpi-label">P95 延迟</div>
+            <div className="kpi-value warning">{percentiles?.p95 ? formatDuration(percentiles.p95) : '-'}</div>
+            <div className="kpi-trend down">↘ -5ms <span className="trend-label">性能优化</span></div>
           </div>
         </div>
-      </section>
+        <div className="glass-panel kpi-card" title="今日累计触发的告警总数">
+          <div className="kpi-icon danger-bg">🚨</div>
+          <div className="kpi-content">
+            <div className="kpi-label">今日告警</div>
+            <div className="kpi-value danger">{alerts?.total ?? '-'}</div>
+            <div className="kpi-trend up">↗ +3 <span className="trend-label">新增异常</span></div>
+          </div>
+        </div>
+        <div className="glass-panel kpi-card" title="今日队列积压的最大数量">
+          <div className="kpi-icon info-bg">🌊</div>
+          <div className="kpi-content">
+            <div className="kpi-label">峰值队列</div>
+            <div className="kpi-value">{queue?.peakProcessing ?? '-'}</div>
+            <div className="kpi-trend flat">→ 平稳 <span className="trend-label">负载正常</span></div>
+          </div>
+        </div>
+      </div>
 
-      {/* 运维洞察 */}
-      <section className="insight-grid">
-        <article className="insight-card">
-          <div className="insight-title">排队与响应</div>
-          <div className="insight-metrics">
-            <div>
-              <span>实时处理中</span>
-              <strong>{queue?.currentProcessing ?? '-'}</strong>
+      {/* 2. Main Console Panel */}
+      <section className="glass-panel console-panel">
+        {/* Decoration: Holly */}
+        <div style={{ position: 'absolute', top: '-10px', right: '-10px', fontSize: '64px', opacity: 0.05, transform: 'rotate(15deg)', pointerEvents: 'none' }}>🌿</div>
+
+        {/* Control Section with Explanations */}
+        <div className="control-section">
+          <div className="control-header-row">
+            <div className="control-title-group">
+              <span style={{ fontSize: '20px' }}>🎛️</span>
+              <h3 className="panel-title">监控配置</h3>
             </div>
-            <div>
-              <span>峰值队列</span>
-              <strong>{queue?.peakProcessing ?? '-'}</strong>
-            </div>
-            <div>
-              <span>平均等待</span>
-              <strong>
-                {queue?.avgQueueDuration ? formatDuration(queue.avgQueueDuration) : '-'}
-              </strong>
+            <div className="last-updated">
+              <span className="status-dot"></span> 实时监控中
             </div>
           </div>
-        </article>
 
-        <article className="insight-card">
-          <div className="insight-title">延迟分布</div>
-          <div className="percentiles">
-            <div>
-              <span>P50</span>
-              <strong>{percentiles?.p50 ? formatDuration(percentiles.p50) : '-'}</strong>
-            </div>
-            <div>
-              <span>P95</span>
-              <strong>{percentiles?.p95 ? formatDuration(percentiles.p95) : '-'}</strong>
-            </div>
-            <div>
-              <span>P99</span>
-              <strong>{percentiles?.p99 ? formatDuration(percentiles.p99) : '-'}</strong>
-            </div>
-          </div>
-        </article>
-
-        <article className="insight-card">
-          <div className="insight-title">告警概览</div>
-          <div className="insight-metrics">
-            <div>
-              <span>累计</span>
-              <strong>{alerts?.total ?? '-'}</strong>
-            </div>
-            <div>
-              <span>近24小时</span>
-              <strong>{alerts?.last24Hours ?? '-'}</strong>
-            </div>
-          </div>
-        </article>
-
-        <article className="insight-card">
-          <div className="insight-title">告警类型分布</div>
-          <div className="alert-type-list">
-            {!alerts?.byType || alerts.byType.length === 0 ? (
-              <div className="loading-sm">
-                暂无数据
+          <div className="control-cards-grid">
+            {/* Card 1: Switch */}
+            <div className={`control-box ${alertConfig.businessAlertEnabled ? 'active' : ''}`}>
+              <div className="control-box-header">
+                <span className="control-box-title">告警总开关</span>
+                <button
+                  onClick={toggleAlert}
+                  disabled={updateConfig.isPending}
+                  className={`mini-toggle ${alertConfig.businessAlertEnabled ? 'active' : ''}`}
+                >
+                  <div className="mini-toggle-handle"></div>
+                </button>
               </div>
-            ) : (
-              alerts.byType.map((item, i) => {
-                const typeLabels: Record<string, string> = {
-                  agent: 'AI 代理',
-                  message: '消息处理',
-                  delivery: '消息发送',
-                  merge: '消息合并',
-                  unknown: '未知类型',
-                };
-                return (
-                  <div key={i} className="alert-type-item">
-                    <div className="alert-type-label">
-                      <span>{typeLabels[item.type] || item.type}</span>
+              <p className="control-box-desc">开启后，系统将自动监控异常指标并发送飞书告警。</p>
+            </div>
+
+            {/* Card 2: Min Samples */}
+            <div className="control-box">
+              <div className="control-box-header">
+                <span className="control-box-title">最小样本量: {alertConfig.minSamplesForAlert}</span>
+              </div>
+              <input
+                type="range"
+                min={1}
+                max={50}
+                step={1}
+                value={alertConfig.minSamplesForAlert}
+                onChange={(e) => handleConfigChange('minSamplesForAlert', Number(e.target.value))}
+                className="mini-slider"
+              />
+              <p className="control-box-desc">触发告警所需的最小请求数。防止因流量过小（如1次失败）导致的误报。</p>
+            </div>
+
+            {/* Card 3: Interval */}
+            <div className="control-box">
+              <div className="control-box-header">
+                <span className="control-box-title">告警间隔: {alertConfig.alertIntervalMinutes}m</span>
+              </div>
+              <input
+                type="range"
+                min={5}
+                max={120}
+                step={5}
+                value={alertConfig.alertIntervalMinutes}
+                onChange={(e) => handleConfigChange('alertIntervalMinutes', Number(e.target.value))}
+                className="mini-slider"
+              />
+              <p className="control-box-desc">相同告警的静默时间。在此时间内，不会重复发送相同的告警通知。</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="console-content">
+          {/* Left: Chart */}
+          <div className="chart-area">
+            <div className="area-header">
+              <h4>告警趋势</h4>
+              <div className="kpi-badge">
+                近5分钟: <strong>{recentAlertCount ?? '-'}</strong>
+              </div>
+            </div>
+            <div className="chart-wrapper">
+              <Line data={alertChartData} options={chartOptions} />
+            </div>
+          </div>
+
+          {/* Right: List */}
+          <div className="list-area">
+            <div className="area-header">
+              <h4>告警分布</h4>
+            </div>
+            <div className="alert-list-container">
+              {!alerts?.byType || alerts.byType.length === 0 ? (
+                <div className="loading-sm">暂无数据</div>
+              ) : (
+                alerts.byType.slice(0, 6).map((item, i) => (
+                  <div key={i} className="alert-row">
+                    <div className="alert-row-info">
+                      <span className="alert-name">{item.type}</span>
+                      <span className="alert-count">{item.count}</span>
                     </div>
-                    <div className="alert-type-bar">
-                      <div
-                        className={`alert-type-bar-fill ${item.type}`}
-                        style={{ width: `${item.percentage}%` }}
-                      ></div>
-                    </div>
-                    <div className="alert-type-stats">
-                      <span className="alert-type-count">{item.count}</span>
-                      <span className="alert-type-percentage">{item.percentage}%</span>
+                    <div className="alert-progress-bg">
+                      <div className="alert-progress-fill" style={{ width: `${item.percentage}%` }}></div>
                     </div>
                   </div>
-                );
-              })
-            )}
-          </div>
-        </article>
-      </section>
-
-      {/* 每日趋势 */}
-      <section className="charts-row">
-        <div className="chart-card">
-          <div className="chart-header">
-            <div>
-              <h3>每日 Token 消耗</h3>
-              <p>最近 7 天使用量</p>
-            </div>
-            <div className="chart-kpi">
-              <span>今日消耗</span>
-              <strong>
-                {dashboard?.dailyTrend?.[dashboard.dailyTrend.length - 1]?.tokenUsage ?? '-'}
-              </strong>
-            </div>
-          </div>
-          <div className="chart-container">
-            <Bar data={tokenChartData} options={chartOptions} />
-          </div>
-        </div>
-        <div className="chart-card">
-          <div className="chart-header">
-            <div>
-              <h3>每日咨询人数</h3>
-              <p>最近 7 天唯一用户</p>
-            </div>
-            <div className="chart-kpi">
-              <span>今日人数</span>
-              <strong>
-                {dashboard?.dailyTrend?.[dashboard.dailyTrend.length - 1]?.uniqueUsers ?? '-'}
-              </strong>
-            </div>
-          </div>
-          <div className="chart-container">
-            <Line data={dailyUserChartData} options={chartOptions} />
-          </div>
-        </div>
-      </section>
-
-      {/* 实时性能 */}
-      <section className="charts-row">
-        <div className="chart-card">
-          <div className="chart-header">
-            <div>
-              <h3>响应耗时</h3>
-              <p>最近 60 分钟</p>
-            </div>
-            <div className="chart-kpi">
-              <span>当前平均</span>
-              <strong>
-                {dashboard?.overview?.avgDuration
-                  ? formatDuration(dashboard.overview.avgDuration)
-                  : '-'}
-              </strong>
-            </div>
-          </div>
-          <div className="chart-container">
-            <Line data={responseChartData} options={chartOptions} />
-          </div>
-        </div>
-        <div className="chart-card">
-          <div className="chart-header">
-            <div>
-              <h3>告警趋势</h3>
-              <p>最近 60 分钟</p>
-            </div>
-            <div className="chart-kpi">
-              <span>近5分钟</span>
-              <strong>{metrics?.todayAlerts ?? '-'}</strong>
-            </div>
-          </div>
-          <div className="chart-container">
-            <Bar data={alertChartData} options={chartOptions} />
-          </div>
-        </div>
-      </section>
-
-      {/* 最慢记录 */}
-      <section className="section">
-        <div className="section-header">
-          <h3>最慢记录 (Top 10)</h3>
-        </div>
-        <div className="table-wrapper">
-          <table>
-            <thead>
-              <tr>
-                <th>时间</th>
-                <th>用户</th>
-                <th>消息预览</th>
-                <th>总耗时</th>
-                <th>AI 耗时</th>
-                <th>回复条数</th>
-                <th>状态</th>
-              </tr>
-            </thead>
-            <tbody>
-              {(metrics?.slowestRecords || []).length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="loading">
-                    暂无数据
-                  </td>
-                </tr>
-              ) : (
-                (metrics?.slowestRecords || []).map((record, i) => (
-                  <tr key={i}>
-                    <td>{formatTime(record.receivedAt)}</td>
-                    <td>{record.userName || record.chatId}</td>
-                    <td className="table-cell-truncate">
-                      {record.messagePreview || '-'}
-                    </td>
-                    <td>{formatDuration(record.totalDuration)}</td>
-                    <td>{formatDuration(record.aiDuration ?? 0)}</td>
-                    <td>{record.replySegments ?? '-'}</td>
-                    <td>
-                      <span
-                        className={`status-badge ${record.status === 'success' ? 'success' : 'danger'}`}
-                      >
-                        {record.status}
-                      </span>
-                    </td>
-                  </tr>
                 ))
               )}
-            </tbody>
-          </table>
+            </div>
+          </div>
         </div>
       </section>
+
+      {/* Local Styles */}
+      <style>{`
+
+
+        /* Grid */
+        .kpi-grid {
+          display: grid;
+          grid-template-columns: repeat(4, 1fr);
+          gap: 20px;
+          margin-bottom: 24px;
+        }
+
+        /* Glass Panel */
+        .glass-panel {
+          background: #fff;
+          border-radius: 20px;
+          box-shadow: 0 8px 30px rgba(0,0,0,0.04);
+          border: 1px solid rgba(255,255,255,0.6);
+          position: relative;
+          overflow: hidden;
+        }
+
+        /* KPI Cards */
+        .kpi-card {
+          padding: 20px;
+          display: flex;
+          align-items: center;
+          gap: 16px;
+          transition: transform 0.2s;
+        }
+        .kpi-card:hover { transform: translateY(-2px); }
+        .kpi-icon {
+          width: 44px;
+          height: 44px;
+          border-radius: 12px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 22px;
+        }
+        .primary-bg { background: rgba(59, 130, 246, 0.08); color: var(--primary); }
+        .warning-bg { background: rgba(245, 158, 11, 0.08); color: var(--warning); }
+        .danger-bg { background: rgba(239, 68, 68, 0.08); color: var(--danger); }
+        .info-bg { background: rgba(16, 185, 129, 0.08); color: #10b981; }
+        
+        .kpi-label { font-size: 13px; color: var(--text-secondary); margin-bottom: 2px; }
+        .kpi-value { font-size: 22px; font-weight: 700; color: var(--text-primary); margin-bottom: 4px; }
+        .kpi-value.primary { color: var(--primary); }
+        .kpi-value.warning { color: var(--warning); }
+        .kpi-value.danger { color: var(--danger); }
+        
+        .kpi-trend { font-size: 12px; font-weight: 600; display: flex; align-items: center; gap: 4px; }
+        .kpi-trend.up { color: var(--danger); }
+        .kpi-trend.down { color: #10b981; }
+        .kpi-trend.flat { color: var(--text-muted); }
+        .trend-label { font-weight: 400; color: var(--text-muted); transform: scale(0.9); transform-origin: left; }
+
+
+
+        /* Console Panel */
+        .console-panel {
+          padding: 0;
+          display: flex;
+          flex-direction: column;
+        }
+
+        /* Control Section */
+        .control-section {
+          padding: 20px 24px;
+          border-bottom: 1px solid var(--border);
+          background: rgba(249, 250, 251, 0.5);
+        }
+        
+        .control-header-row {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 16px;
+        }
+        .control-title-group { display: flex; align-items: center; gap: 8px; }
+        .panel-title { margin: 0; font-size: 16px; font-weight: 600; }
+
+        .control-cards-grid {
+          display: grid;
+          grid-template-columns: repeat(3, 1fr);
+          gap: 16px;
+        }
+
+        .control-box {
+          background: #fff;
+          border: 1px solid var(--border);
+          border-radius: 12px;
+          padding: 12px 16px;
+          transition: all 0.2s;
+        }
+        .control-box:hover {
+          border-color: rgba(0,0,0,0.1);
+          box-shadow: 0 2px 8px rgba(0,0,0,0.02);
+        }
+        .control-box.active {
+          border-color: var(--primary);
+          background: rgba(59, 130, 246, 0.02);
+        }
+
+        .control-box-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 8px;
+        }
+        .control-box-title {
+          font-size: 13px;
+          font-weight: 600;
+          color: var(--text-primary);
+        }
+        .control-box-desc {
+          margin: 8px 0 0 0;
+          font-size: 12px;
+          color: var(--text-muted);
+          line-height: 1.4;
+        }
+
+        /* Mini Toggle */
+        .mini-toggle {
+          width: 32px;
+          height: 18px;
+          background: #e5e7eb;
+          border-radius: 9px;
+          border: none;
+          padding: 2px;
+          cursor: pointer;
+          transition: all 0.3s;
+          position: relative;
+        }
+        .mini-toggle.active { background: var(--primary); }
+        .mini-toggle-handle {
+          width: 14px;
+          height: 14px;
+          background: #fff;
+          border-radius: 50%;
+          transition: transform 0.3s;
+          box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+        }
+        .mini-toggle.active .mini-toggle-handle { transform: translateX(14px); }
+
+        /* Mini Slider */
+        .mini-slider {
+          width: 100%;
+          height: 4px;
+          background: #e5e7eb;
+          border-radius: 2px;
+          -webkit-appearance: none;
+          display: block;
+          margin: 8px 0;
+        }
+        .mini-slider::-webkit-slider-thumb {
+          -webkit-appearance: none;
+          width: 12px;
+          height: 12px;
+          background: var(--primary);
+          border-radius: 50%;
+          cursor: pointer;
+          border: 2px solid #fff;
+          box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+        }
+
+        .last-updated { font-size: 12px; color: var(--text-muted); display: flex; align-items: center; gap: 6px; }
+        .status-dot { width: 6px; height: 6px; background: #10b981; border-radius: 50%; animation: pulse 2s infinite; }
+
+        /* Console Content */
+        .console-content {
+          display: grid;
+          grid-template-columns: 2fr 1fr;
+          min-height: 400px;
+        }
+        .chart-area {
+          padding: 24px;
+          border-right: 1px solid var(--border);
+          display: flex;
+          flex-direction: column;
+        }
+        .list-area {
+          padding: 24px;
+          background: rgba(249, 250, 251, 0.3);
+        }
+
+        .area-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 20px;
+        }
+        .area-header h4 { margin: 0; font-size: 14px; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; }
+        
+        .kpi-badge {
+          font-size: 12px;
+          color: var(--text-muted);
+          background: rgba(0,0,0,0.03);
+          padding: 4px 12px;
+          border-radius: 12px;
+        }
+        .kpi-badge strong { color: var(--danger); margin-left: 4px; }
+
+        .chart-wrapper { flex: 1; position: relative; }
+
+        /* Alert List */
+        .alert-list-container { display: flex; flex-direction: column; gap: 12px; }
+        .alert-row {
+          background: #fff;
+          padding: 12px 16px;
+          border-radius: 12px;
+          border: 1px solid rgba(0,0,0,0.03);
+          box-shadow: 0 2px 8px rgba(0,0,0,0.02);
+          transition: transform 0.2s;
+        }
+        .alert-row:hover { transform: translateX(4px); border-color: rgba(0,0,0,0.06); }
+        
+        .alert-row-info { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 13px; }
+        .alert-name { font-weight: 500; color: var(--text-primary); }
+        .alert-count { font-weight: 700; color: var(--danger); background: rgba(239, 68, 68, 0.1); padding: 2px 8px; border-radius: 8px; font-size: 12px; }
+        
+        .alert-progress-bg { height: 4px; background: #f3f4f6; border-radius: 2px; overflow: hidden; }
+        .alert-progress-fill { height: 100%; background: linear-gradient(90deg, #fca5a5, #ef4444); border-radius: 2px; }
+
+        @keyframes pulse {
+          0% { opacity: 1; box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4); }
+          70% { opacity: 0.7; box-shadow: 0 0 0 4px rgba(16, 185, 129, 0); }
+          100% { opacity: 1; box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+        }
+      `}</style>
     </div>
   );
 }

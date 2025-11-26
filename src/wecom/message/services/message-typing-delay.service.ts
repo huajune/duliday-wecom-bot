@@ -1,6 +1,11 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { SupabaseService, AgentReplyConfig } from '@core/supabase';
+import {
+  TYPING_MIN_DELAY_MS,
+  TYPING_MAX_DELAY_MS,
+  TYPING_RANDOM_VARIATION,
+} from '@core/config/constants/message.constants';
 
 /**
  * 智能打字延迟服务
@@ -9,8 +14,7 @@ import { SupabaseService, AgentReplyConfig } from '@core/supabase';
  * 核心策略：
  * 1. 根据文字长度动态计算延迟
  * 2. 添加随机波动（±20%），更像真人
- * 3. 第一条消息前可以有额外的"思考时间"
- * 4. 支持通过环境变量和 Supabase 动态调整
+ * 3. 支持通过环境变量和 Supabase 动态调整
  */
 @Injectable()
 export class TypingDelayService implements OnModuleInit {
@@ -21,23 +25,19 @@ export class TypingDelayService implements OnModuleInit {
   private minDelay: number; // 最小延迟（毫秒）
   private maxDelay: number; // 最大延迟（毫秒）
   private randomVariation: number; // 随机波动比例 (0.2 = ±20%)
-  private thinkingTimeMin: number; // 思考时间最小值（毫秒）
-  private thinkingTimeMax: number; // 思考时间最大值（毫秒）
-  private enableThinkingTime: boolean; // 是否启用思考时间
 
   constructor(
     private readonly configService: ConfigService,
     private readonly supabaseService: SupabaseService,
   ) {
     // 从环境变量读取配置，提供合理的默认值
-    this.baseTypingSpeed = this.configService.get<number>('TYPING_SPEED_CHARS_PER_SEC', 8); // 8字符/秒 ≈ 480字/分钟
-    this.minDelay = this.configService.get<number>('TYPING_MIN_DELAY_MS', 800); // 最小 800ms
-    this.maxDelay = this.configService.get<number>('TYPING_MAX_DELAY_MS', 8000); // 最大 8s
-    this.randomVariation = this.configService.get<number>('TYPING_RANDOM_VARIATION', 0.2); // ±20%
-    this.thinkingTimeMin = this.configService.get<number>('TYPING_THINKING_TIME_MIN_MS', 1000); // 思考 1-3 秒
-    this.thinkingTimeMax = this.configService.get<number>('TYPING_THINKING_TIME_MAX_MS', 3000);
-    this.enableThinkingTime =
-      this.configService.get<string>('ENABLE_TYPING_THINKING_TIME', 'true') === 'true';
+    // 注意：这些值随后会被 Supabase 的动态配置覆盖
+    this.baseTypingSpeed = 8; // 8字符/秒
+
+    // 使用常量配置
+    this.minDelay = TYPING_MIN_DELAY_MS;
+    this.maxDelay = TYPING_MAX_DELAY_MS;
+    this.randomVariation = TYPING_RANDOM_VARIATION;
 
     // 注册配置变更回调
     this.supabaseService.onAgentReplyConfigChange((config) => {
@@ -48,9 +48,6 @@ export class TypingDelayService implements OnModuleInit {
     this.logger.log(`- 打字速度: ${this.baseTypingSpeed} 字符/秒`);
     this.logger.log(`- 延迟范围: ${this.minDelay}ms ~ ${this.maxDelay}ms`);
     this.logger.log(`- 随机波动: ±${this.randomVariation * 100}%`);
-    this.logger.log(
-      `- 思考时间: ${this.enableThinkingTime ? `${this.thinkingTimeMin}ms ~ ${this.thinkingTimeMax}ms` : '已禁用'}`,
-    );
   }
 
   /**
@@ -59,9 +56,11 @@ export class TypingDelayService implements OnModuleInit {
   async onModuleInit() {
     try {
       const config = await this.supabaseService.getAgentReplyConfig();
-      // 从 Supabase 加载配置时，转换为新的打字速度模型
-      // typingDelayPerCharMs=100 相当于 10 字符/秒
-      if (config.typingDelayPerCharMs) {
+      // 从 Supabase 加载配置
+      if (config.typingSpeedCharsPerSec) {
+        this.baseTypingSpeed = config.typingSpeedCharsPerSec;
+      } else if (config.typingDelayPerCharMs) {
+        // 兼容旧字段
         this.baseTypingSpeed = Math.round(1000 / config.typingDelayPerCharMs);
       }
       this.logger.log(`已从 Supabase 加载配置: 打字速度=${this.baseTypingSpeed}字符/秒`);
@@ -76,8 +75,10 @@ export class TypingDelayService implements OnModuleInit {
   private onConfigChange(config: AgentReplyConfig): void {
     const oldSpeed = this.baseTypingSpeed;
 
-    // 从 Supabase 配置转换
-    if (config.typingDelayPerCharMs) {
+    // 从 Supabase 配置更新
+    if (config.typingSpeedCharsPerSec) {
+      this.baseTypingSpeed = config.typingSpeedCharsPerSec;
+    } else if (config.typingDelayPerCharMs) {
       this.baseTypingSpeed = Math.round(1000 / config.typingDelayPerCharMs);
     }
 
@@ -108,39 +109,34 @@ export class TypingDelayService implements OnModuleInit {
     let delay = baseDelay * variation;
 
     // 4. 第一个片段的特殊处理：考虑 Agent 处理时间
-    if (isFirstSegment && this.enableThinkingTime) {
-      // 如果提供了 Agent 处理时间，根据处理时间决定是否添加思考延迟
+    if (isFirstSegment) {
+      // 如果提供了 Agent 处理时间
       if (agentProcessTime !== undefined) {
-        const minReasonableWaitTime = 3000; // 用户可接受的最小等待时间（3秒）
+        const minReasonableWaitTime = 2000; // 用户可接受的最小等待时间（2秒）
 
         if (agentProcessTime >= minReasonableWaitTime) {
-          // Agent 已经花了足够长的时间（≥3秒），用户已经等待了，立即发送
+          // Agent 已经花了足够长的时间（≥2秒），用户已经等待了，立即发送
           this.logger.debug(
             `第一条消息，Agent 已处理 ${Math.round(agentProcessTime)}ms，立即发送（无额外延迟）`,
           );
           delay = 0; // 立即发送第一条消息
         } else {
-          // Agent 处理很快（<3秒），添加补偿延迟，避免回复太快（显得像机器人）
+          // Agent 处理很快（<2秒），添加补偿延迟，避免回复太快（显得像机器人）
           const compensationDelay = minReasonableWaitTime - agentProcessTime;
-          delay = Math.min(delay, compensationDelay); // 使用较小的延迟
+          delay = Math.max(delay, compensationDelay); // 确保总耗时达到最小等待时间
 
           this.logger.debug(
             `第一条消息，Agent 处理 ${Math.round(agentProcessTime)}ms（较快），补偿延迟 ${Math.round(delay)}ms`,
           );
         }
-      } else {
-        // 未提供 Agent 处理时间，使用默认的思考时间
-        const thinkingTime =
-          this.thinkingTimeMin + Math.random() * (this.thinkingTimeMax - this.thinkingTimeMin);
-        delay += thinkingTime;
-        this.logger.debug(
-          `第一条消息，添加思考时间: ${Math.round(thinkingTime)}ms (总延迟: ${Math.round(delay)}ms)`,
-        );
       }
     }
 
     // 5. 限制在合理范围内
-    delay = Math.max(this.minDelay, Math.min(this.maxDelay, delay));
+    // 如果 delay 为 0（特殊情况，如 Agent 处理超时），则不应用最小延迟
+    if (delay > 0) {
+      delay = Math.max(this.minDelay, Math.min(this.maxDelay, delay));
+    }
 
     this.logger.debug(
       `计算延迟: 文本长度=${textLength}, 基础延迟=${Math.round(baseDelay)}ms, 实际延迟=${Math.round(delay)}ms`,
@@ -183,9 +179,6 @@ export class TypingDelayService implements OnModuleInit {
       minDelay: this.minDelay,
       maxDelay: this.maxDelay,
       randomVariation: this.randomVariation,
-      thinkingTimeMin: this.thinkingTimeMin,
-      thinkingTimeMax: this.thinkingTimeMax,
-      enableThinkingTime: this.enableThinkingTime,
     };
   }
 }

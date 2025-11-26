@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import {
   useAgentReplyConfig,
   useUpdateAgentReplyConfig,
-  useResetAgentReplyConfig,
   useWorkerStatus,
   useSetWorkerConcurrency,
 } from '@/hooks/useMonitoring';
@@ -16,11 +15,12 @@ interface ConfigMeta {
   key: ConfigKey;
   label: string;
   description: string;
-  unit: string;
-  min: number;
-  max: number;
-  step: number;
+  unit?: string;
+  min?: number;
+  max?: number;
+  step?: number;
   category: 'merge' | 'typing';
+  type?: 'number' | 'boolean';
 }
 
 const configMeta: ConfigMeta[] = [
@@ -34,6 +34,7 @@ const configMeta: ConfigMeta[] = [
     max: 30000,
     step: 100,
     category: 'merge',
+    type: 'number',
   },
   {
     key: 'maxMergedMessages',
@@ -44,18 +45,21 @@ const configMeta: ConfigMeta[] = [
     max: 10,
     step: 1,
     category: 'merge',
+    type: 'number',
   },
   // 打字延迟配置
   {
-    key: 'typingDelayPerCharMs',
-    label: '打字延迟（每字符）',
-    description: '模拟打字速度，每个字符的延迟时间',
-    unit: 'ms',
-    min: 0,
-    max: 500,
-    step: 10,
+    key: 'typingSpeedCharsPerSec',
+    label: '打字速度',
+    description: '模拟真人打字速度（字符/秒）',
+    unit: '字符/秒',
+    min: 1,
+    max: 50,
+    step: 1,
     category: 'typing',
+    type: 'number',
   },
+
   {
     key: 'paragraphGapMs',
     label: '段落间隔延迟',
@@ -65,6 +69,7 @@ const configMeta: ConfigMeta[] = [
     max: 10000,
     step: 100,
     category: 'typing',
+    type: 'number',
   },
 ];
 
@@ -81,7 +86,10 @@ const categoryTitles: Record<string, { title: string; description: string }> = {
 };
 
 // 格式化配置显示值
-function formatValue(key: ConfigKey, value: number): string {
+function formatValue(key: ConfigKey, value: number | boolean): string {
+  if (typeof value === 'boolean') {
+    return value ? '已启用' : '已禁用';
+  }
   if (String(key).endsWith('Ms')) {
     if (value >= 1000) {
       return `${(value / 1000).toFixed(1)} 秒`;
@@ -100,11 +108,13 @@ export default function Config() {
   // Agent 回复策略配置
   const { data: agentConfigData, isLoading: isLoadingConfig } = useAgentReplyConfig();
   const updateConfig = useUpdateAgentReplyConfig();
-  const resetConfig = useResetAgentReplyConfig();
+
 
   // Worker 状态
   const { data: workerStatus, isLoading: isLoadingWorker } = useWorkerStatus();
   const setConcurrency = useSetWorkerConcurrency();
+
+
 
   // 当配置数据加载后，初始化编辑状态
   useEffect(() => {
@@ -115,7 +125,7 @@ export default function Config() {
   }, [agentConfigData]);
 
   // 更新配置
-  const handleConfigChange = (key: ConfigKey, value: number) => {
+  const handleConfigChange = (key: ConfigKey, value: number | boolean) => {
     setEditingConfig((prev) => ({ ...prev, [key]: value }));
     setHasChanges(true);
   };
@@ -130,15 +140,7 @@ export default function Config() {
   };
 
   // 重置为默认值
-  const handleResetConfig = () => {
-    if (window.confirm('确定要重置消息处理配置为默认值吗？')) {
-      resetConfig.mutate(undefined, {
-        onSuccess: () => {
-          setHasChanges(false);
-        },
-      });
-    }
-  };
+
 
   // 取消编辑
   const handleCancelEdit = () => {
@@ -155,9 +157,9 @@ export default function Config() {
       <div
         key={meta.key}
         style={{
-          padding: '20px',
+          padding: '16px',
           background: 'var(--bg-secondary)',
-          borderRadius: '12px',
+          borderRadius: '10px',
           border: isModified ? '1px solid var(--primary)' : '1px solid var(--border)',
           transition: 'all 0.2s ease',
         }}
@@ -167,29 +169,13 @@ export default function Config() {
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
-            marginBottom: '12px',
+            marginBottom: '4px',
           }}
         >
-          <div>
-            <span style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '14px' }}>
-              {meta.label}
-            </span>
-            {isModified && (
-              <span
-                style={{
-                  marginLeft: '8px',
-                  fontSize: '10px',
-                  color: 'var(--primary)',
-                  background: 'var(--primary-alpha)',
-                  padding: '2px 8px',
-                  borderRadius: '10px',
-                }}
-              >
-                已修改
-              </span>
-            )}
-          </div>
-          <span style={{ fontSize: '18px', fontWeight: 700, color: 'var(--primary)' }}>
+          <span style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '13px' }}>
+            {meta.label}
+          </span>
+          <span style={{ fontSize: '15px', fontWeight: 700, color: 'var(--primary)' }}>
             {formatValue(meta.key, currentValue)}
           </span>
         </div>
@@ -197,13 +183,13 @@ export default function Config() {
           style={{
             fontSize: '12px',
             color: 'var(--text-muted)',
-            marginBottom: '16px',
-            lineHeight: 1.5,
+            margin: '0 0 12px 0',
+            lineHeight: 1.4,
           }}
         >
           {meta.description}
         </p>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <input
             type="range"
             min={meta.min}
@@ -211,7 +197,7 @@ export default function Config() {
             step={meta.step}
             value={currentValue}
             onChange={(e) => handleConfigChange(meta.key, Number(e.target.value))}
-            style={{ flex: 1, accentColor: 'var(--primary)', height: '6px' }}
+            style={{ flex: 1, accentColor: 'var(--primary)', height: '4px' }}
           />
           <input
             type="number"
@@ -221,14 +207,14 @@ export default function Config() {
             value={currentValue}
             onChange={(e) => handleConfigChange(meta.key, Number(e.target.value))}
             style={{
-              width: '80px',
-              padding: '6px 10px',
+              width: '70px',
+              padding: '4px 8px',
               border: '1px solid var(--border)',
               borderRadius: '6px',
               background: 'var(--bg-primary)',
               color: 'var(--text-primary)',
               textAlign: 'right',
-              fontSize: '13px',
+              fontSize: '12px',
             }}
           />
         </div>
@@ -250,81 +236,145 @@ export default function Config() {
     );
   };
 
-  return (
-    <div id="page-config" className="page-section active">
-      {/* 页面标题 */}
-      <div style={{ marginBottom: '24px' }}>
-        <h2 style={{ margin: 0, color: 'var(--text-primary)', fontSize: '20px' }}>消息处理配置</h2>
-        <p style={{ margin: '8px 0 0 0', fontSize: '13px', color: 'var(--text-muted)' }}>
-          配置 AI 回复的消息聚合和打字延迟策略，修改后实时生效
+  // 渲染布尔值配置项卡片
+  const renderBooleanCard = (meta: ConfigMeta, currentValue: boolean, defaultValue: boolean) => {
+    const isModified = currentValue !== defaultValue;
+    return (
+      <div
+        key={meta.key}
+        style={{
+          padding: '16px',
+          background: 'var(--bg-secondary)',
+          borderRadius: '10px',
+          border: isModified ? '1px solid var(--primary)' : '1px solid var(--border)',
+          transition: 'all 0.2s ease',
+        }}
+      >
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: '4px',
+          }}
+        >
+          <span style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '13px' }}>
+            {meta.label}
+          </span>
+          <div className="toggle-switch">
+            <input
+              type="checkbox"
+              checked={currentValue}
+              onChange={(e) => handleConfigChange(meta.key, e.target.checked)}
+            />
+          </div>
+        </div>
+        <p
+          style={{
+            fontSize: '12px',
+            color: 'var(--text-muted)',
+            margin: 0,
+            lineHeight: 1.4,
+          }}
+        >
+          {meta.description}
         </p>
       </div>
+    );
+  };
 
-      {/* 操作按钮 */}
-      <div style={{ display: 'flex', gap: '8px', marginBottom: '24px' }}>
+  return (
+    <div id="page-config" className="page-section active">
+      {/* 顶部控制栏 */}
+      <div
+        className="control-panel"
+        style={{
+          marginBottom: '20px',
+          padding: '16px 20px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+        }}
+      >
+        <h3
+          style={{
+            margin: 0,
+            fontSize: '15px',
+            fontWeight: 600,
+            color: 'var(--text-primary)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+          }}
+        >
+          <span style={{ fontSize: '16px' }}>⚙️</span>
+          消息处理配置
+        </h3>
+
+        {/* 操作按钮 */}
         {hasChanges && (
-          <>
+          <div style={{ display: 'flex', gap: '8px' }}>
             <button
               className="btn btn-ghost"
-              style={{ padding: '8px 16px', fontSize: '13px' }}
+              style={{ padding: '6px 14px', fontSize: '13px' }}
               onClick={handleCancelEdit}
             >
               取消
             </button>
             <button
               className="btn btn-primary"
-              style={{ padding: '8px 16px', fontSize: '13px' }}
+              style={{ padding: '6px 14px', fontSize: '13px' }}
               onClick={handleSaveConfig}
               disabled={updateConfig.isPending}
             >
               {updateConfig.isPending ? '保存中...' : '保存更改'}
             </button>
-          </>
+          </div>
         )}
-        <button
-          className="btn btn-ghost"
-          style={{ padding: '8px 16px', fontSize: '13px', color: 'var(--warning)' }}
-          onClick={handleResetConfig}
-          disabled={resetConfig.isPending}
-        >
-          重置默认
-        </button>
       </div>
 
       {isLoadingConfig ? (
         <div className="loading-text">加载配置中...</div>
       ) : (
         <>
-          {/* 按分类渲染配置项 */}
+          {/* 所有配置项平铺 */}
           {(['merge', 'typing'] as const).map((category) => {
             const categoryItems = configMeta.filter((m) => m.category === category);
             if (categoryItems.length === 0) return null;
-            const { title, description } = categoryTitles[category];
+            const { title } = categoryTitles[category];
 
             return (
-              <section key={category} style={{ marginBottom: '32px' }}>
-                <div style={{ marginBottom: '16px' }}>
-                  <h3 style={{ margin: 0, color: 'var(--text-primary)', fontSize: '16px' }}>
-                    {title}
-                  </h3>
-                  <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: 'var(--text-muted)' }}>
-                    {description}
-                  </p>
+              <section key={category} style={{ marginBottom: '20px' }}>
+                <div
+                  style={{
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    color: 'var(--text-muted)',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.5px',
+                    marginBottom: '12px',
+                    paddingLeft: '4px',
+                  }}
+                >
+                  {title}
                 </div>
                 <div
                   style={{
                     display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
-                    gap: '16px',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+                    gap: '12px',
                   }}
                 >
                   {categoryItems.map((meta) => {
                     const currentValue =
-                      (editingConfig[meta.key] as number) ??
-                      (agentConfigData?.defaults[meta.key] as number) ??
-                      0;
-                    const defaultValue = (agentConfigData?.defaults[meta.key] as number) ?? 0;
-                    return renderNumberCard(meta, currentValue, defaultValue);
+                      (editingConfig[meta.key] as any) ??
+                      (agentConfigData?.defaults[meta.key] as any);
+                    const defaultValue = agentConfigData?.defaults[meta.key] as any;
+
+                    if (meta.type === 'boolean') {
+                      return renderBooleanCard(meta, Boolean(currentValue), Boolean(defaultValue));
+                    }
+                    return renderNumberCard(meta, Number(currentValue || 0), Number(defaultValue || 0));
                   })}
                 </div>
               </section>
@@ -332,14 +382,19 @@ export default function Config() {
           })}
 
           {/* Worker 并发配置 */}
-          <section style={{ marginBottom: '32px' }}>
-            <div style={{ marginBottom: '16px' }}>
-              <h3 style={{ margin: 0, color: 'var(--text-primary)', fontSize: '16px' }}>
-                消息处理能力
-              </h3>
-              <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: 'var(--text-muted)' }}>
-                配置消息队列的并行处理能力，影响系统吞吐量
-              </p>
+          <section style={{ marginBottom: '20px' }}>
+            <div
+              style={{
+                fontSize: '12px',
+                fontWeight: 600,
+                color: 'var(--text-muted)',
+                textTransform: 'uppercase',
+                letterSpacing: '0.5px',
+                marginBottom: '12px',
+                paddingLeft: '4px',
+              }}
+            >
+              处理能力
             </div>
 
             {isLoadingWorker ? (
@@ -347,9 +402,9 @@ export default function Config() {
             ) : workerStatus ? (
               <div
                 style={{
-                  padding: '20px',
+                  padding: '16px',
                   background: 'var(--bg-secondary)',
-                  borderRadius: '12px',
+                  borderRadius: '10px',
                   border: '1px solid var(--border)',
                 }}
               >
@@ -359,47 +414,66 @@ export default function Config() {
                     display: 'flex',
                     justifyContent: 'space-between',
                     alignItems: 'center',
-                    marginBottom: '16px',
+                    marginBottom: '4px',
                   }}
                 >
-                  <div>
-                    <span style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '14px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <span style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '13px' }}>
                       Worker 并发数
                     </span>
                     {workerStatus.activeJobs > 0 && (
                       <span
                         style={{
-                          marginLeft: '12px',
                           fontSize: '11px',
                           color: 'var(--success)',
-                          background: 'rgba(34, 197, 94, 0.1)',
-                          padding: '2px 8px',
-                          borderRadius: '10px',
                         }}
                       >
-                        {workerStatus.activeJobs} 个任务处理中
+                        ({workerStatus.activeJobs} 任务中)
                       </span>
                     )}
                   </div>
-                  <span style={{ fontSize: '24px', fontWeight: 700, color: 'var(--primary)' }}>
+                  <span style={{ fontSize: '15px', fontWeight: 700, color: 'var(--primary)' }}>
                     {editingConcurrency ?? workerStatus.concurrency}
                   </span>
                 </div>
-
                 <p
                   style={{
                     fontSize: '12px',
                     color: 'var(--text-muted)',
-                    marginBottom: '16px',
-                    lineHeight: 1.5,
+                    margin: '0 0 12px 0',
+                    lineHeight: 1.4,
                   }}
                 >
-                  控制同时处理消息的 Worker 数量。增加并发数可提高吞吐量，但会增加 Agent API 压力。
-                  修改后会等待当前任务完成再生效。
+                  控制同时处理消息的 Worker 数量。增加并发数可提高吞吐量，但会增加 Agent API 压力。修改后会等待当前任务完成再生效。
                 </p>
+                <div
+                  style={{
+                    fontSize: '11px',
+                    color: 'var(--text-muted)',
+                    padding: '8px 10px',
+                    background: 'var(--bg-primary)',
+                    borderRadius: '6px',
+                    marginBottom: '12px',
+                    lineHeight: 1.5,
+                    fontFamily: 'ui-monospace, monospace',
+                  }}
+                >
+                  <div>理论吞吐量 = 并发数 × (时间 / 平均首响时间)</div>
+                  <div style={{ marginTop: '4px', color: 'var(--text-secondary)' }}>
+                    例: {editingConcurrency ?? workerStatus.concurrency} 并发 × (60s / 10s首响) ≈{' '}
+                    <strong style={{ color: 'var(--primary)' }}>
+                      {((editingConcurrency ?? workerStatus.concurrency) * 6).toLocaleString()}
+                    </strong>{' '}
+                    条/分钟 ≈{' '}
+                    <strong style={{ color: 'var(--primary)' }}>
+                      {((editingConcurrency ?? workerStatus.concurrency) * 360).toLocaleString()}
+                    </strong>{' '}
+                    条/小时
+                  </div>
+                </div>
 
                 {/* 滑块控制 */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                   <input
                     type="range"
                     min={workerStatus.minConcurrency}
@@ -407,7 +481,7 @@ export default function Config() {
                     step={1}
                     value={editingConcurrency ?? workerStatus.concurrency}
                     onChange={(e) => setEditingConcurrency(Number(e.target.value))}
-                    style={{ flex: 1, accentColor: 'var(--primary)', height: '6px' }}
+                    style={{ flex: 1, accentColor: 'var(--primary)', height: '4px' }}
                   />
                   <input
                     type="number"
@@ -417,14 +491,14 @@ export default function Config() {
                     value={editingConcurrency ?? workerStatus.concurrency}
                     onChange={(e) => setEditingConcurrency(Number(e.target.value))}
                     style={{
-                      width: '60px',
-                      padding: '6px 10px',
+                      width: '50px',
+                      padding: '4px 8px',
                       border: '1px solid var(--border)',
                       borderRadius: '6px',
                       background: 'var(--bg-primary)',
                       color: 'var(--text-primary)',
                       textAlign: 'right',
-                      fontSize: '13px',
+                      fontSize: '12px',
                     }}
                   />
                 </div>
@@ -435,25 +509,25 @@ export default function Config() {
                     display: 'flex',
                     justifyContent: 'space-between',
                     alignItems: 'center',
-                    marginTop: '12px',
+                    marginTop: '8px',
                   }}
                 >
                   <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                    范围: {workerStatus.minConcurrency} - {workerStatus.maxConcurrency}（默认: 4）
+                    {workerStatus.minConcurrency} - {workerStatus.maxConcurrency}（默认: 4）
                   </span>
 
                   {editingConcurrency !== null && editingConcurrency !== workerStatus.concurrency && (
                     <div style={{ display: 'flex', gap: '8px' }}>
                       <button
                         className="btn btn-ghost"
-                        style={{ padding: '4px 12px', fontSize: '12px' }}
+                        style={{ padding: '4px 10px', fontSize: '11px' }}
                         onClick={() => setEditingConcurrency(null)}
                       >
                         取消
                       </button>
                       <button
                         className="btn btn-primary"
-                        style={{ padding: '4px 12px', fontSize: '12px' }}
+                        style={{ padding: '4px 10px', fontSize: '11px' }}
                         onClick={() => {
                           setConcurrency.mutate(editingConcurrency, {
                             onSuccess: () => setEditingConcurrency(null),
@@ -466,28 +540,6 @@ export default function Config() {
                     </div>
                   )}
                 </div>
-
-                {/* 吞吐量估算 */}
-                <div
-                  style={{
-                    marginTop: '16px',
-                    padding: '12px',
-                    background: 'var(--bg-primary)',
-                    borderRadius: '8px',
-                    fontSize: '12px',
-                  }}
-                >
-                  <div style={{ color: 'var(--text-muted)', marginBottom: '4px' }}>
-                    理论吞吐量估算（假设每条消息处理 10 秒）
-                  </div>
-                  <div style={{ color: 'var(--text-primary)' }}>
-                    每分钟可处理约{' '}
-                    <strong style={{ color: 'var(--primary)' }}>
-                      {((editingConcurrency ?? workerStatus.concurrency) * 6).toFixed(0)}
-                    </strong>{' '}
-                    条消息
-                  </div>
-                </div>
               </div>
             ) : (
               <div style={{ color: 'var(--text-muted)', fontSize: '13px' }}>
@@ -495,31 +547,6 @@ export default function Config() {
               </div>
             )}
           </section>
-
-          {/* 提示信息 */}
-          <div
-            style={{
-              padding: '16px 20px',
-              background: 'rgba(59, 130, 246, 0.1)',
-              borderRadius: '12px',
-              border: '1px solid rgba(59, 130, 246, 0.2)',
-              marginTop: '24px',
-            }}
-          >
-            <div
-              style={{
-                fontSize: '13px',
-                color: 'var(--text-primary)',
-                fontWeight: 500,
-                marginBottom: '4px',
-              }}
-            >
-              告警配置已移至系统监控页面
-            </div>
-            <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-              业务指标告警的开关和参数设置请前往「系统监控」页面配置
-            </div>
-          </div>
         </>
       )}
     </div>

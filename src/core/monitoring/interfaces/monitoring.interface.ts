@@ -105,6 +105,46 @@ export interface BusinessMetricTrendPoint {
   bookingSuccessRate: number; // 预约成功率 (%)
 }
 
+/**
+ * Agent 响应消息部分
+ */
+export interface AgentMessagePart {
+  type: 'text';
+  text: string;
+}
+
+/**
+ * Agent 响应消息
+ */
+export interface AgentResponseMessage {
+  role: 'user' | 'assistant' | 'system';
+  parts: AgentMessagePart[];
+}
+
+/**
+ * 完整 Agent 响应结构（对应 ChatResponse）
+ */
+export interface RawAgentResponse {
+  // 完整消息数组（保留原始结构）
+  messages: AgentResponseMessage[];
+  // Token 使用统计
+  usage: {
+    inputTokens: number;
+    outputTokens: number;
+    totalTokens: number;
+    cachedInputTokens?: number;
+  };
+  // 工具使用情况
+  tools: {
+    used: string[];
+    skipped: string[];
+  };
+  // 是否降级响应
+  isFallback?: boolean;
+  // 降级原因
+  fallbackReason?: string;
+}
+
 export interface MonitoringMetadata {
   scenario?: ScenarioType;
   tools?: string[];
@@ -113,21 +153,8 @@ export interface MonitoringMetadata {
   replySegments?: number;
   isFallback?: boolean;
   alertType?: AlertErrorType;
-  // 完整 Agent 响应
-  rawAgentResponse?: {
-    content: string;
-    usage?: {
-      inputTokens: number;
-      outputTokens: number;
-      totalTokens: number;
-    };
-    tools?: {
-      used: string[];
-      skipped: string[];
-    };
-    isFallback?: boolean;
-    fallbackReason?: string;
-  };
+  // 完整 Agent 响应（新结构）
+  rawAgentResponse?: RawAgentResponse;
 }
 
 /**
@@ -169,20 +196,7 @@ export interface MessageProcessingRecord {
   alertType?: AlertErrorType;
 
   // 完整 Agent 响应（用于排障）
-  rawAgentResponse?: {
-    content: string; // 完整回复内容
-    usage?: {
-      inputTokens: number;
-      outputTokens: number;
-      totalTokens: number;
-    };
-    tools?: {
-      used: string[];
-      skipped: string[];
-    };
-    isFallback?: boolean;
-    fallbackReason?: string;
-  };
+  rawAgentResponse?: RawAgentResponse;
 }
 export interface AlertTypeMetric {
   type: AlertErrorType | 'unknown';
@@ -348,4 +362,7 @@ export interface MetricsData {
 
   // 最慢记录
   slowestRecords: MessageProcessingRecord[];
+
+  // 最近5分钟告警数
+  recentAlertCount: number;
 }

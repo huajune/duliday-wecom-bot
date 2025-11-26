@@ -12,6 +12,12 @@ import {
   PersistableConversationState,
 } from '../interfaces/message-merge.interface';
 import { MessageParser } from '../utils/message-parser.util';
+import {
+  MAX_RETRY_COUNT,
+  MIN_MESSAGE_LENGTH_TO_RETRY,
+  COLLECT_MESSAGES_DURING_PROCESSING,
+  OVERFLOW_STRATEGY,
+} from '@core/config/constants/message.constants';
 
 /**
  * 智能消息聚合服务
@@ -54,24 +60,15 @@ export class MessageMergeService implements OnModuleInit, OnModuleDestroy {
     @InjectQueue('message-merge') private readonly messageQueue: Queue,
   ) {
     // 从环境变量读取初始配置（作为默认值）
-    this.initialMergeWindow = parseInt(
-      this.configService.get<string>('INITIAL_MERGE_WINDOW_MS', '1000'),
-      10,
-    );
-    this.maxMergedMessages = parseInt(
-      this.configService.get<string>('MAX_MERGED_MESSAGES', '3'),
-      10,
-    );
-    this.maxRetryCount = parseInt(this.configService.get<string>('MAX_RETRY_COUNT', '1'), 10);
-    this.minMessageLength = parseInt(
-      this.configService.get<string>('MIN_MESSAGE_LENGTH_TO_RETRY', '2'),
-      10,
-    );
-    this.collectDuringProcessing =
-      this.configService.get<string>('COLLECT_MESSAGES_DURING_PROCESSING', 'true') === 'true';
-    this.overflowStrategy =
-      (this.configService.get<string>('OVERFLOW_STRATEGY', 'take-latest') as OverflowStrategy) ||
-      OverflowStrategy.TAKE_LATEST;
+    // 注意：这些值随后会被 Supabase 的动态配置覆盖
+    this.initialMergeWindow = 3000;
+    this.maxMergedMessages = 3;
+
+    // 使用常量配置
+    this.maxRetryCount = MAX_RETRY_COUNT;
+    this.minMessageLength = MIN_MESSAGE_LENGTH_TO_RETRY;
+    this.collectDuringProcessing = COLLECT_MESSAGES_DURING_PROCESSING;
+    this.overflowStrategy = OVERFLOW_STRATEGY as OverflowStrategy;
 
     // 注册配置变更回调
     this.supabaseService.onAgentReplyConfigChange((config) => {

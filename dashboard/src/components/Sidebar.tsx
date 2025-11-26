@@ -1,75 +1,82 @@
 import { NavLink } from 'react-router-dom';
 
-// SVG 图标组件 - 与 monitoring.html 风格一致
+// SVG 图标组件 - 圣诞节日限定版 (Christmas Edition)
 const DashboardIcon = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <rect x="3" y="3" width="7" height="9"></rect>
-    <rect x="14" y="3" width="7" height="5"></rect>
-    <rect x="14" y="12" width="7" height="9"></rect>
-    <rect x="3" y="16" width="7" height="5"></rect>
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="3" y="3" width="18" height="18" rx="2" />
+    <path d="M3 9h18" />
+    {/* 花环 */}
+    <circle cx="12" cy="15" r="4" />
+    <path d="M12 11v2" />
+    <path d="M10 12l2 1l2-1" />
   </svg>
 );
 
 const UsersIcon = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
-    <circle cx="9" cy="7" r="4"></circle>
-    <path d="M22 21v-2a4 4 0 0 0-3-3.87"></path>
-    <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
-  </svg>
-);
-
-const ConfigIcon = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"></path>
-    <circle cx="12" cy="12" r="3"></circle>
-  </svg>
-);
-
-const SystemIcon = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M12 20a8 8 0 1 0 0-16 8 8 0 0 0 0 16Z"></path>
-    <path d="M12 14a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z"></path>
-    <path d="M12 2v2"></path>
-    <path d="M12 22v-2"></path>
-    <path d="m17 20.66-1-1.73"></path>
-    <path d="M11 10.27 7 3.34"></path>
-    <path d="m20.66 17-1.73-1"></path>
-    <path d="m3.34 7 1.73 1"></path>
-    <path d="M14 12h8"></path>
-    <path d="M2 12h2"></path>
-    <path d="m20.66 7-1.73 1"></path>
-    <path d="m3.34 17 1.73-1"></path>
-    <path d="m17 3.34-1 1.73"></path>
-    <path d="m11 13.73-4 6.93"></path>
-  </svg>
-);
-
-const LogsIcon = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-    <polyline points="14 2 14 8 20 8"></polyline>
-    <line x1="16" y1="13" x2="8" y2="13"></line>
-    <line x1="16" y1="17" x2="8" y2="17"></line>
-    <polyline points="10 9 9 9 8 9"></polyline>
-  </svg>
-);
-
-const ConsoleIcon = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <polyline points="4 17 10 11 4 5"></polyline>
-    <line x1="12" y1="19" x2="20" y2="19"></line>
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+    <circle cx="12" cy="7" r="4" />
+    {/* 圣诞帽 */}
+    <path d="M12 3c4 0 5 2 5 4" />
+    <path d="M16 3l-4-2l-4 2" />
+    <circle cx="17" cy="7" r="1.5" />
   </svg>
 );
 
 const HostingIcon = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
-    <circle cx="9" cy="7" r="4"></circle>
-    <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
-    <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
-    <line x1="19" y1="8" x2="19" y2="14"></line>
-    <line x1="22" y1="11" x2="16" y2="11"></line>
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M4 6v13a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V6" />
+    <line x1="4" y1="12" x2="20" y2="12" />
+    <line x1="4" y1="17" x2="20" y2="17" />
+    {/* 积雪 */}
+    <path d="M4 6c2 2 4-1 6 1s4-2 6 0s4 0 4 2" />
+    <path d="M4 6c0-2 2-3 4-3h8c2 0 4 1 4 3" />
+  </svg>
+);
+
+const ConfigIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    {/* 齿轮轮廓 */}
+    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" opacity="0" />
+    <circle cx="12" cy="12" r="3" />
+    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+    {/* 内部雪花 */}
+    <path d="M12 9v6" />
+    <path d="M9.5 10.5l5 3" />
+    <path d="M9.5 13.5l5-3" />
+  </svg>
+);
+
+const SystemIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    {/* 心跳线变圣诞树 */}
+    <path d="M2 12h3l2-3l2 3h2" />
+    <path d="M14 12l2.5-4l2.5 4h3" />
+    <path d="M16.5 8l-1.5-2l-1.5 2" />
+    <path d="M16.5 4l1 1.5" />
+    <path d="M16.5 4l-1 1.5" />
+  </svg>
+);
+
+const LogsIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+    <polyline points="14 2 14 8 20 8" />
+    {/* 拐杖糖 */}
+    <path d="M10 14v4" />
+    <path d="M10 14a2 2 0 0 1 2-2h0a2 2 0 0 1 2 2v1" />
+    <path d="M10 16h2" />
+    <path d="M10 18h2" />
+  </svg>
+);
+
+const ConsoleIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="2" y="4" width="20" height="16" rx="2" />
+    <path d="M6 12l2 2l2-2" />
+    <line x1="12" y1="14" x2="16" y2="14" />
+    {/* 圣诞袜 */}
+    <path d="M18 4v4a2 2 0 0 1-2 2h-1a2 2 0 0 0-2 2v0a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2v-8" />
   </svg>
 );
 
@@ -106,6 +113,12 @@ export default function Sidebar() {
           <span className="nav-icon icon-users"><UsersIcon /></span> 今日咨询
         </NavLink>
         <NavLink
+          to="/logs"
+          className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}
+        >
+          <span className="nav-icon icon-logs"><LogsIcon /></span> 实时消息
+        </NavLink>
+        <NavLink
           to="/hosting"
           className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}
         >
@@ -125,12 +138,6 @@ export default function Sidebar() {
           className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}
         >
           <span className="nav-icon icon-system"><SystemIcon /></span> 系统监控
-        </NavLink>
-        <NavLink
-          to="/logs"
-          className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}
-        >
-          <span className="nav-icon icon-logs"><LogsIcon /></span> 消息日志
         </NavLink>
         <NavLink
           to="/console"

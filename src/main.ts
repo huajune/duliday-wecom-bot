@@ -7,6 +7,7 @@ import { join } from 'path';
 import { networkInterfaces } from 'os';
 import { execSync } from 'child_process';
 import * as net from 'net';
+import { CustomLoggerService } from '@core/logger';
 
 /**
  * 获取本机局域网 IP 地址
@@ -100,7 +101,14 @@ async function bootstrap() {
   // 确保端口可用（如果被占用则自动清理）
   await ensurePortAvailable(port);
 
-  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
+    bufferLogs: true, // 缓冲日志直到 Logger 设置完成
+  });
+
+  // 设置自定义 Logger（推送到 Dashboard 控制台）
+  // 注意：CustomLoggerService 使用 TRANSIENT 作用域，需要用 resolve() 而非 get()
+  const customLogger = await app.resolve(CustomLoggerService);
+  app.useLogger(customLogger);
 
   // 启用 CORS
   app.enableCors();

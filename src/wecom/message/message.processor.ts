@@ -9,6 +9,8 @@ import {
 } from '@agent';
 import { EnterpriseMessageCallbackDto } from './dto/message-callback.dto';
 import { SupabaseService } from '@core/supabase';
+import { MonitoringService } from '@/core/monitoring/monitoring.service';
+import { RawAgentResponse } from '@core/monitoring/interfaces/monitoring.interface';
 
 // 导入子服务
 import { MessageHistoryService } from './services/message-history.service';
@@ -18,6 +20,7 @@ import { MessageDeliveryService } from './services/message-delivery.service';
 
 // 导入工具类
 import { MessageParser } from './utils/message-parser.util';
+import { ScenarioType } from '@agent';
 
 /**
  * 消息队列处理器（动态并发版）
@@ -54,6 +57,7 @@ export class MessageProcessor implements OnModuleInit {
     private readonly mergeService: MessageMergeService,
     private readonly supabaseService: SupabaseService,
     private readonly deliveryService: MessageDeliveryService,
+    private readonly monitoringService: MonitoringService,
   ) {}
 
   /**
@@ -333,10 +337,23 @@ export class MessageProcessor implements OnModuleInit {
       );
 
       // 调用 AI 处理
-      await this.processWithAI(chatId, mergedContent, validMessages[0]);
+      const result = await this.processWithAI(chatId, mergedContent, validMessages[0]);
 
       // 更新任务进度
       await job.progress(100);
+
+      // 记录处理成功 - 为聚合的每条消息记录成功状态
+      for (const msg of validMessages) {
+        this.monitoringService.recordSuccess(msg.messageId, {
+          scenario: ScenarioType.CANDIDATE_CONSULTATION,
+          replyPreview: result.replyContent?.substring(0, 100),
+          tokenUsage: result.tokenUsage,
+          tools: result.tools,
+          replySegments: result.segmentCount,
+          isFallback: result.isFallback,
+          rawAgentResponse: result.rawAgentResponse,
+        });
+      }
 
       // 检查是否有在处理期间到达的新消息
       // onAgentResponseReceived 会检查并自动添加新任务到队列
@@ -344,6 +361,14 @@ export class MessageProcessor implements OnModuleInit {
     } catch (error) {
       const chatId = job.data.messages?.[0]?.chatId;
       this.logger.error(`[Bull] 任务 ${job.id} 处理失败: ${error.message}`);
+
+      // 记录处理失败 - 为聚合的每条消息记录失败状态
+      const failedMessages = job.data.messages || [];
+      for (const msg of failedMessages) {
+        this.monitoringService.recordFailure(msg.messageId, error.message, {
+          scenario: ScenarioType.CANDIDATE_CONSULTATION,
+        });
+      }
 
       if (chatId) {
         // 检查是否有在处理期间到达的新消息
@@ -369,7 +394,16 @@ export class MessageProcessor implements OnModuleInit {
     chatId: string,
     mergedContent: string,
     messageData: EnterpriseMessageCallbackDto,
-  ): Promise<void> {
+  ): Promise<{
+    success: boolean;
+    replyContent?: string;
+    tokenUsage?: number;
+    tools?: string[];
+    segmentCount?: number;
+    isFallback?: boolean;
+    rawAgentResponse?: RawAgentResponse;
+    error?: string;
+  }> {
     const parsedData = MessageParser.parse(messageData);
     const { token, contactName = '客户', _apiType } = parsedData;
     const scenarioType = parsedData.isRoom ? '群聊' : '私聊';
@@ -381,7 +415,7 @@ export class MessageProcessor implements OnModuleInit {
 
       if (!agentProfile) {
         this.logger.error(`无法获取场景 ${scenario} 的 Agent 配置`);
-        return;
+        return { success: false, error: `无法获取场景 ${scenario} 的 Agent 配置` };
       }
 
       // 验证配置有效性
@@ -389,12 +423,14 @@ export class MessageProcessor implements OnModuleInit {
         this.configValidator.validateRequiredFields(agentProfile);
         const contextValidation = this.configValidator.validateContext(agentProfile.context);
         if (!contextValidation.isValid) {
-          this.logger.error(`Agent 配置验证失败: ${contextValidation.errors.join(', ')}`);
-          return;
+          const errorMsg = `Agent 配置验证失败: ${contextValidation.errors.join(', ')}`;
+          this.logger.error(errorMsg);
+          return { success: false, error: errorMsg };
         }
       } catch (error) {
-        this.logger.error(`Agent 配置验证失败: ${error.message}`);
-        return;
+        const errorMsg = `Agent 配置验证失败: ${error.message}`;
+        this.logger.error(errorMsg);
+        return { success: false, error: errorMsg };
       }
 
       // 获取会话历史消息（复用 HistoryService）
@@ -403,6 +439,9 @@ export class MessageProcessor implements OnModuleInit {
 
       // 添加当前用户消息到历史（复用 HistoryService）
       await this.historyService.addMessageToHistory(chatId, 'user', mergedContent);
+
+      // 记录 AI 处理开始
+      this.monitoringService.recordAiStart(messageData.messageId);
 
       // 调用 Agent API 生成回复
       const agentResult = await this.agentService.chat({
@@ -419,6 +458,9 @@ export class MessageProcessor implements OnModuleInit {
         prune: agentProfile.prune,
         pruneOptions: agentProfile.pruneOptions,
       });
+
+      // 记录 AI 处理结束
+      this.monitoringService.recordAiEnd(messageData.messageId);
 
       // 检查 Agent 调用结果
       if (AgentResultHelper.isError(agentResult)) {
@@ -472,6 +514,40 @@ export class MessageProcessor implements OnModuleInit {
           `[Bull][${scenarioType}][${contactName}] 消息发送部分失败: ${deliveryResult.failedSegments}/${deliveryResult.segmentCount} 个片段失败`,
         );
       }
+
+      // 构建完整的 rawAgentResponse（保留原始结构）
+      const isFallback = AgentResultHelper.isFallback(agentResult);
+      const rawAgentResponse: RawAgentResponse = {
+        messages: aiResponse.messages.map(
+          (m: { role: string; parts: Array<{ type: string; text: string }> }) => ({
+            role: m.role as 'user' | 'assistant' | 'system',
+            parts: m.parts.map((p) => ({ type: 'text' as const, text: p.text })),
+          }),
+        ),
+        usage: {
+          inputTokens: aiResponse.usage?.inputTokens ?? 0,
+          outputTokens: aiResponse.usage?.outputTokens ?? 0,
+          totalTokens: aiResponse.usage?.totalTokens ?? 0,
+          cachedInputTokens: aiResponse.usage?.cachedInputTokens,
+        },
+        tools: {
+          used: aiResponse.tools?.used ?? [],
+          skipped: aiResponse.tools?.skipped ?? [],
+        },
+        isFallback,
+        fallbackReason: isFallback ? agentResult.fallbackInfo?.reason : undefined,
+      };
+
+      // 返回成功结果
+      return {
+        success: true,
+        replyContent,
+        tokenUsage: aiResponse.usage?.totalTokens,
+        tools: aiResponse.tools?.used,
+        segmentCount: deliveryResult.segmentCount,
+        isFallback,
+        rawAgentResponse,
+      };
     } catch (error) {
       this.logger.error(`[Bull][${scenarioType}][${contactName}] 消息处理失败: ${error.message}`);
       throw error;

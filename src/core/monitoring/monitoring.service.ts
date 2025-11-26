@@ -372,6 +372,8 @@ export class MonitoringService implements OnModuleInit {
       globalCounters: { ...this.globalCounters },
       percentiles,
       slowestRecords,
+      recentAlertCount: this.errorLogs.filter((log) => Date.now() - log.timestamp <= 5 * 60 * 1000)
+        .length,
     };
   }
 
@@ -1210,18 +1212,20 @@ export class MonitoringService implements OnModuleInit {
     const stats = this.hourlyStatsMap.get(hourKey);
     if (!stats) return;
 
-    const durations = records.map((r) => r.totalDuration!).sort((a, b) => a - b);
+    const totalDurations = records.map((r) => r.totalDuration!).sort((a, b) => a - b);
     const aiDurations = records.filter((r) => r.aiDuration !== undefined).map((r) => r.aiDuration!);
     const sendDurations = records
       .filter((r) => r.sendDuration !== undefined)
       .map((r) => r.sendDuration!);
 
-    stats.avgDuration = this.average(durations);
-    stats.minDuration = Math.min(...durations);
-    stats.maxDuration = Math.max(...durations);
-    stats.p50Duration = this.percentile(durations, 0.5);
-    stats.p95Duration = this.percentile(durations, 0.95);
-    stats.p99Duration = this.percentile(durations, 0.99);
+    // avgDuration 使用 aiDuration（首条响应时间），更能反映用户体验
+    stats.avgDuration =
+      aiDurations.length > 0 ? this.average(aiDurations) : this.average(totalDurations);
+    stats.minDuration = Math.min(...totalDurations);
+    stats.maxDuration = Math.max(...totalDurations);
+    stats.p50Duration = this.percentile(totalDurations, 0.5);
+    stats.p95Duration = this.percentile(totalDurations, 0.95);
+    stats.p99Duration = this.percentile(totalDurations, 0.99);
     stats.avgAiDuration = this.average(aiDurations);
     stats.avgSendDuration = this.average(sendDurations);
   }
@@ -1293,12 +1297,12 @@ export class MonitoringService implements OnModuleInit {
   }
 
   /**
-   * 获取最慢的记录
+   * 获取首条响应最慢的记录（按 aiDuration 排序）
    */
   private getSlowestRecords(limit: number): MessageProcessingRecord[] {
     return [...this.detailRecords]
-      .filter((r) => r.status !== 'processing' && r.totalDuration !== undefined)
-      .sort((a, b) => (b.totalDuration || 0) - (a.totalDuration || 0))
+      .filter((r) => r.status !== 'processing' && r.aiDuration !== undefined)
+      .sort((a, b) => (b.aiDuration || 0) - (a.aiDuration || 0))
       .slice(0, limit);
   }
 

@@ -420,6 +420,7 @@ export class MonitoringController {
       chatId: string;
       userName?: string;
       messageCount: number;
+      tokenUsage: number;
       lastActiveAt?: string;
       hostingEnabled: boolean;
     }[]
@@ -433,6 +434,7 @@ export class MonitoringController {
       chatId: user.chatId,
       userName: user.odName || user.chatId,
       messageCount: user.messageCount,
+      tokenUsage: user.tokenUsage,
       lastActiveAt: user.lastActiveAt ? new Date(user.lastActiveAt).toISOString() : undefined,
       hostingEnabled: !pausedSet.has(user.chatId),
     }));

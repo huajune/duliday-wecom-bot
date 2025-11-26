@@ -318,7 +318,8 @@ export class MessageService implements OnModuleInit {
         true,
       );
 
-      // 7. 记录成功
+      // 7. 记录成功（包含完整 Agent 原始响应）
+      const rawResponse = agentResult.reply.rawResponse;
       this.monitoringService.recordSuccess(messageId, {
         scenario,
         tools: agentResult.reply.tools?.used,
@@ -326,13 +327,15 @@ export class MessageService implements OnModuleInit {
         replyPreview: agentResult.reply.content,
         replySegments: deliveryResult.segmentCount,
         isFallback: agentResult.isFallback,
-        rawAgentResponse: {
-          content: agentResult.reply.content,
-          usage: agentResult.reply.usage,
-          tools: agentResult.reply.tools,
-          isFallback: agentResult.isFallback,
-          fallbackReason: agentResult.result.fallbackInfo?.reason,
-        },
+        rawAgentResponse: rawResponse
+          ? {
+              messages: rawResponse.messages,
+              usage: rawResponse.usage,
+              tools: rawResponse.tools,
+              isFallback: agentResult.isFallback,
+              fallbackReason: agentResult.result.fallbackInfo?.reason,
+            }
+          : undefined,
       });
 
       // 8. 标记消息为已处理（直发路径）
@@ -419,6 +422,7 @@ export class MessageService implements OnModuleInit {
       );
 
       // 9. 【修复】标记所有聚合的消息为已处理，并记录监控成功
+      const rawResponse = agentResult.reply.rawResponse;
       const sharedSuccessMetadata = {
         scenario,
         tools: agentResult.reply.tools?.used,
@@ -426,13 +430,15 @@ export class MessageService implements OnModuleInit {
         replyPreview: agentResult.reply.content,
         replySegments: deliveryResult.segmentCount,
         isFallback: agentResult.isFallback,
-        rawAgentResponse: {
-          content: agentResult.reply.content,
-          usage: agentResult.reply.usage,
-          tools: agentResult.reply.tools,
-          isFallback: agentResult.isFallback,
-          fallbackReason: agentResult.result.fallbackInfo?.reason,
-        },
+        rawAgentResponse: rawResponse
+          ? {
+              messages: rawResponse.messages,
+              usage: rawResponse.usage,
+              tools: rawResponse.tools,
+              isFallback: agentResult.isFallback,
+              fallbackReason: agentResult.result.fallbackInfo?.reason,
+            }
+          : undefined,
       };
       for (const message of messages) {
         this.deduplicationService.markMessageAsProcessed(message.messageId);

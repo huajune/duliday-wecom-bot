@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Line } from 'react-chartjs-2';
+import { Line, Bar } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -19,7 +19,7 @@ import {
   useAiReplyStatus,
   useToggleAiReply,
 } from '@/hooks/useMonitoring';
-import { formatDateTime, formatDuration, formatMinuteLabel, formatDayLabel, formatTime } from '@/utils/format';
+import { formatDateTime, formatDuration, formatMinuteLabel, formatDayLabel } from '@/utils/format';
 
 
 // 圣诞装饰 emoji 列表 - 与 monitoring.html 完全一致
@@ -228,7 +228,62 @@ export default function Dashboard() {
     },
   };
 
+  // 每日 Token 消耗图表 - 圣诞金 #f59e0b (Bar 图)
+  const tokenChartData = {
+    labels: (dashboard?.dailyTrend || []).map((p) => p.date?.substring(5) || p.date), // MM-DD 格式
+    datasets: [
+      {
+        label: 'Token 消耗',
+        data: (dashboard?.dailyTrend || []).map((p) => p.tokenUsage),
+        backgroundColor: '#f59e0b', // Gold
+        borderRadius: 6,
+        hoverBackgroundColor: '#d97706',
+      },
+    ],
+  };
 
+  // 每日咨询人数图表 - 圣诞绿 #10b981
+  const dailyUserChartData = {
+    labels: (dashboard?.dailyTrend || []).map((p) => p.date?.substring(5) || p.date), // MM-DD 格式
+    datasets: [
+      {
+        label: '咨询人数',
+        data: (dashboard?.dailyTrend || []).map((p) => p.uniqueUsers),
+        borderColor: '#10b981', // Green
+        backgroundColor: 'rgba(16, 185, 129, 0.2)',
+        fill: true,
+        tension: 0.4,
+        pointBackgroundColor: '#ffffff',
+        pointBorderColor: '#10b981',
+        pointRadius: 4,
+        pointHoverRadius: 6,
+      },
+    ],
+  };
+
+  // 响应耗时趋势 - 圣诞绿 #10b981
+  const responseChartData = {
+    labels: (dashboard?.responseTrend || []).slice(-60).map((p) => formatMinuteLabel(p.minute)),
+    datasets: [
+      {
+        label: '平均耗时 (秒)',
+        data: (dashboard?.responseTrend || [])
+          .slice(-60)
+          .map((p) => (p.avgDuration ? p.avgDuration / 1000 : 0)),
+        borderColor: '#10b981', // Green
+        backgroundColor: 'rgba(16, 185, 129, 0.2)',
+        fill: true,
+        tension: 0.4,
+        borderWidth: 3,
+        pointRadius: 0,
+        pointHoverRadius: 6,
+        pointBackgroundColor: '#ffffff',
+        pointBorderColor: '#10b981',
+        pointBorderWidth: 2,
+        pointHoverBorderWidth: 3,
+      },
+    ],
+  };
 
   return (
     <div id="page-dashboard" className="page-section active">
@@ -275,8 +330,8 @@ export default function Dashboard() {
           </div>
           <div className="control-panel-right">
             <span className={`health-panel-badge ${health?.status === 'healthy' && health?.models?.allConfiguredModelsAvailable && health?.tools?.allAvailable && health?.brandConfig?.synced
-                ? ''
-                : health?.status !== 'healthy' ? 'error' : 'warning'
+              ? ''
+              : health?.status !== 'healthy' ? 'error' : 'warning'
               }`} id="overallHealthBadge">
               {health?.status === 'healthy' && health?.models?.allConfiguredModelsAvailable && health?.tools?.allAvailable && health?.brandConfig?.synced
                 ? '全部正常'
@@ -343,7 +398,7 @@ export default function Dashboard() {
               </div>
               <div className="health-desc" id="brandHealthDetails">
                 {health?.brandConfig?.available && health?.brandConfig?.synced
-                  ? `更新于 ${health.brandConfig.lastUpdated ? formatTime(health.brandConfig.lastUpdated) : '未知'}`
+                  ? `更新于 ${health.brandConfig.lastUpdated ? formatDateTime(health.brandConfig.lastUpdated) : '未知'}`
                   : health?.brandConfig?.available ? '品牌数据待同步' : '检查中...'}
               </div>
             </div>
@@ -486,6 +541,67 @@ export default function Dashboard() {
           </div>
           <div className="chart-container">
             <Line data={bookingChartData} options={bookingChartOptions} />
+          </div>
+        </div>
+      </section>
+
+      {/* 每日趋势 */}
+      <section className="charts-row">
+        <div className="chart-card">
+          <div className="chart-header">
+            <div>
+              <h3>每日 Token 消耗</h3>
+              <p>最近 7 天使用量</p>
+            </div>
+            <div className="chart-kpi">
+              <span>今日消耗</span>
+              <strong>
+                {dashboard?.dailyTrend?.[dashboard.dailyTrend.length - 1]?.tokenUsage ?? '-'}
+              </strong>
+            </div>
+          </div>
+          <div className="chart-container">
+            <Bar data={tokenChartData} options={commonOptions} />
+          </div>
+        </div>
+        <div className="chart-card">
+          <div className="chart-header">
+            <div>
+              <h3>每日咨询人数</h3>
+              <p>最近 7 天唯一用户</p>
+            </div>
+            <div className="chart-kpi">
+              <span>今日人数</span>
+              <strong>
+                {dashboard?.dailyTrend?.[dashboard.dailyTrend.length - 1]?.uniqueUsers ?? '-'}
+              </strong>
+            </div>
+          </div>
+          <div className="chart-container">
+            <Line data={dailyUserChartData} options={commonOptions} />
+          </div>
+        </div>
+      </section>
+
+      {/* 响应耗时 */}
+      <section className="charts-row">
+        <div className="chart-card" style={{ flex: 1 }}>
+          <div className="chart-header">
+            <div>
+              <h3>响应耗时</h3>
+              <p>最近 60 分钟平均响应时间</p>
+            </div>
+            <div className="chart-kpi">
+              <span>当前平均</span>
+              <strong>
+                {dashboard?.overview?.avgDuration
+                  ? formatDuration(dashboard.overview.avgDuration)
+                  : '-'}
+              </strong>
+            </div>
+          </div>
+          <div className="chart-container">
+            <Line data={responseChartData} options={commonOptions} />
           </div>
         </div>
       </section>

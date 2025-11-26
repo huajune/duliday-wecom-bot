@@ -528,6 +528,95 @@ export class AgentController {
   }
 
   /**
+   * 调试接口：测试聊天并返回完整的 Agent 原始响应
+   * POST /agent/debug-chat
+   * Body: { "message": "你好", "conversationId"?: "...", "scenario"?: "..." }
+   *
+   * 返回完整的 AgentResult，包括：
+   * - data: 完整的 ChatResponse 原始响应
+   * - status: 成功/降级/错误状态
+   * - fromCache: 是否来自缓存
+   * - correlationId: 关联ID
+   */
+  @Post('debug-chat')
+  async debugChat(
+    @Body()
+    body: {
+      message: string;
+      conversationId?: string;
+      scenario?: string;
+      model?: string;
+      allowedTools?: string[];
+    },
+  ) {
+    this.logger.log('【调试模式】测试聊天:', body.message);
+    const conversationId = body.conversationId || `debug-${Date.now()}`;
+
+    // 使用指定的场景配置，默认 candidate-consultation
+    const scenario = body.scenario || 'candidate-consultation';
+    const profile = this.profileLoader.getProfile(scenario);
+
+    if (!profile) {
+      return {
+        success: false,
+        error: `未找到场景 ${scenario} 的配置`,
+        availableProfiles: this.profileLoader.getAllProfiles().map((p) => p.name),
+      };
+    }
+
+    this.logger.log(`【调试模式】使用配置档案: ${profile.name}`);
+
+    // 调用 AgentService 并返回完整的原始响应
+    const result = await this.agentService.chatWithProfile(conversationId, body.message, profile, {
+      model: body.model,
+      allowedTools: body.allowedTools,
+    });
+
+    // 返回完整的 AgentResult，不做任何裁剪
+    return {
+      success: result.status !== 'error',
+      conversationId,
+      scenario,
+      profileUsed: profile.name,
+      // === 完整的 AgentResult ===
+      agentResult: {
+        status: result.status,
+        data: result.data, // 完整的 ChatResponse
+        fallback: result.fallback,
+        fallbackInfo: result.fallbackInfo,
+        error: result.error,
+        fromCache: result.fromCache,
+        correlationId: result.correlationId,
+      },
+      // === 便于查看的响应文本提取 ===
+      extractedText: this.extractResponseText(result),
+      // === 元数据 ===
+      timestamp: new Date().toISOString(),
+    };
+  }
+
+  /**
+   * 从 AgentResult 中提取响应文本（辅助方法）
+   */
+  private extractResponseText(result: any): string | null {
+    try {
+      const response = result.data || result.fallback;
+      if (!response?.messages?.length) return null;
+
+      return response.messages
+        .map((msg: any) => {
+          if (msg.parts) {
+            return msg.parts.map((p: any) => p.text || '').join('');
+          }
+          return msg.content || '';
+        })
+        .join('\n\n');
+    } catch {
+      return null;
+    }
+  }
+
+  /**
    * 使用配置档案进行聊天（微信群场景示例）
    * POST /agent/chat-with-profile
    * Body: {
