@@ -86,12 +86,10 @@ export class EnvironmentVariables {
   })
   AGENT_REPLY_MODEL: string;
 
+  @IsOptional()
   @IsNumber({}, { message: 'AGENT_API_TIMEOUT 必须是数字' })
   @Min(1000, { message: 'AGENT_API_TIMEOUT 必须大于等于 1000ms' })
-  @IsNotEmpty({
-    message: 'AGENT_API_TIMEOUT 环境变量未配置，请在 .env 文件中设置',
-  })
-  AGENT_API_TIMEOUT: number;
+  AGENT_API_TIMEOUT?: number;
 
   @IsOptional()
   @IsNumber({}, { message: 'AGENT_API_MAX_RETRIES 必须是数字' })
@@ -117,12 +115,10 @@ export class EnvironmentVariables {
   CONVERSATION_CLEANUP_INTERVAL_MS?: number;
 
   // ==================== HTTP 客户端配置 ====================
+  @IsOptional()
   @IsNumber({}, { message: 'HTTP_CLIENT_TIMEOUT 必须是数字' })
   @Min(1000, { message: 'HTTP_CLIENT_TIMEOUT 必须大于等于 1000ms' })
-  @IsNotEmpty({
-    message: 'HTTP_CLIENT_TIMEOUT 环境变量未配置，请在 .env 文件中设置',
-  })
-  HTTP_CLIENT_TIMEOUT: number;
+  HTTP_CLIENT_TIMEOUT?: number;
 
   // ==================== Redis 配置 ====================
   @IsString({ message: 'UPSTASH_REDIS_REST_URL 必须是字符串' })

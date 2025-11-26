@@ -112,11 +112,13 @@ export class MessageService implements OnModuleInit {
       return filterResult.response;
     }
 
-    // 管线步骤 3: 消息去重
+    // 管线步骤 3: 消息去重（检查 + 立即标记）
     const dedupeResult = this.checkDuplication(messageData);
     if (!dedupeResult.continue) {
       return dedupeResult.response;
     }
+    // 立即标记为已处理，防止企微重试导致重复处理
+    this.deduplicationService.markMessageAsProcessed(messageData.messageId);
 
     // 管线步骤 4: 记录监控
     this.recordMessageReceived(messageData);
@@ -324,6 +326,13 @@ export class MessageService implements OnModuleInit {
         replyPreview: agentResult.reply.content,
         replySegments: deliveryResult.segmentCount,
         isFallback: agentResult.isFallback,
+        rawAgentResponse: {
+          content: agentResult.reply.content,
+          usage: agentResult.reply.usage,
+          tools: agentResult.reply.tools,
+          isFallback: agentResult.isFallback,
+          fallbackReason: agentResult.result.fallbackInfo?.reason,
+        },
       });
 
       // 8. 标记消息为已处理（直发路径）
@@ -417,6 +426,13 @@ export class MessageService implements OnModuleInit {
         replyPreview: agentResult.reply.content,
         replySegments: deliveryResult.segmentCount,
         isFallback: agentResult.isFallback,
+        rawAgentResponse: {
+          content: agentResult.reply.content,
+          usage: agentResult.reply.usage,
+          tools: agentResult.reply.tools,
+          isFallback: agentResult.isFallback,
+          fallbackReason: agentResult.result.fallbackInfo?.reason,
+        },
       };
       for (const message of messages) {
         this.deduplicationService.markMessageAsProcessed(message.messageId);

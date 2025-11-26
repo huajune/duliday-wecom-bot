@@ -21,6 +21,7 @@ import {
 } from '@/hooks/useMonitoring';
 import { formatDateTime, formatDuration, formatMinuteLabel, formatDayLabel, formatTime } from '@/utils/format';
 
+
 // 圣诞装饰 emoji 列表 - 与 monitoring.html 完全一致
 const christmasDecorations = ['🎀', '🧦', '⛄', '🎁', '🍬', '🔔', '🦌', '🎅', '🎄', '🍭', '🎈', '🎉', '🎊', '🥨', '🍩', '❄️', '☃️'];
 
@@ -227,6 +228,8 @@ export default function Dashboard() {
     },
   };
 
+
+
   return (
     <div id="page-dashboard" className="page-section active">
       {/* 统一控制面板 - 合并筛选和健康状态 */}
@@ -271,11 +274,10 @@ export default function Dashboard() {
             </label>
           </div>
           <div className="control-panel-right">
-            <span className={`health-panel-badge ${
-              health?.status === 'healthy' && health?.models?.allConfiguredModelsAvailable && health?.tools?.allAvailable && health?.brandConfig?.synced
+            <span className={`health-panel-badge ${health?.status === 'healthy' && health?.models?.allConfiguredModelsAvailable && health?.tools?.allAvailable && health?.brandConfig?.synced
                 ? ''
                 : health?.status !== 'healthy' ? 'error' : 'warning'
-            }`} id="overallHealthBadge">
+              }`} id="overallHealthBadge">
               {health?.status === 'healthy' && health?.models?.allConfiguredModelsAvailable && health?.tools?.allAvailable && health?.brandConfig?.synced
                 ? '全部正常'
                 : health?.status !== 'healthy' ? '服务异常' : health ? '部分异常' : '检查中...'}

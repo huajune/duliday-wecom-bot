@@ -6,6 +6,7 @@ import { MessageService } from './message.service';
 import { MessageProcessor } from './message.processor';
 import { AgentModule } from '@agent';
 import { MessageSenderModule } from '../message-sender/message-sender.module';
+import { SupabaseModule } from '@core/supabase';
 
 // 导入子服务
 import { MessageDeduplicationService } from './services/message-deduplication.service';
@@ -33,42 +34,76 @@ import { MessageCallbackAdapterService } from './services/message-callback-adapt
     ConfigModule,
     AgentModule,
     MessageSenderModule,
-    // 配置 Bull 队列
+    SupabaseModule, // Agent 回复策略配置
+    // 配置 Bull 队列（始终启用）
     BullModule.forRootAsync({
       imports: [ConfigModule],
       useFactory: async (configService: ConfigService) => {
-        const enableBull = configService.get<string>('ENABLE_BULL_QUEUE', 'false') === 'true';
+        // 优先使用 Upstash TCP 连接
+        let upstashTcpUrl = configService.get<string>('UPSTASH_REDIS_TCP_URL');
 
-        if (!enableBull) {
-          // 如果未启用 Bull，返回空配置（降级到内存队列）
-          return {};
+        // 自动清理被污染的环境变量（如 REDIS_URL="rediss://..." 格式）
+        if (upstashTcpUrl && !upstashTcpUrl.startsWith('redis')) {
+          const cleanMatch = upstashTcpUrl.match(/(rediss?:\/\/[^"]+)/);
+          if (cleanMatch) {
+            console.log('[BullModule] 检测到被污染的 URL，已自动清理');
+            upstashTcpUrl = cleanMatch[1];
+          }
         }
 
-        // 优先使用 Upstash TCP 连接
-        const upstashTcpUrl = configService.get<string>('UPSTASH_REDIS_TCP_URL');
         if (upstashTcpUrl) {
-          return {
-            redis: upstashTcpUrl,
-            defaultJobOptions: {
-              removeOnComplete: 100, // 保留最近 100 个完成的任务
-              removeOnFail: 1000, // 保留最近 1000 个失败的任务（用于排查）
-            },
-          };
+          // 解析 Upstash URL: rediss://default:password@host:port
+          // 使用正则解析，因为 new URL() 不支持 rediss: 协议
+          const match = upstashTcpUrl.match(/^(rediss?):\/\/(?:([^:]+):)?([^@]+)@([^:]+):(\d+)$/);
+          if (match) {
+            const [, protocol, , password, host, port] = match;
+            console.log('[BullModule] 使用 Upstash Redis:', host, port);
+            return {
+              redis: {
+                host,
+                port: parseInt(port, 10),
+                password,
+                tls: protocol === 'rediss' ? {} : undefined,
+                maxRetriesPerRequest: null, // Upstash 需要
+                enableReadyCheck: false, // Upstash 需要
+              },
+              defaultJobOptions: {
+                removeOnComplete: 100, // 保留最近 100 个完成的任务
+                removeOnFail: 1000, // 保留最近 1000 个失败的任务（用于排查）
+              },
+            };
+          } else {
+            console.log('[BullModule] Upstash URL 格式无法解析');
+          }
         }
 
         // 其次使用通用 REDIS_URL
         const redisUrl = configService.get<string>('REDIS_URL');
         if (redisUrl) {
-          return {
-            redis: redisUrl,
-            defaultJobOptions: {
-              removeOnComplete: 100,
-              removeOnFail: 1000,
-            },
-          };
+          // 解析 Redis URL
+          const match = redisUrl.match(/^(rediss?):\/\/(?:([^:]+):)?([^@]+)@([^:]+):(\d+)$/);
+          if (match) {
+            const [, protocol, , password, host, port] = match;
+            console.log('[BullModule] 使用通用 REDIS_URL:', host, port);
+            return {
+              redis: {
+                host,
+                port: parseInt(port, 10),
+                password: password || undefined,
+                tls: protocol === 'rediss' ? {} : undefined,
+                maxRetriesPerRequest: null,
+                enableReadyCheck: false,
+              },
+              defaultJobOptions: {
+                removeOnComplete: 100,
+                removeOnFail: 1000,
+              },
+            };
+          }
         }
 
-        // 最后使用分离的配置（兜底）
+        // 最后使用分离的配置（兜底：本地 Redis）
+        console.log('[BullModule] 使用本地 Redis 配置 (fallback)');
         return {
           redis: {
             host: configService.get<string>('REDIS_HOST', 'localhost'),
@@ -121,6 +156,6 @@ import { MessageCallbackAdapterService } from './services/message-callback-adapt
     FallbackMessageService, // 用户降级话术集中管理
     MessageCallbackAdapterService, // 消息回调适配器（支持小组级和企业级格式）
   ],
-  exports: [MessageService, MessageFilterService, MessageHistoryService],
+  exports: [MessageService, MessageFilterService, MessageHistoryService, MessageProcessor],
 })
 export class MessageModule {}

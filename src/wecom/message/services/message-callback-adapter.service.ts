@@ -104,12 +104,16 @@ export class MessageCallbackAdapterService {
     switch (callbackType) {
       case 'enterprise':
         // 已经是企业级格式，直接返回
+        // 注意：企业级格式没有 _apiType 字段，默认使用企业级 API
+        this.logger.debug(`企业级回调：未设置 _apiType（将使用企业级 API）`);
         return body as EnterpriseMessageCallbackDto;
 
       case 'group':
         // 小组级格式，需要转换
         const wrapper = body as GroupMessageCallbackWrapperDto;
-        return this.convertGroupToEnterprise(wrapper.data);
+        const converted = this.convertGroupToEnterprise(wrapper.data);
+        this.logger.debug(`小组级回调：设置 _apiType='group'（将使用小组级 API）`);
+        return converted;
 
       case 'unknown':
         this.logger.warn('未知的回调格式，尝试作为企业级格式处理', {

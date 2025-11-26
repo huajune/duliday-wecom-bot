@@ -100,6 +100,10 @@ export class ApiConfigService {
     bot: {
       list: () => this.buildApiUrl('/bot/list'),
     },
+    // 小组相关（使用企业级 API）
+    group: {
+      list: () => this.buildApiUrl('/group/list', 'enterprise-v2'),
+    },
     // 客户相关（使用 v2 API）
     customer: {
       list: () => this.buildApiUrl('/customer/list', 'v2'),

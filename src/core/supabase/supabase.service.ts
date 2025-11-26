@@ -10,7 +10,53 @@ import { RedisService } from '@core/redis';
 export enum SystemConfigKey {
   AI_REPLY_ENABLED = 'ai_reply_enabled',
   GROUP_BLACKLIST = 'group_blacklist',
+  AGENT_REPLY_CONFIG = 'agent_reply_config',
+  SYSTEM_CONFIG = 'system_config',
 }
+
+/**
+ * 系统配置接口
+ */
+export interface SystemConfig {
+  workerConcurrency?: number; // Worker 并发数 (1-20)
+}
+
+/**
+ * Agent 回复策略配置
+ */
+export interface AgentReplyConfig {
+  // 消息聚合配置
+  initialMergeWindowMs: number; // 首次聚合等待时间（毫秒）
+  maxMergedMessages: number; // 最多聚合消息数
+
+  // 打字延迟配置
+  typingDelayPerCharMs: number; // 每字符延迟（毫秒）
+  paragraphGapMs: number; // 段落间隔（毫秒）
+
+  // 告警节流配置
+  alertThrottleWindowMs: number; // 告警节流窗口（毫秒）
+  alertThrottleMaxCount: number; // 窗口内最大告警次数
+
+  // 业务指标告警开关
+  businessAlertEnabled: boolean; // 是否启用业务指标告警
+  minSamplesForAlert: number; // 最小样本量（低于此值不检查）
+  alertIntervalMinutes: number; // 同类告警最小间隔（分钟）
+}
+
+/**
+ * Agent 回复策略配置默认值
+ */
+export const DEFAULT_AGENT_REPLY_CONFIG: AgentReplyConfig = {
+  initialMergeWindowMs: 1000,
+  maxMergedMessages: 3,
+  typingDelayPerCharMs: 100,
+  paragraphGapMs: 2000,
+  alertThrottleWindowMs: 5 * 60 * 1000, // 5 分钟
+  alertThrottleMaxCount: 3,
+  businessAlertEnabled: true, // 默认启用
+  minSamplesForAlert: 10, // 至少 10 条消息才检查
+  alertIntervalMinutes: 30, // 同类告警间隔 30 分钟
+};
 
 /**
  * 小组黑名单项
@@ -65,6 +111,14 @@ export class SupabaseService implements OnModuleInit {
   private groupBlacklistCacheExpiry = 0;
   private readonly GROUP_BLACKLIST_CACHE_TTL = 300; // 5分钟
 
+  // Agent 回复策略配置缓存
+  private agentReplyConfig: AgentReplyConfig | null = null;
+  private agentReplyConfigExpiry = 0;
+  private readonly AGENT_REPLY_CONFIG_CACHE_TTL = 60; // 1分钟（允许快速生效）
+
+  // 配置变更回调列表
+  private readonly configChangeCallbacks: Array<(config: AgentReplyConfig) => void> = [];
+
   // 配置
   private supabaseUrl: string;
   private isInitialized = false;
@@ -84,6 +138,8 @@ export class SupabaseService implements OnModuleInit {
     await this.loadPausedUsers();
     // 预加载小组黑名单
     await this.loadGroupBlacklist();
+    // 预加载 Agent 回复策略配置
+    await this.loadAgentReplyConfig();
     this.logger.log('✅ Supabase 服务初始化完成');
   }
 
@@ -437,10 +493,12 @@ export class SupabaseService implements OnModuleInit {
     this.aiReplyEnabled = null;
     this.pausedUsersCacheExpiry = 0;
     this.groupBlacklistCacheExpiry = 0;
+    this.agentReplyConfigExpiry = 0;
 
     await this.loadAiReplyStatus();
     await this.loadPausedUsers();
     await this.loadGroupBlacklist();
+    await this.loadAgentReplyConfig();
 
     this.logger.log('所有缓存已刷新');
   }
@@ -606,6 +664,263 @@ export class SupabaseService implements OnModuleInit {
         this.logger.error('保存小组黑名单到数据库失败', error);
       }
     }
+  }
+
+  // ==================== Agent 回复策略配置 ====================
+
+  /**
+   * 从数据库加载 Agent 回复策略配置
+   */
+  private async loadAgentReplyConfig(): Promise<AgentReplyConfig> {
+    // 1. 先尝试从 Redis 加载
+    const cacheKey = `${this.CACHE_PREFIX}config:agent_reply_config`;
+    const cached = await this.redisService.get<AgentReplyConfig>(cacheKey);
+
+    if (cached) {
+      this.agentReplyConfig = { ...DEFAULT_AGENT_REPLY_CONFIG, ...cached };
+      this.agentReplyConfigExpiry = Date.now() + this.AGENT_REPLY_CONFIG_CACHE_TTL * 1000;
+      this.logger.debug('已从 Redis 加载 Agent 回复策略配置');
+      return this.agentReplyConfig;
+    }
+
+    // 2. 从数据库加载
+    if (!this.isInitialized) {
+      this.agentReplyConfig = { ...DEFAULT_AGENT_REPLY_CONFIG };
+      this.agentReplyConfigExpiry = Date.now() + this.AGENT_REPLY_CONFIG_CACHE_TTL * 1000;
+      return this.agentReplyConfig;
+    }
+
+    try {
+      const response = await this.supabaseHttpClient.get('/system_config', {
+        params: {
+          key: 'eq.agent_reply_config',
+          select: 'value',
+        },
+      });
+
+      if (response.data && response.data.length > 0) {
+        const dbConfig = response.data[0].value;
+        this.agentReplyConfig = { ...DEFAULT_AGENT_REPLY_CONFIG, ...dbConfig };
+      } else {
+        // 数据库中没有记录，使用默认值并初始化
+        this.agentReplyConfig = { ...DEFAULT_AGENT_REPLY_CONFIG };
+        await this.initAgentReplyConfig();
+      }
+
+      // 更新 Redis 缓存
+      await this.redisService.setex(
+        cacheKey,
+        this.AGENT_REPLY_CONFIG_CACHE_TTL,
+        this.agentReplyConfig,
+      );
+
+      this.agentReplyConfigExpiry = Date.now() + this.AGENT_REPLY_CONFIG_CACHE_TTL * 1000;
+      this.logger.log('Agent 回复策略配置已加载');
+      return this.agentReplyConfig;
+    } catch (error) {
+      this.logger.error('加载 Agent 回复策略配置失败，使用默认值', error);
+      this.agentReplyConfig = { ...DEFAULT_AGENT_REPLY_CONFIG };
+      this.agentReplyConfigExpiry = Date.now() + 30000; // 30秒后重试
+      return this.agentReplyConfig;
+    }
+  }
+
+  /**
+   * 初始化 Agent 回复策略配置（首次运行时）
+   */
+  private async initAgentReplyConfig(): Promise<void> {
+    if (!this.isInitialized) return;
+
+    try {
+      await this.supabaseHttpClient.post('/system_config', {
+        key: 'agent_reply_config',
+        value: DEFAULT_AGENT_REPLY_CONFIG,
+        description: 'Agent 回复策略配置（消息聚合、打字延迟、告警节流）',
+      });
+      this.logger.log('Agent 回复策略配置已初始化到数据库');
+    } catch (error: any) {
+      // 忽略重复键错误
+      if (error.response?.status !== 409) {
+        this.logger.error('初始化 Agent 回复策略配置失败', error);
+      }
+    }
+  }
+
+  /**
+   * 获取 Agent 回复策略配置
+   * 优先级：内存缓存 -> Redis缓存 -> 数据库 -> 默认值
+   */
+  async getAgentReplyConfig(): Promise<AgentReplyConfig> {
+    // 1. 检查内存缓存是否有效
+    if (this.agentReplyConfig && Date.now() < this.agentReplyConfigExpiry) {
+      return this.agentReplyConfig;
+    }
+
+    // 2. 重新加载
+    return this.loadAgentReplyConfig();
+  }
+
+  /**
+   * 更新 Agent 回复策略配置
+   */
+  async setAgentReplyConfig(config: Partial<AgentReplyConfig>): Promise<AgentReplyConfig> {
+    // 合并配置
+    const newConfig: AgentReplyConfig = {
+      ...(this.agentReplyConfig || DEFAULT_AGENT_REPLY_CONFIG),
+      ...config,
+    };
+
+    // 更新内存缓存
+    this.agentReplyConfig = newConfig;
+    this.agentReplyConfigExpiry = Date.now() + this.AGENT_REPLY_CONFIG_CACHE_TTL * 1000;
+
+    // 更新 Redis 缓存
+    const cacheKey = `${this.CACHE_PREFIX}config:agent_reply_config`;
+    await this.redisService.setex(cacheKey, this.AGENT_REPLY_CONFIG_CACHE_TTL, newConfig);
+
+    // 更新数据库
+    if (this.isInitialized) {
+      try {
+        // 先尝试更新
+        const updateResponse = await this.supabaseHttpClient.patch(
+          '/system_config',
+          { value: newConfig },
+          {
+            params: { key: 'eq.agent_reply_config' },
+          },
+        );
+
+        // 如果没有更新到任何记录，则插入
+        if (!updateResponse.data || updateResponse.data.length === 0) {
+          await this.supabaseHttpClient.post('/system_config', {
+            key: 'agent_reply_config',
+            value: newConfig,
+            description: 'Agent 回复策略配置（消息聚合、打字延迟、告警节流）',
+          });
+        }
+
+        this.logger.log('Agent 回复策略配置已更新');
+      } catch (error) {
+        this.logger.error('更新 Agent 回复策略配置到数据库失败', error);
+        // 即使数据库更新失败，内存和 Redis 缓存已更新，服务仍可正常工作
+      }
+    }
+
+    // 通知所有订阅者配置已变更
+    this.notifyConfigChange(newConfig);
+
+    return newConfig;
+  }
+
+  /**
+   * 注册配置变更回调
+   * 用于服务在配置变更时更新本地配置
+   */
+  onAgentReplyConfigChange(callback: (config: AgentReplyConfig) => void): void {
+    this.configChangeCallbacks.push(callback);
+  }
+
+  /**
+   * 通知所有订阅者配置已变更
+   */
+  private notifyConfigChange(config: AgentReplyConfig): void {
+    for (const callback of this.configChangeCallbacks) {
+      try {
+        callback(config);
+      } catch (error) {
+        this.logger.error('配置变更回调执行失败', error);
+      }
+    }
+  }
+
+  // ==================== 系统配置（Worker 并发数等） ====================
+
+  /**
+   * 获取系统配置
+   */
+  async getSystemConfig(): Promise<SystemConfig | null> {
+    // 1. 先尝试从 Redis 加载
+    const cacheKey = `${this.CACHE_PREFIX}config:system_config`;
+    const cached = await this.redisService.get<SystemConfig>(cacheKey);
+
+    if (cached) {
+      return cached;
+    }
+
+    // 2. 从数据库加载
+    if (!this.isInitialized) {
+      return null;
+    }
+
+    try {
+      const response = await this.supabaseHttpClient.get('/system_config', {
+        params: {
+          key: 'eq.system_config',
+          select: 'value',
+        },
+      });
+
+      if (response.data && response.data.length > 0) {
+        const config = response.data[0].value as SystemConfig;
+
+        // 更新 Redis 缓存
+        await this.redisService.setex(cacheKey, this.CONFIG_CACHE_TTL, config);
+
+        return config;
+      }
+
+      return null;
+    } catch (error) {
+      this.logger.error('获取系统配置失败', error);
+      return null;
+    }
+  }
+
+  /**
+   * 更新系统配置
+   */
+  async updateSystemConfig(config: Partial<SystemConfig>): Promise<SystemConfig> {
+    // 获取现有配置
+    const existingConfig = (await this.getSystemConfig()) || {};
+
+    // 合并配置
+    const newConfig: SystemConfig = {
+      ...existingConfig,
+      ...config,
+    };
+
+    // 更新 Redis 缓存
+    const cacheKey = `${this.CACHE_PREFIX}config:system_config`;
+    await this.redisService.setex(cacheKey, this.CONFIG_CACHE_TTL, newConfig);
+
+    // 更新数据库
+    if (this.isInitialized) {
+      try {
+        // 先尝试更新
+        const updateResponse = await this.supabaseHttpClient.patch(
+          '/system_config',
+          { value: newConfig },
+          {
+            params: { key: 'eq.system_config' },
+          },
+        );
+
+        // 如果没有更新到任何记录，则插入
+        if (!updateResponse.data || updateResponse.data.length === 0) {
+          await this.supabaseHttpClient.post('/system_config', {
+            key: 'system_config',
+            value: newConfig,
+            description: '系统配置（Worker 并发数等）',
+          });
+        }
+
+        this.logger.log(`系统配置已更新: ${JSON.stringify(config)}`);
+      } catch (error) {
+        this.logger.error('更新系统配置到数据库失败', error);
+      }
+    }
+
+    return newConfig;
   }
 
   // ==================== 监控数据持久化 ====================

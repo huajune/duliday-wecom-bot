@@ -1,53 +1,134 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { MonitoringService } from './monitoring.service';
 import { AlertService } from '../alert/alert.service';
+import { SupabaseService, AgentReplyConfig } from '@core/supabase';
 
 /**
  * 监控告警服务（简化版）
  *
  * 定期检查业务指标，发现异常时主动告警
- * 阈值硬编码，无需外部配置
+ * 阈值硬编码，仅支持配置开关、最小样本量和告警间隔
+ *
+ * 触发条件：
+ * - 成功率告警：今日消息数 >= minSamples 且成功率低于阈值
+ * - 响应时间告警：今日消息数 >= minSamples 且平均响应时间高于阈值
+ * - 队列积压告警：当前队列深度高于阈值
+ * - 错误率告警：24 小时错误数高于阈值
  */
 @Injectable()
-export class MonitoringAlertService {
+export class MonitoringAlertService implements OnModuleInit {
   private readonly logger = new Logger(MonitoringAlertService.name);
 
-  // 告警阈值（硬编码）
+  // ===== 硬编码的告警阈值（无需配置） =====
   private readonly THRESHOLDS = {
-    successRate: { warning: 90, critical: 80 }, // 百分比
-    avgDuration: { warning: 5000, critical: 10000 }, // 毫秒
-    queueDepth: { warning: 50, critical: 100 }, // 条数
-    errorRate: { warning: 10, critical: 20 }, // 每小时错误数
+    // 成功率（百分比）
+    successRateWarning: 90,
+    successRateCritical: 80,
+    // 响应时间（毫秒）
+    avgDurationWarning: 30000, // 30 秒
+    avgDurationCritical: 60000, // 60 秒
+    // 队列深度（条数）
+    queueDepthWarning: 10,
+    queueDepthCritical: 20,
+    // 错误率（每小时）
+    errorRateWarning: 5,
+    errorRateCritical: 10,
   };
+
+  // ===== 可配置项（从 Supabase 读取） =====
+  private enabled = true; // 是否启用业务指标告警
+  private minSamples = 10; // 最小样本量
+  private alertIntervalMinutes = 30; // 同类告警最小间隔（分钟）
 
   // 状态追踪（避免重复告警）
   private lastAlertTimestamps = new Map<string, number>();
-  private readonly MIN_ALERT_INTERVAL = 5 * 60 * 1000; // 最小告警间隔：5分钟
 
   constructor(
     private readonly monitoringService: MonitoringService,
     private readonly alertService: AlertService,
-  ) {}
+    private readonly supabaseService: SupabaseService,
+  ) {
+    // 注册配置变更回调
+    this.supabaseService.onAgentReplyConfigChange((config) => {
+      this.onConfigChange(config);
+    });
+  }
 
   /**
-   * 每分钟检查一次业务指标
+   * 模块初始化：从 Supabase 加载配置
    */
-  @Cron(CronExpression.EVERY_MINUTE)
+  async onModuleInit() {
+    try {
+      const config = await this.supabaseService.getAgentReplyConfig();
+      this.applyConfig(config);
+      this.logger.log(
+        `业务指标告警配置: 启用=${this.enabled}, 最小样本=${this.minSamples}, 告警间隔=${this.alertIntervalMinutes}分钟`,
+      );
+    } catch (error) {
+      this.logger.warn('从 Supabase 加载告警配置失败，使用默认值');
+    }
+  }
+
+  /**
+   * 应用配置
+   */
+  private applyConfig(config: AgentReplyConfig): void {
+    this.enabled = config.businessAlertEnabled ?? true;
+    this.minSamples = config.minSamplesForAlert ?? 10;
+    this.alertIntervalMinutes = config.alertIntervalMinutes ?? 30;
+  }
+
+  /**
+   * 配置变更回调
+   */
+  private onConfigChange(config: AgentReplyConfig): void {
+    const oldEnabled = this.enabled;
+    const oldMinSamples = this.minSamples;
+    const oldInterval = this.alertIntervalMinutes;
+
+    this.applyConfig(config);
+
+    // 检查是否有变化
+    if (
+      oldEnabled !== this.enabled ||
+      oldMinSamples !== this.minSamples ||
+      oldInterval !== this.alertIntervalMinutes
+    ) {
+      this.logger.log(
+        `业务指标告警配置已更新: 启用=${this.enabled}, 最小样本=${this.minSamples}, 告警间隔=${this.alertIntervalMinutes}分钟`,
+      );
+    }
+  }
+
+  /**
+   * 每 5 分钟检查一次业务指标
+   */
+  @Cron(CronExpression.EVERY_5_MINUTES)
   async checkBusinessMetrics(): Promise<void> {
+    // 如果告警已禁用，直接返回
+    if (!this.enabled) {
+      return;
+    }
+
     try {
       const dashboard = this.monitoringService.getDashboardData();
+      const totalMessages = dashboard.overview.totalMessages;
 
-      // 1. 成功率告警
-      await this.checkSuccessRate(dashboard.overview.successRate);
+      // 1. 成功率告警（需要足够样本量）
+      if (totalMessages >= this.minSamples) {
+        await this.checkSuccessRate(dashboard.overview.successRate, totalMessages);
+      }
 
-      // 2. 响应时间告警
-      await this.checkAvgDuration(dashboard.overview.avgDuration);
+      // 2. 响应时间告警（需要足够样本量）
+      if (totalMessages >= this.minSamples) {
+        await this.checkAvgDuration(dashboard.overview.avgDuration, totalMessages);
+      }
 
-      // 3. 队列积压告警
+      // 3. 队列积压告警（实时指标，无需样本量）
       await this.checkQueueDepth(dashboard.queue.currentProcessing);
 
-      // 4. 错误率告警
+      // 4. 错误率告警（累计指标）
       await this.checkErrorRate(dashboard.alertsSummary.last24Hours);
     } catch (error) {
       this.logger.error(`业务指标检查失败: ${error.message}`);
@@ -57,15 +138,20 @@ export class MonitoringAlertService {
   /**
    * 检查成功率
    */
-  private async checkSuccessRate(currentValue: number): Promise<void> {
-    const { warning, critical } = this.THRESHOLDS.successRate;
+  private async checkSuccessRate(currentValue: number, totalMessages: number): Promise<void> {
+    const { successRateWarning: warning, successRateCritical: critical } = this.THRESHOLDS;
     const key = 'success-rate';
+
+    // NaN 或无效值不触发告警
+    if (!Number.isFinite(currentValue)) {
+      return;
+    }
 
     if (currentValue < critical) {
       if (this.shouldSendAlert(key)) {
         await this.alertService.sendSimpleAlert(
           '成功率严重下降',
-          `当前成功率: ${currentValue.toFixed(1)}%\n阈值: ${critical}%\n建议: 立即检查 Agent API 状态`,
+          `当前成功率: ${currentValue.toFixed(1)}%\n阈值: ${critical}%\n今日消息数: ${totalMessages}\n建议: 立即检查 Agent API 状态`,
           'critical',
         );
         this.recordAlertSent(key);
@@ -74,7 +160,7 @@ export class MonitoringAlertService {
       if (this.shouldSendAlert(key)) {
         await this.alertService.sendSimpleAlert(
           '成功率下降',
-          `当前成功率: ${currentValue.toFixed(1)}%\n阈值: ${warning}%`,
+          `当前成功率: ${currentValue.toFixed(1)}%\n阈值: ${warning}%\n今日消息数: ${totalMessages}`,
           'warning',
         );
         this.recordAlertSent(key);
@@ -85,15 +171,20 @@ export class MonitoringAlertService {
   /**
    * 检查响应时间
    */
-  private async checkAvgDuration(currentValue: number): Promise<void> {
-    const { warning, critical } = this.THRESHOLDS.avgDuration;
+  private async checkAvgDuration(currentValue: number, totalMessages: number): Promise<void> {
+    const { avgDurationWarning: warning, avgDurationCritical: critical } = this.THRESHOLDS;
     const key = 'avg-duration';
+
+    // NaN 或无效值不触发告警
+    if (!Number.isFinite(currentValue) || currentValue <= 0) {
+      return;
+    }
 
     if (currentValue > critical) {
       if (this.shouldSendAlert(key)) {
         await this.alertService.sendSimpleAlert(
           '响应时间过长',
-          `当前平均响应: ${(currentValue / 1000).toFixed(1)}秒\n阈值: ${critical / 1000}秒\n建议: 检查 Agent API 性能`,
+          `当前平均响应: ${(currentValue / 1000).toFixed(1)}秒\n阈值: ${critical / 1000}秒\n今日消息数: ${totalMessages}\n建议: 检查 Agent API 性能`,
           'critical',
         );
         this.recordAlertSent(key);
@@ -102,7 +193,7 @@ export class MonitoringAlertService {
       if (this.shouldSendAlert(key)) {
         await this.alertService.sendSimpleAlert(
           '响应时间偏高',
-          `当前平均响应: ${(currentValue / 1000).toFixed(1)}秒\n阈值: ${warning / 1000}秒`,
+          `当前平均响应: ${(currentValue / 1000).toFixed(1)}秒\n阈值: ${warning / 1000}秒\n今日消息数: ${totalMessages}`,
           'warning',
         );
         this.recordAlertSent(key);
@@ -114,7 +205,7 @@ export class MonitoringAlertService {
    * 检查队列深度
    */
   private async checkQueueDepth(currentValue: number): Promise<void> {
-    const { warning, critical } = this.THRESHOLDS.queueDepth;
+    const { queueDepthWarning: warning, queueDepthCritical: critical } = this.THRESHOLDS;
     const key = 'queue-depth';
 
     if (currentValue > critical) {
@@ -142,7 +233,7 @@ export class MonitoringAlertService {
    * 检查错误率
    */
   private async checkErrorRate(errorCount: number): Promise<void> {
-    const { warning, critical } = this.THRESHOLDS.errorRate;
+    const { errorRateWarning: warning, errorRateCritical: critical } = this.THRESHOLDS;
     const key = 'error-rate';
 
     // 将 24 小时错误数转换为每小时平均
@@ -175,7 +266,9 @@ export class MonitoringAlertService {
   private shouldSendAlert(key: string): boolean {
     const lastTime = this.lastAlertTimestamps.get(key);
     if (!lastTime) return true;
-    return Date.now() - lastTime > this.MIN_ALERT_INTERVAL;
+    // 使用动态配置的告警间隔（分钟转毫秒）
+    const minIntervalMs = this.alertIntervalMinutes * 60 * 1000;
+    return Date.now() - lastTime > minIntervalMs;
   }
 
   /**

@@ -18,14 +18,17 @@ export class MessageSplitter {
     const lineSegments = text.split(/(?:\r?\n){2,}/);
 
     // 对每一段再按"～"符号拆分
+    // 只拆分后面跟着中文、标点、空白或 * 的～(作为分隔符),不拆分夹在数字/字母之间的～
     const allSegments: string[] = [];
     for (const segment of lineSegments) {
       const trimmedSegment = segment.trim();
       if (!trimmedSegment) continue;
 
-      // 按"～"拆分，但保留数字范围中的～（如 22～24k）
-      // 使用负向前瞻：只拆分后面不是数字的～
-      const tildeSegments = trimmedSegment.split(/～(?!\d)/);
+      // 按"～"拆分，但只拆分作为分隔符的～(后面跟着中文、标点、空白或*)
+      // 保留"～"在前一个片段的末尾
+      const tildeSegments = trimmedSegment.split(
+        /(?<=～(?=[\u4e00-\u9fa5\s*？！，。：；""''、（）【】《》…—·\u3000]))/,
+      );
       allSegments.push(...tildeSegments);
     }
 

@@ -32,8 +32,8 @@ export interface AgentReply {
     used: string[];
     skipped: string[];
   };
-  /** 原始响应数据 */
-  rawResponse: ChatResponse;
+  /** 原始响应数据（可选，仅供调试使用） */
+  rawResponse?: ChatResponse;
 }
 
 /**

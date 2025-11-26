@@ -8,6 +8,10 @@ import type {
   BlacklistData,
   UserInfo,
   MessageRecord,
+  AgentReplyConfig,
+  AgentReplyConfigResponse,
+  WorkerStatus,
+  WorkerConcurrencyResponse,
 } from '@/types/monitoring';
 
 const api = axios.create({
@@ -263,38 +267,6 @@ export function useClearData() {
   });
 }
 
-// 刷新缓存
-export function useRefreshCache() {
-  return useMutation({
-    mutationFn: async () => {
-      const { data } = await api.post('/monitoring/cache/refresh');
-      return unwrapResponse(data);
-    },
-    onSuccess: () => {
-      toast.success('缓存已刷新');
-    },
-    onError: () => {
-      toast.error('刷新缓存失败');
-    },
-  });
-}
-
-// 清空去重缓存
-export function useClearDeduplication() {
-  return useMutation({
-    mutationFn: async () => {
-      const { data } = await api.post('/message/cache/clear');
-      return unwrapResponse(data);
-    },
-    onSuccess: () => {
-      toast.success('去重缓存已清空');
-    },
-    onError: () => {
-      toast.error('清空去重缓存失败');
-    },
-  });
-}
-
 // 系统信息
 export function useSystemInfo() {
   return useQuery({
@@ -304,5 +276,111 @@ export function useSystemInfo() {
       return unwrapResponse(data) as import('@/types/monitoring').SystemInfo;
     },
     refetchInterval: 30000, // 每 30 秒刷新
+  });
+}
+
+// ==================== Agent 回复策略配置 ====================
+
+// 获取 Agent 回复策略配置
+export function useAgentReplyConfig() {
+  return useQuery({
+    queryKey: ['agent-reply-config'],
+    queryFn: async () => {
+      const { data } = await api.get('/monitoring/agent-config');
+      return unwrapResponse<AgentReplyConfigResponse>(data);
+    },
+  });
+}
+
+// 更新 Agent 回复策略配置
+export function useUpdateAgentReplyConfig() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (config: Partial<AgentReplyConfig>) => {
+      const { data } = await api.post('/monitoring/agent-config', config);
+      return unwrapResponse<{ config: AgentReplyConfig; message: string }>(data);
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['agent-reply-config'] });
+      toast.success(data.message || '配置已更新');
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || '更新配置失败');
+    },
+  });
+}
+
+// 重置 Agent 回复策略配置为默认值
+export function useResetAgentReplyConfig() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      const { data } = await api.post('/monitoring/agent-config/reset');
+      return unwrapResponse<{ config: AgentReplyConfig; message: string }>(data);
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['agent-reply-config'] });
+      toast.success(data.message || '配置已重置');
+    },
+    onError: () => {
+      toast.error('重置配置失败');
+    },
+  });
+}
+
+// ==================== Worker 并发管理 ====================
+
+// 获取 Worker 状态
+export function useWorkerStatus(autoRefresh = true) {
+  return useQuery({
+    queryKey: ['worker-status'],
+    queryFn: async () => {
+      const { data } = await api.get('/monitoring/worker-status');
+      return unwrapResponse<WorkerStatus>(data);
+    },
+    refetchInterval: autoRefresh ? 5000 : false,
+  });
+}
+
+// 设置 Worker 并发数
+export function useSetWorkerConcurrency() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (concurrency: number) => {
+      const { data } = await api.post('/monitoring/worker-concurrency', { concurrency });
+      return unwrapResponse<WorkerConcurrencyResponse>(data);
+    },
+    onMutate: async (concurrency) => {
+      // 取消正在进行的查询
+      await queryClient.cancelQueries({ queryKey: ['worker-status'] });
+      // 保存之前的状态
+      const previousStatus = queryClient.getQueryData<WorkerStatus>(['worker-status']);
+      // 乐观更新 - 立即更新 UI
+      if (previousStatus) {
+        queryClient.setQueryData<WorkerStatus>(['worker-status'], {
+          ...previousStatus,
+          concurrency,
+        });
+      }
+      return { previousStatus };
+    },
+    onSuccess: (data) => {
+      if (data.success) {
+        toast.success(data.message || '并发数已更新');
+      } else {
+        toast.error(data.message || '更新失败');
+      }
+    },
+    onError: (_err, _concurrency, context) => {
+      // 出错时回滚到之前的状态
+      if (context?.previousStatus) {
+        queryClient.setQueryData(['worker-status'], context.previousStatus);
+      }
+      toast.error('设置并发数失败');
+    },
+    onSettled: () => {
+      // 无论成功失败，最终都重新获取最新状态
+      queryClient.invalidateQueries({ queryKey: ['worker-status'] });
+    },
   });
 }

@@ -113,6 +113,21 @@ export interface MonitoringMetadata {
   replySegments?: number;
   isFallback?: boolean;
   alertType?: AlertErrorType;
+  // 完整 Agent 响应
+  rawAgentResponse?: {
+    content: string;
+    usage?: {
+      inputTokens: number;
+      outputTokens: number;
+      totalTokens: number;
+    };
+    tools?: {
+      used: string[];
+      skipped: string[];
+    };
+    isFallback?: boolean;
+    fallbackReason?: string;
+  };
 }
 
 /**
@@ -152,6 +167,22 @@ export interface MessageProcessingRecord {
   tools?: string[]; // 使用的工具
   replySegments?: number; // 实际发送的回复条数
   alertType?: AlertErrorType;
+
+  // 完整 Agent 响应（用于排障）
+  rawAgentResponse?: {
+    content: string; // 完整回复内容
+    usage?: {
+      inputTokens: number;
+      outputTokens: number;
+      totalTokens: number;
+    };
+    tools?: {
+      used: string[];
+      skipped: string[];
+    };
+    isFallback?: boolean;
+    fallbackReason?: string;
+  };
 }
 export interface AlertTypeMetric {
   type: AlertErrorType | 'unknown';

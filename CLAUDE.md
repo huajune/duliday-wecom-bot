@@ -132,25 +132,64 @@ Response format:
 - Success: `{ success: true, data: {...}, timestamp: '...' }`
 - Error: `{ success: false, error: { code, message }, timestamp: '...' }`
 
-### 5. Configuration Approach
-The system uses environment variables for configuration with sensible defaults:
+### 5. Configuration Strategy
 
-**Environment Config** (`src/core/config/`)
-- `env.validation.ts` - Type-safe environment variable validation
-- `.env.example` - Simplified ~85 lines (down from 300+)
-- Most settings have defaults, only secrets/URLs required
+配置分为三层，按变更频率和安全性分类：
 
-**Alert System** (`src/core/alert/`)
-- Simplified to single `AlertService` (~300 lines)
-- Hardcoded throttling: 5-min window, max 3 alerts per type
-- No external config files needed
+#### Layer 1: 必填环境变量（密钥/URL）
+**特点**：敏感信息，必须手动配置，不能有默认值
+
+| 变量 | 说明 | 来源 |
+|------|------|------|
+| `AGENT_API_KEY` | AI Agent API 密钥 | 花卷平台 |
+| `AGENT_API_BASE_URL` | AI Agent API 地址 | 花卷平台 |
+| `UPSTASH_REDIS_REST_URL` | Redis REST API URL | Upstash |
+| `UPSTASH_REDIS_REST_TOKEN` | Redis REST Token | Upstash |
+| `DULIDAY_API_TOKEN` | 杜力岱 API Token | 内部系统 |
+| `STRIDE_API_BASE_URL` | 托管平台 API | Stride |
+| `FEISHU_ALERT_WEBHOOK_URL` | 飞书告警 Webhook | 飞书机器人 |
+| `FEISHU_ALERT_SECRET` | 飞书签名密钥 | 飞书机器人 |
+| `NEXT_PUBLIC_SUPABASE_URL` | Supabase URL | Supabase |
+| `SUPABASE_SERVICE_ROLE_KEY` | Supabase 密钥 | Supabase |
+
+#### Layer 2: 可选环境变量（有默认值）
+**特点**：代码中有默认值，按需覆盖
+
+| 变量 | 默认值 | 说明 | 使用位置 |
+|------|--------|------|----------|
+| `PORT` | `8080` | 服务端口 | main.ts |
+| `AGENT_API_TIMEOUT` | `600000` | API 超时 (10min) | agent-api-client |
+| `MAX_HISTORY_PER_CHAT` | `60` | Redis 消息数限制 | message-history |
+| `HISTORY_TTL_MS` | `7200000` | Redis 消息 TTL (2h) | message-history |
+| `INITIAL_MERGE_WINDOW_MS` | `1000` | 聚合等待时间 | message-merge |
+| `MAX_MERGED_MESSAGES` | `3` | 最大聚合条数 | message-merge |
+| `TYPING_DELAY_PER_CHAR_MS` | `100` | 打字延迟/字符 | message-sender |
+| `PARAGRAPH_GAP_MS` | `2000` | 段落间隔 | message-sender |
+
+#### Layer 3: 硬编码默认值（无需配置）
+**特点**：内置于代码，极少需要修改
+
+| 配置 | 值 | 位置 |
+|------|-----|------|
+| 告警节流窗口 | 5 分钟 | AlertService |
+| 告警最大次数 | 3 次/类型 | AlertService |
+| 健康检查间隔 | 1 小时 | AgentRegistryService |
+| 缓存 TTL | 1 小时 | AgentCacheService |
+
+#### 配置文件说明
+- **`.env.example`** - 模板文件，列出所有可配置项
+- **`.env.local`** - 本地开发配置（不提交 Git）
+- **代码默认值** - 在各 Service 的 constructor 中定义
 
 ```typescript
-// Environment config - validated at startup
-this.apiKey = this.configService.get<string>('AGENT_API_KEY');
+// Layer 1: 必填，无默认值
+this.apiKey = this.configService.get<string>('AGENT_API_KEY')!;
 
-// Alert with built-in throttling
-await this.alertService.sendAlert({ errorType: 'agent', error, conversationId });
+// Layer 2: 可选，有默认值
+this.timeout = parseInt(this.configService.get('AGENT_API_TIMEOUT', '600000'));
+
+// Layer 3: 硬编码
+private readonly THROTTLE_WINDOW_MS = 5 * 60 * 1000;
 ```
 
 ## Code Standards
@@ -233,52 +272,35 @@ function test(data: Data): Result { }
 
 ## Environment Configuration
 
-### Required Variables
+配置策略详见上方 [Configuration Strategy](#5-configuration-strategy)。
+
+### 快速开始
+
+1. 复制模板：`cp .env.example .env.local`
+2. 填写必填项（Layer 1 的密钥/URL）
+3. 按需调整可选项（Layer 2 有默认值）
+
+### 最小配置示例
 
 ```bash
-# Application
-PORT=8080
-NODE_ENV=development
-
-# Agent API (Required)
-AGENT_API_KEY=your-api-key-here
-AGENT_API_BASE_URL=http://localhost:3000/api/v1
-AGENT_DEFAULT_MODEL=anthropic/claude-3-5-haiku-latest
-AGENT_CHAT_MODEL=anthropic/claude-sonnet-4-5-20250929
-AGENT_CLASSIFY_MODEL=openai/gpt-4o
-AGENT_REPLY_MODEL=openai/gpt-5-chat-latest
-AGENT_ALLOWED_TOOLS=duliday_job_list,duliday_job_details,duliday_interview_booking
-
-# Redis Cache (Required - Upstash)
+# === Layer 1: 必填 ===
+AGENT_API_KEY=your-key
+AGENT_API_BASE_URL=https://huajune.duliday.com/api/v1
 UPSTASH_REDIS_REST_URL=https://your-redis.upstash.io
-UPSTASH_REDIS_REST_TOKEN=your-token-here
-
-# DuLiDay API (Required)
-DULIDAY_API_TOKEN=your-duliday-token-here
-
-# Hosting Platform (Required)
+UPSTASH_REDIS_REST_TOKEN=your-token
+DULIDAY_API_TOKEN=your-token
 STRIDE_API_BASE_URL=https://stride-bg.dpclouds.com
-STRIDE_ENTERPRISE_API_BASE_URL=https://stride-bg.dpclouds.com/hub-api
+FEISHU_ALERT_WEBHOOK_URL=https://open.feishu.cn/open-apis/bot/v2/hook/xxx
+FEISHU_ALERT_SECRET=your-secret
+NEXT_PUBLIC_SUPABASE_URL=https://xxx.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=your-key
+
+# === Layer 2: 按需覆盖 ===
+# INITIAL_MERGE_WINDOW_MS=3000  # 默认 1000
+# MAX_MERGED_MESSAGES=5         # 默认 3
 ```
 
-### Feature Flags
-
-```bash
-# Message Processing
-ENABLE_AI_REPLY=true                  # Enable AI auto-reply
-ENABLE_MESSAGE_SPLIT_SEND=true        # Enable message splitting
-ENABLE_MESSAGE_MERGE=true             # Enable message aggregation
-MESSAGE_SEND_DELAY=1500               # Send delay (ms)
-INITIAL_MERGE_WINDOW_MS=1000          # Merge window (ms)
-MAX_MERGED_MESSAGES=3                 # Max messages to merge
-
-# Bull Queue (Optional for dev)
-ENABLE_BULL_QUEUE=false               # Disable in local dev
-REDIS_HOST=localhost
-REDIS_PORT=6379
-```
-
-See `.env.example` for complete configuration.
+完整配置项见 `.env.example`。
 
 ## Git Commit Convention
 

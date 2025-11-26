@@ -5,6 +5,7 @@ import { HttpModule, RedisModule } from './core';
 import { SupabaseModule } from './core/supabase';
 import { MonitoringModule } from './core/monitoring/monitoring.module';
 import { AlertModule } from './core/alert/alert.module';
+import { LoggerModule } from './core/logger';
 import { AgentModule } from './agent';
 import { WecomModule } from './wecom/wecom.module';
 import { FeishuSyncModule } from './core/feishu-sync/feishu-sync.module';
@@ -51,6 +52,7 @@ import { validate } from './core/config/env.validation';
     SupabaseModule, // Supabase 数据库服务（全局）- 系统配置和用户托管状态持久化
     MonitoringModule, // 监控服务（全局）
     AlertModule, // 告警服务（全局）
+    LoggerModule, // 实时日志推送（仅开发环境）
     FeishuSyncModule, // 飞书同步（从监控快照导出数据）
 
     // ==================== 业务域 (Business Domains) ====================

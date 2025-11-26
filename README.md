@@ -1,6 +1,6 @@
 # DuLiDay 企业微信服务
 
-**Last Updated**: 2025-11-05 16:40:00
+**Last Updated**: 2025-11-25
 
 基于 NestJS 的企业微信智能服务中间层，集成 AI Agent 实现智能对话和自动回复。
 
@@ -72,51 +72,60 @@ pnpm install
 ### 配置环境变量
 
 ```bash
-# 1. 复制环境变量模板
-cp .env.example .env
+# 复制环境变量模板
+cp .env.example .env.local
 
-# 2. 编辑 .env 文件，填入必要配置
-vim .env  # 或使用你喜欢的编辑器
+# 编辑配置文件，填写必填项
+vim .env.local
 ```
 
-**最小配置示例**（开发环境）：
+**配置策略**：采用三层配置，简化管理
+
+| Layer | 说明 | 示例 |
+|-------|------|------|
+| **Layer 1** | 必填密钥/URL（无默认值） | `AGENT_API_KEY`, `FEISHU_ALERT_WEBHOOK_URL` |
+| **Layer 2** | 可选参数（有默认值） | `INITIAL_MERGE_WINDOW_MS=1000` |
+| **Layer 3** | 硬编码默认值 | 告警节流 5 分钟 |
+
+**最小配置示例**（只需填写 Layer 1）：
 
 ```env
-# 应用配置
-PORT=8080
-NODE_ENV=development
-
-# Agent API 配置（必填）
-AGENT_API_KEY=your-api-key-here                              # 从管理员获取
-AGENT_API_BASE_URL=http://localhost:3000/api/v1
-AGENT_DEFAULT_MODEL=anthropic/claude-3-5-haiku-latest
+# === Layer 1: 必填密钥/URL ===
+AGENT_API_KEY=your-key
+AGENT_API_BASE_URL=https://huajune.duliday.com/api/v1
+AGENT_DEFAULT_MODEL=anthropic/claude-sonnet-4-5-20250929
 AGENT_CHAT_MODEL=anthropic/claude-sonnet-4-5-20250929
 AGENT_CLASSIFY_MODEL=openai/gpt-4o
 AGENT_REPLY_MODEL=openai/gpt-5-chat-latest
-AGENT_ALLOWED_TOOLS=duliday_job_list,duliday_job_details,duliday_interview_booking
+AGENT_ALLOWED_TOOLS=duliday_interview_booking,duliday_job_details,duliday_job_list
 
-# Redis 缓存配置（必填）
 UPSTASH_REDIS_REST_URL=https://your-redis.upstash.io
-UPSTASH_REDIS_REST_TOKEN=your-token-here
+UPSTASH_REDIS_REST_TOKEN=your-token
 
-# DuLiDay API 配置（必填）
-DULIDAY_API_TOKEN=your-duliday-token-here
+DULIDAY_API_TOKEN=your-token
 
-# 托管平台配置（必填）
 STRIDE_API_BASE_URL=https://stride-bg.dpclouds.com
 STRIDE_ENTERPRISE_API_BASE_URL=https://stride-bg.dpclouds.com/hub-api
 
-# 功能开关
-ENABLE_AI_REPLY=true
-ENABLE_MESSAGE_SPLIT_SEND=true
-ENABLE_MESSAGE_MERGE=true
+FEISHU_ALERT_WEBHOOK_URL=https://open.feishu.cn/open-apis/bot/v2/hook/xxx
+FEISHU_ALERT_SECRET=your-secret
+
+NEXT_PUBLIC_SUPABASE_URL=https://xxx.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=your-key
+
+# === Layer 2: 按需覆盖（都有默认值）===
+# INITIAL_MERGE_WINDOW_MS=3000   # 消息聚合等待时间，默认 1000ms
+# MAX_MERGED_MESSAGES=5          # 最大聚合条数，默认 3
 ```
 
 **获取配置的地方**：
-- **Agent API Key**：访问 [花卷平台](https://wolian.cc/platform/clients-management) 注册并创建
-- **Upstash Redis**：访问 [Upstash Console](https://console.upstash.com/) 创建数据库
-- **DuLiDay API Token**：联系管理员获取
-- **托管平台配置**：联系管理员获取小组 Token
+| 配置项 | 获取方式 |
+|--------|----------|
+| Agent API Key | [花卷平台](https://wolian.cc/platform/clients-management) |
+| Upstash Redis | [Upstash Console](https://console.upstash.com/) |
+| 飞书 Webhook | 飞书群 → 设置 → 群机器人 → 添加自定义机器人 |
+| Supabase | [Supabase Dashboard](https://supabase.com/dashboard) |
+| DuLiDay/Stride | 联系管理员 |
 
 ### 启动服务
 
@@ -147,29 +156,44 @@ curl -X POST http://localhost:8080/agent/test-chat \
 
 ## 环境变量说明
 
-### 必填配置
+### Layer 1: 必填配置（密钥/URL）
 
-| 变量 | 说明 | 获取方式 |
-|------|------|----------|
-| `AGENT_API_KEY` | Agent API 密钥 | [花卷平台](https://wolian.cc/platform/clients-management) 注册获取 |
-| `AGENT_API_BASE_URL` | Agent API 地址 | 联系管理员 |
-| `UPSTASH_REDIS_REST_URL` | Redis REST URL | [Upstash Console](https://console.upstash.com/) 创建数据库 |
-| `UPSTASH_REDIS_REST_TOKEN` | Redis Token | Upstash 数据库详情页获取 |
-| `DULIDAY_API_TOKEN` | DuLiDay API Token | 联系管理员 |
-| `STRIDE_API_BASE_URL` | 托管平台 API 地址 | 联系管理员 |
+| 变量 | 说明 | 来源 |
+|------|------|------|
+| `AGENT_API_KEY` | AI Agent API 密钥 | 花卷平台 |
+| `AGENT_API_BASE_URL` | AI Agent API 地址 | 花卷平台 |
+| `UPSTASH_REDIS_REST_URL` | Redis REST API URL | Upstash |
+| `UPSTASH_REDIS_REST_TOKEN` | Redis REST Token | Upstash |
+| `DULIDAY_API_TOKEN` | 杜力岱 API Token | 内部系统 |
+| `STRIDE_API_BASE_URL` | 托管平台 API | Stride |
+| `FEISHU_ALERT_WEBHOOK_URL` | 飞书告警 Webhook | 飞书机器人 |
+| `FEISHU_ALERT_SECRET` | 飞书签名密钥 | 飞书机器人 |
+| `NEXT_PUBLIC_SUPABASE_URL` | Supabase URL | Supabase |
+| `SUPABASE_SERVICE_ROLE_KEY` | Supabase 密钥 | Supabase |
 
-### 常用配置
+### Layer 2: 可选配置（有默认值）
 
-| 变量 | 说明 | 默认值 |
-|------|------|--------|
-| `PORT` | 服务端口 | `8080` |
-| `NODE_ENV` | 运行环境 | `development` |
-| `AGENT_DEFAULT_MODEL` | 默认 AI 模型 | `anthropic/claude-3-5-haiku-latest` |
-| `ENABLE_AI_REPLY` | 启用 AI 回复 | `true` |
-| `ENABLE_MESSAGE_MERGE` | 启用消息聚合 | `true` |
-| `MAX_HISTORY_PER_CHAT` | 会话历史条数 | `30` |
+| 变量 | 默认值 | 说明 | 使用位置 |
+|------|--------|------|----------|
+| `PORT` | `8080` | 服务端口 | main.ts |
+| `AGENT_API_TIMEOUT` | `600000` | API 超时 (10min) | agent-api-client |
+| `MAX_HISTORY_PER_CHAT` | `60` | Redis 消息数限制 | message-history |
+| `HISTORY_TTL_MS` | `7200000` | Redis 消息 TTL (2h) | message-history |
+| `INITIAL_MERGE_WINDOW_MS` | `1000` | 聚合等待时间 | message-merge |
+| `MAX_MERGED_MESSAGES` | `3` | 最大聚合条数 | message-merge |
+| `TYPING_DELAY_PER_CHAR_MS` | `100` | 打字延迟/字符 | message-sender |
+| `PARAGRAPH_GAP_MS` | `2000` | 段落间隔 | message-sender |
 
-> 完整配置说明请查看 [.env.example](./.env.example) 文件。
+### Layer 3: 硬编码默认值（无需配置）
+
+| 配置 | 值 | 位置 |
+|------|-----|------|
+| 告警节流窗口 | 5 分钟 | AlertService |
+| 告警最大次数 | 3 次/类型 | AlertService |
+| 健康检查间隔 | 1 小时 | AgentRegistryService |
+| 缓存 TTL | 1 小时 | AgentCacheService |
+
+> 完整配置项见 [.env.example](./.env.example)，配置策略详见 [CLAUDE.md](./CLAUDE.md#5-configuration-strategy)。
 
 ---
 
@@ -178,29 +202,38 @@ curl -X POST http://localhost:8080/agent/test-chat \
 ```
 duliday-wecom-service/
 ├── src/
-│   ├── agent/                    # AI Agent 服务模块
-│   │   ├── agent.service.ts      # AI 对话服务
-│   │   └── agent-config.service.ts # AI 配置管理
-│   ├── common/
-│   │   └── conversation/         # 会话管理（多轮对话上下文）
-│   ├── core/
-│   │   ├── config/               # 全局配置管理
-│   │   └── http/                 # 统一 HTTP 客户端
-│   ├── modules/
-│   │   ├── message/              # 消息接收（托管平台回调）
-│   │   ├── message-sender/       # 消息发送
-│   │   ├── chat/                 # 会话列表和聊天历史
-│   │   ├── contact/              # 联系人管理
-│   │   ├── room/                 # 群聊管理
-│   │   └── ...                   # 其他模块
-│   ├── app.module.ts
-│   └── main.ts
-├── docs/                         # 文档目录
-├── scripts/                      # 自动化脚本
-├── logs/                         # 日志目录
-├── .env                          # 环境变量（不提交）
-├── .env.example                  # 环境变量模板
-├── package.json
+│   ├── core/                        # 基础设施层（横向）
+│   │   ├── config/                  # 配置管理（环境变量验证）
+│   │   ├── http/                    # HTTP 客户端工厂
+│   │   ├── redis/                   # Redis 缓存（全局模块）
+│   │   ├── supabase/                # Supabase 数据库服务
+│   │   ├── monitoring/              # 系统监控 & 仪表盘
+│   │   ├── alert/                   # 告警系统（单一服务 ~300 行）
+│   │   └── server/response/         # 统一响应（拦截器 + 过滤器）
+│   │
+│   ├── agent/                       # AI Agent 领域
+│   │   ├── agent.service.ts         # Agent API 调用层
+│   │   ├── services/
+│   │   │   ├── agent-cache.service.ts      # 多层缓存
+│   │   │   ├── agent-registry.service.ts   # 模型/工具注册
+│   │   │   └── brand-config.service.ts     # 品牌配置管理
+│   │   └── context/                 # Agent 上下文配置
+│   │
+│   └── wecom/                       # 企业微信领域
+│       ├── message/                 # 消息处理（核心业务）
+│       │   ├── message.service.ts   # 主协调器（~300 行）
+│       │   └── services/            # 子服务（单一职责）
+│       │       ├── message-history.service.ts   # Redis 历史
+│       │       ├── message-merge.service.ts     # 智能聚合
+│       │       └── message-filter.service.ts    # 消息过滤
+│       ├── message-sender/          # 消息发送
+│       └── ...                      # 其他模块
+│
+├── docs/                            # 文档目录
+├── dashboard/                       # React 监控仪表盘
+├── .env.example                     # 环境变量模板
+├── .env.local                       # 本地配置（不提交）
+├── CLAUDE.md                        # Claude Code 开发指南
 └── README.md
 ```
 

@@ -4,8 +4,10 @@ import Layout from '@/components/Layout';
 import Dashboard from '@/pages/Dashboard';
 import Users from '@/pages/Users';
 import Config from '@/pages/Config';
+import Hosting from '@/pages/Hosting';
 import System from '@/pages/System';
 import Logs from '@/pages/Logs';
+import ConsoleLogs from '@/pages/ConsoleLogs';
 
 function App() {
   return (
@@ -37,9 +39,11 @@ function App() {
         <Route path="/" element={<Layout />}>
           <Route index element={<Dashboard />} />
           <Route path="users" element={<Users />} />
+          <Route path="hosting" element={<Hosting />} />
           <Route path="config" element={<Config />} />
           <Route path="system" element={<System />} />
           <Route path="logs" element={<Logs />} />
+          <Route path="console" element={<ConsoleLogs />} />
         </Route>
       </Routes>
     </>

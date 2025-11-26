@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useDashboard, useToggleUserHosting } from '@/hooks/useMonitoring';
 import { formatTime } from '@/utils/format';
 
+
 export default function Users() {
   const [timeRange] = useState<'today' | 'week' | 'month'>('today');
   const { data: dashboard, isLoading } = useDashboard(timeRange);
@@ -38,7 +39,7 @@ export default function Users() {
               {isLoading ? (
                 <tr>
                   <td colSpan={7} className="loading">
-                    加载中
+                    加载中...
                   </td>
                 </tr>
               ) : users.length === 0 ? (

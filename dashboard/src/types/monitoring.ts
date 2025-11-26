@@ -72,16 +72,39 @@ export interface DailyTrendPoint {
 }
 
 export interface MessageRecord {
+  messageId?: string;
   receivedAt: string;
   userName?: string;
   chatId: string;
   messagePreview?: string;
-  replyPreview?: string;
+  replyPreview?: string; // 完整的 Agent 响应内容
   totalDuration: number;
   aiDuration?: number;
+  sendDuration?: number;
+  queueDuration?: number;
   replySegments?: number;
   status: 'success' | 'failed' | 'failure' | 'processing';
   error?: string;
+  scenario?: string;
+  tools?: string[];
+  tokenUsage?: number;
+  isFallback?: boolean;
+  fallbackSuccess?: boolean;
+  // 完整 Agent 响应（用于排障）
+  rawAgentResponse?: {
+    content: string;
+    usage?: {
+      inputTokens: number;
+      outputTokens: number;
+      totalTokens: number;
+    };
+    tools?: {
+      used: string[];
+      skipped: string[];
+    };
+    isFallback?: boolean;
+    fallbackReason?: string;
+  };
 }
 
 export interface TodayUser {
@@ -190,4 +213,51 @@ export interface SystemInfo {
     usage: number;
     cores: number;
   };
+}
+
+/**
+ * Agent 回复策略配置
+ */
+export interface AgentReplyConfig {
+  // 消息聚合配置
+  initialMergeWindowMs: number; // 首次聚合等待时间（毫秒）
+  maxMergedMessages: number; // 最多聚合消息数
+
+  // 打字延迟配置
+  typingDelayPerCharMs: number; // 每字符延迟（毫秒）
+  paragraphGapMs: number; // 段落间隔（毫秒）
+
+  // 告警节流配置
+  alertThrottleWindowMs: number; // 告警节流窗口（毫秒）
+  alertThrottleMaxCount: number; // 窗口内最大告警次数
+
+  // 业务指标告警配置（简化版）
+  businessAlertEnabled: boolean; // 是否启用业务指标告警
+  minSamplesForAlert: number; // 最小样本量（低于此值不检查）
+  alertIntervalMinutes: number; // 同类告警最小间隔（分钟）
+}
+
+export interface AgentReplyConfigResponse {
+  config: AgentReplyConfig;
+  defaults: AgentReplyConfig;
+}
+
+/**
+ * Worker 状态
+ */
+export interface WorkerStatus {
+  concurrency: number;
+  activeJobs: number;
+  minConcurrency: number;
+  maxConcurrency: number;
+}
+
+/**
+ * Worker 并发数更新响应
+ */
+export interface WorkerConcurrencyResponse {
+  success: boolean;
+  message: string;
+  previousConcurrency: number;
+  currentConcurrency: number;
 }

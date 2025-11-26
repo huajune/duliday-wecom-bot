@@ -16,11 +16,8 @@ export class HttpService {
     private readonly configService: ConfigService,
     private readonly httpClientFactory: HttpClientFactory,
   ) {
-    // 从环境变量读取配置，必须配置
-    const timeout = this.configService.get<number>('HTTP_CLIENT_TIMEOUT');
-    if (!timeout) {
-      throw new Error('HTTP_CLIENT_TIMEOUT 环境变量未配置，请在 .env 文件中设置');
-    }
+    // 从环境变量读取配置，有默认值
+    const timeout = this.configService.get<number>('HTTP_CLIENT_TIMEOUT') || 30000;
 
     this.logger.log(`初始化通用 HTTP 客户端，超时设置: ${timeout}ms`);
 

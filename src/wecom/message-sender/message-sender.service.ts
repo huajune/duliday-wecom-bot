@@ -57,6 +57,9 @@ export class MessageSenderService {
       const { _apiType, token, chatId, imBotId, imContactId, imRoomId, messageType, payload } =
         data;
 
+      // 调试日志：查看 _apiType 的实际值
+      this.logger.debug(`[API 路由] _apiType=${_apiType}, typeof=${typeof _apiType}`);
+
       let apiUrl: string;
       let requestBody: any;
 

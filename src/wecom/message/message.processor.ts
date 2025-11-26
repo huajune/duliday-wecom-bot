@@ -1,66 +1,308 @@
-import { Process, Processor, OnQueueFailed, OnQueueCompleted } from '@nestjs/bull';
-import { Logger } from '@nestjs/common';
-import { Job } from 'bull';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { InjectQueue } from '@nestjs/bull';
+import { Queue, Job } from 'bull';
 import {
   AgentService,
   ProfileLoaderService,
   AgentConfigValidator,
   AgentResultHelper,
 } from '@agent';
-import { MessageSenderService } from '../message-sender/message-sender.service';
-import { MessageType as SendMessageType } from '../message-sender/dto/send-message.dto';
 import { EnterpriseMessageCallbackDto } from './dto/message-callback.dto';
+import { SupabaseService } from '@core/supabase';
 
-// 导入新的子服务
+// 导入子服务
 import { MessageHistoryService } from './services/message-history.service';
 import { MessageFilterService } from './services/message-filter.service';
 import { MessageMergeService } from './services/message-merge.service';
+import { MessageDeliveryService } from './services/message-delivery.service';
 
 // 导入工具类
 import { MessageParser } from './utils/message-parser.util';
 
 /**
- * 消息队列处理器（重构版）
+ * 消息队列处理器（动态并发版）
  * 负责处理 Bull 队列中的消息聚合任务
  *
- * 重构说明：
- * - 移除重复代码，复用新创建的子服务
- * - 从 312 行精简到 ~120 行
+ * 特性：
+ * - 支持通过 Dashboard 动态调整 Worker 并发数
+ * - 并发数范围：1-20
+ * - 修改并发数时会等待当前任务完成（graceful）
+ *
+ * 注意：移除了 @Processor 装饰器，改用 Queue.process() 动态注册
+ * 这样可以支持运行时修改并发数
  */
-@Processor('message-merge')
-export class MessageProcessor {
+@Injectable()
+export class MessageProcessor implements OnModuleInit {
   private readonly logger = new Logger(MessageProcessor.name);
 
+  // Worker 状态
+  private currentConcurrency = 4; // 默认并发数
+  private isProcessing = false;
+  private activeJobs = 0;
+
+  // 并发数限制
+  private readonly MIN_CONCURRENCY = 1;
+  private readonly MAX_CONCURRENCY = 20;
+
   constructor(
+    @InjectQueue('message-merge') private readonly messageQueue: Queue,
     private readonly agentService: AgentService,
     private readonly profileLoader: ProfileLoaderService,
     private readonly configValidator: AgentConfigValidator,
-    private readonly messageSenderService: MessageSenderService,
-    // 注入新的子服务
     private readonly historyService: MessageHistoryService,
     private readonly filterService: MessageFilterService,
     private readonly mergeService: MessageMergeService,
-  ) {
-    this.logger.log('MessageProcessor 已初始化（Bull Queue 模式，并发数: 3）');
+    private readonly supabaseService: SupabaseService,
+    private readonly deliveryService: MessageDeliveryService,
+  ) {}
+
+  /**
+   * 模块初始化时注册 Worker
+   */
+  async onModuleInit() {
+    // 从 Supabase 加载配置的并发数
+    await this.loadConcurrencyFromConfig();
+
+    // 注册队列事件监听
+    this.setupQueueEventListeners();
+
+    // 等待队列准备就绪
+    await this.waitForQueueReady();
+
+    // 动态注册 Worker
+    this.registerWorker(this.currentConcurrency);
+
+    this.logger.log(
+      `MessageProcessor 已初始化（动态 Worker 模式，并发数: ${this.currentConcurrency}）`,
+    );
+  }
+
+  /**
+   * 等待队列准备就绪
+   */
+  private async waitForQueueReady(): Promise<void> {
+    return new Promise((resolve, reject) => {
+      // 检查队列是否已经准备好
+      if (this.messageQueue.client?.status === 'ready') {
+        this.logger.log('Bull Queue 已就绪');
+        resolve();
+        return;
+      }
+
+      // 监听 ready 事件
+      const timeout = setTimeout(() => {
+        reject(new Error('等待 Bull Queue 就绪超时'));
+      }, 30000); // 30秒超时
+
+      this.messageQueue.on('ready', () => {
+        clearTimeout(timeout);
+        this.logger.log('Bull Queue 已就绪');
+        resolve();
+      });
+
+      this.messageQueue.on('error', (error) => {
+        clearTimeout(timeout);
+        this.logger.error('Bull Queue 连接错误:', error);
+        reject(error);
+      });
+    });
+  }
+
+  /**
+   * 设置队列事件监听器
+   */
+  private setupQueueEventListeners(): void {
+    // 任务完成事件
+    this.messageQueue.on('completed', (job: Job) => {
+      this.logger.log(`[Bull] 任务 ${job.id} 完成`);
+    });
+
+    // 任务失败事件
+    this.messageQueue.on('failed', (job: Job, error: Error) => {
+      this.logger.error(`[Bull] 任务 ${job.id} 失败: ${error.message}`);
+    });
+
+    // 任务进行中事件（用于调试）
+    this.messageQueue.on('active', (job: Job) => {
+      this.logger.debug(`[Bull] 任务 ${job.id} 开始处理`);
+    });
+
+    // 任务等待事件（用于调试）
+    this.messageQueue.on('waiting', (jobId: string) => {
+      this.logger.debug(`[Bull] 任务 ${jobId} 进入等待队列`);
+    });
+  }
+
+  /**
+   * 从 Supabase 加载并发数配置
+   */
+  private async loadConcurrencyFromConfig(): Promise<void> {
+    try {
+      const config = await this.supabaseService.getSystemConfig();
+      if (config?.workerConcurrency) {
+        const concurrency = Math.max(
+          this.MIN_CONCURRENCY,
+          Math.min(this.MAX_CONCURRENCY, config.workerConcurrency),
+        );
+        this.currentConcurrency = concurrency;
+        this.logger.log(`从配置加载 Worker 并发数: ${concurrency}`);
+      }
+    } catch (error) {
+      this.logger.warn(
+        `加载 Worker 并发数配置失败，使用默认值 ${this.currentConcurrency}: ${error.message}`,
+      );
+    }
+  }
+
+  /**
+   * 动态注册 Worker
+   * 注意：Queue.process() 是同步方法，不返回 Promise
+   */
+  private registerWorker(concurrency: number): void {
+    this.logger.log(`正在注册 Worker，并发数: ${concurrency}...`);
+
+    this.messageQueue.process('merge', concurrency, async (job: Job) => {
+      this.logger.log(`[Bull] 收到任务 ${job.id}，开始处理...`);
+      return this.handleMessageMerge(job);
+    });
+
+    this.logger.log(`Worker 已注册，job name: 'merge'，并发数: ${concurrency}`);
+  }
+
+  /**
+   * 动态修改并发数（供 API 调用）
+   * @param newConcurrency 新的并发数
+   * @returns 修改结果
+   */
+  async setConcurrency(newConcurrency: number): Promise<{
+    success: boolean;
+    message: string;
+    previousConcurrency: number;
+    currentConcurrency: number;
+  }> {
+    const previousConcurrency = this.currentConcurrency;
+
+    // 验证范围
+    if (newConcurrency < this.MIN_CONCURRENCY || newConcurrency > this.MAX_CONCURRENCY) {
+      return {
+        success: false,
+        message: `并发数必须在 ${this.MIN_CONCURRENCY}-${this.MAX_CONCURRENCY} 之间`,
+        previousConcurrency,
+        currentConcurrency: this.currentConcurrency,
+      };
+    }
+
+    // 如果并发数相同，直接返回
+    if (newConcurrency === this.currentConcurrency) {
+      return {
+        success: true,
+        message: '并发数未变化',
+        previousConcurrency,
+        currentConcurrency: this.currentConcurrency,
+      };
+    }
+
+    try {
+      this.logger.log(`开始修改 Worker 并发数: ${previousConcurrency} -> ${newConcurrency}`);
+
+      // 等待当前活跃任务完成（最多等待 30 秒）
+      if (this.activeJobs > 0) {
+        this.logger.log(`等待 ${this.activeJobs} 个活跃任务完成...`);
+        const maxWaitTime = 30000;
+        const startTime = Date.now();
+
+        while (this.activeJobs > 0 && Date.now() - startTime < maxWaitTime) {
+          await new Promise((resolve) => setTimeout(resolve, 500));
+        }
+
+        if (this.activeJobs > 0) {
+          this.logger.warn(`等待超时，仍有 ${this.activeJobs} 个任务在处理中，强制切换并发数`);
+        }
+      }
+
+      // 暂停队列处理
+      await this.messageQueue.pause(true);
+
+      // 移除旧的处理器
+      // Bull 不直接支持移除处理器，但重新注册会覆盖
+      this.currentConcurrency = newConcurrency;
+
+      // 重新注册 Worker
+      this.registerWorker(newConcurrency);
+
+      // 恢复队列处理
+      await this.messageQueue.resume(true);
+
+      // 保存到 Supabase
+      await this.saveConcurrencyToConfig(newConcurrency);
+
+      this.logger.log(`Worker 并发数已修改: ${previousConcurrency} -> ${newConcurrency}`);
+
+      return {
+        success: true,
+        message: `并发数已从 ${previousConcurrency} 修改为 ${newConcurrency}`,
+        previousConcurrency,
+        currentConcurrency: newConcurrency,
+      };
+    } catch (error) {
+      this.logger.error(`修改 Worker 并发数失败: ${error.message}`);
+      return {
+        success: false,
+        message: `修改失败: ${error.message}`,
+        previousConcurrency,
+        currentConcurrency: this.currentConcurrency,
+      };
+    }
+  }
+
+  /**
+   * 保存并发数到 Supabase
+   */
+  private async saveConcurrencyToConfig(concurrency: number): Promise<void> {
+    try {
+      await this.supabaseService.updateSystemConfig({ workerConcurrency: concurrency });
+      this.logger.log(`Worker 并发数已保存到配置: ${concurrency}`);
+    } catch (error) {
+      this.logger.error(`保存 Worker 并发数配置失败: ${error.message}`);
+    }
+  }
+
+  /**
+   * 获取当前 Worker 状态
+   */
+  getWorkerStatus(): {
+    concurrency: number;
+    activeJobs: number;
+    minConcurrency: number;
+    maxConcurrency: number;
+  } {
+    return {
+      concurrency: this.currentConcurrency,
+      activeJobs: this.activeJobs,
+      minConcurrency: this.MIN_CONCURRENCY,
+      maxConcurrency: this.MAX_CONCURRENCY,
+    };
   }
 
   /**
    * 处理消息聚合任务
-   * 设置并发数为 3，限制同时处理的 Agent API 调用数量
    */
-  @Process({ name: 'merge', concurrency: 3 })
-  async handleMessageMerge(job: Job<{ messages: EnterpriseMessageCallbackDto[] }>) {
-    const { messages } = job.data;
-
-    if (!messages || messages.length === 0) {
-      this.logger.warn(`[Bull] 任务 ${job.id} 数据为空`);
-      return;
-    }
-
-    const chatId = messages[0].chatId;
-    this.logger.log(`[Bull] 开始处理任务 ${job.id}, chatId: ${chatId}, 消息数: ${messages.length}`);
+  private async handleMessageMerge(job: Job<{ messages: EnterpriseMessageCallbackDto[] }>) {
+    this.activeJobs++;
 
     try {
+      const { messages } = job.data;
+
+      if (!messages || messages.length === 0) {
+        this.logger.warn(`[Bull] 任务 ${job.id} 数据为空`);
+        return;
+      }
+
+      const chatId = messages[0].chatId;
+      this.logger.log(
+        `[Bull] 开始处理任务 ${job.id}, chatId: ${chatId}, 消息数: ${messages.length}`,
+      );
+
       // 过滤有效消息（复用 FilterService）
       const validMessages: EnterpriseMessageCallbackDto[] = [];
 
@@ -100,16 +342,23 @@ export class MessageProcessor {
       // onAgentResponseReceived 会检查并自动添加新任务到队列
       await this.mergeService.onAgentResponseReceived(chatId);
     } catch (error) {
+      const chatId = job.data.messages?.[0]?.chatId;
       this.logger.error(`[Bull] 任务 ${job.id} 处理失败: ${error.message}`);
-      // 检查是否有在处理期间到达的新消息
-      // 如果有，将它们重新入队，避免丢失
-      const hasNewMessages = await this.mergeService.requeuePendingMessagesOnFailure(chatId);
-      if (hasNewMessages) {
-        this.logger.log(`[Bull] 已将处理期间收到的新消息重新入队`);
+
+      if (chatId) {
+        // 检查是否有在处理期间到达的新消息
+        // 如果有，将它们重新入队，避免丢失
+        const hasNewMessages = await this.mergeService.requeuePendingMessagesOnFailure(chatId);
+        if (hasNewMessages) {
+          this.logger.log(`[Bull] 已将处理期间收到的新消息重新入队`);
+        }
+        // 重置会话状态
+        await this.mergeService.resetToIdle(chatId);
       }
-      // 重置会话状态
-      await this.mergeService.resetToIdle(chatId);
+
       throw error; // 抛出错误触发重试
+    } finally {
+      this.activeJobs--;
     }
   }
 
@@ -122,7 +371,7 @@ export class MessageProcessor {
     messageData: EnterpriseMessageCallbackDto,
   ): Promise<void> {
     const parsedData = MessageParser.parse(messageData);
-    const { token, contactName = '客户' } = parsedData;
+    const { token, contactName = '客户', _apiType } = parsedData;
     const scenarioType = parsedData.isRoom ? '群聊' : '私聊';
 
     try {
@@ -200,15 +449,29 @@ export class MessageProcessor {
         `[Bull][${scenarioType}][${contactName}] 回复: "${replyContent.substring(0, 50)}${replyContent.length > 50 ? '...' : ''}" (${tokenInfo}${toolsInfo})`,
       );
 
-      // 发送回复消息
-      await this.messageSenderService.sendMessage({
-        token,
-        chatId,
-        messageType: SendMessageType.TEXT,
-        payload: {
-          text: replyContent,
+      // 使用 MessageDeliveryService 发送消息（支持分段、打字延迟、字符清理）
+      const deliveryResult = await this.deliveryService.deliverReply(
+        { content: replyContent },
+        {
+          messageId: messageData.messageId,
+          token,
+          chatId,
+          contactName,
+          // 企业级字段
+          imBotId: parsedData.imBotId,
+          imContactId: parsedData.imContactId,
+          imRoomId: parsedData.imRoomId,
+          // API 类型标记
+          _apiType,
         },
-      });
+        true, // 记录监控
+      );
+
+      if (!deliveryResult.success) {
+        this.logger.warn(
+          `[Bull][${scenarioType}][${contactName}] 消息发送部分失败: ${deliveryResult.failedSegments}/${deliveryResult.segmentCount} 个片段失败`,
+        );
+      }
     } catch (error) {
       this.logger.error(`[Bull][${scenarioType}][${contactName}] 消息处理失败: ${error.message}`);
       throw error;
@@ -238,21 +501,5 @@ export class MessageProcessor {
     }
 
     return textParts.join('\n\n');
-  }
-
-  /**
-   * 任务完成回调
-   */
-  @OnQueueCompleted()
-  onCompleted(job: Job) {
-    this.logger.log(`[Bull] 任务 ${job.id} 完成`);
-  }
-
-  /**
-   * 任务失败回调
-   */
-  @OnQueueFailed()
-  onFailed(job: Job, error: Error) {
-    this.logger.error(`[Bull] 任务 ${job.id} 失败: ${error.message}`);
   }
 }

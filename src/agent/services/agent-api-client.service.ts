@@ -43,7 +43,7 @@ export class AgentApiClientService {
     }
 
     this.baseURL = this.configService.get<string>('AGENT_API_BASE_URL')!;
-    this.timeout = this.configService.get<number>('AGENT_API_TIMEOUT')!;
+    this.timeout = this.configService.get<number>('AGENT_API_TIMEOUT') ?? 600000; // 默认 10 分钟
     this.maxRetries = this.configService.get<number>('AGENT_API_MAX_RETRIES') ?? 5; // 默认 5 次
 
     // 【修复】验证关键配置是否已加载，防止环境变量加载时序问题

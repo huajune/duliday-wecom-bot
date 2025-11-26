@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { InjectQueue } from '@nestjs/bull';
 import { Queue } from 'bull';
 import { RedisService } from '@core/redis';
+import { SupabaseService, AgentReplyConfig } from '@core/supabase';
 import { EnterpriseMessageCallbackDto } from '../dto/message-callback.dto';
 import {
   ConversationState,
@@ -38,20 +39,21 @@ export class MessageMergeService implements OnModuleInit, OnModuleDestroy {
   // 定时器映射（只在内存中，不能序列化）
   private readonly timers = new Map<string, NodeJS.Timeout>();
 
-  // 配置参数
-  private readonly initialMergeWindow: number; // 首次聚合等待时间
-  private readonly maxMergedMessages: number; // 最多聚合消息数
-  private readonly maxRetryCount: number; // 最大重试次数
-  private readonly minMessageLength: number; // 触发重试的最小消息长度
-  private readonly collectDuringProcessing: boolean; // 是否在处理期间收集新消息
-  private readonly overflowStrategy: OverflowStrategy; // 溢出策略
+  // 配置参数（支持动态更新）
+  private initialMergeWindow: number; // 首次聚合等待时间
+  private maxMergedMessages: number; // 最多聚合消息数
+  private readonly maxRetryCount: number; // 最大重试次数（不支持动态更新）
+  private readonly minMessageLength: number; // 触发重试的最小消息长度（不支持动态更新）
+  private readonly collectDuringProcessing: boolean; // 是否在处理期间收集新消息（不支持动态更新）
+  private readonly overflowStrategy: OverflowStrategy; // 溢出策略（不支持动态更新）
 
   constructor(
     private readonly configService: ConfigService,
     private readonly redisService: RedisService,
+    private readonly supabaseService: SupabaseService,
     @InjectQueue('message-merge') private readonly messageQueue: Queue,
   ) {
-    // 从环境变量读取配置
+    // 从环境变量读取初始配置（作为默认值）
     this.initialMergeWindow = parseInt(
       this.configService.get<string>('INITIAL_MERGE_WINDOW_MS', '1000'),
       10,
@@ -71,6 +73,11 @@ export class MessageMergeService implements OnModuleInit, OnModuleDestroy {
       (this.configService.get<string>('OVERFLOW_STRATEGY', 'take-latest') as OverflowStrategy) ||
       OverflowStrategy.TAKE_LATEST;
 
+    // 注册配置变更回调
+    this.supabaseService.onAgentReplyConfigChange((config) => {
+      this.onConfigChange(config);
+    });
+
     this.logger.log(
       `智能消息聚合服务已初始化 (Redis 持久化):\n` +
         `  - 首次等待时间: ${this.initialMergeWindow}ms\n` +
@@ -83,10 +90,41 @@ export class MessageMergeService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
-   * 模块初始化：从 Redis 恢复会话状态
+   * 配置变更回调
+   */
+  private onConfigChange(config: AgentReplyConfig): void {
+    const oldMergeWindow = this.initialMergeWindow;
+    const oldMaxMessages = this.maxMergedMessages;
+
+    this.initialMergeWindow = config.initialMergeWindowMs;
+    this.maxMergedMessages = config.maxMergedMessages;
+
+    if (oldMergeWindow !== this.initialMergeWindow || oldMaxMessages !== this.maxMergedMessages) {
+      this.logger.log(
+        `消息聚合配置已更新:\n` +
+          `  - 首次等待时间: ${oldMergeWindow}ms → ${this.initialMergeWindow}ms\n` +
+          `  - 最多聚合消息: ${oldMaxMessages} → ${this.maxMergedMessages} 条`,
+      );
+    }
+  }
+
+  /**
+   * 模块初始化：从 Redis 恢复会话状态，并加载动态配置
    */
   async onModuleInit() {
-    this.logger.log('智能消息聚合服务已启动，正在扫描并恢复孤立的会话状态...');
+    this.logger.log('智能消息聚合服务已启动...');
+
+    // 从 Supabase 加载动态配置
+    try {
+      const config = await this.supabaseService.getAgentReplyConfig();
+      this.initialMergeWindow = config.initialMergeWindowMs;
+      this.maxMergedMessages = config.maxMergedMessages;
+      this.logger.log(
+        `已从 Supabase 加载配置: 聚合等待=${this.initialMergeWindow}ms, 最大消息数=${this.maxMergedMessages}`,
+      );
+    } catch (error) {
+      this.logger.warn('从 Supabase 加载配置失败，使用环境变量默认值');
+    }
 
     // 延迟执行恢复，确保其他服务已初始化
     setTimeout(() => {
@@ -493,12 +531,37 @@ export class MessageMergeService implements OnModuleInit, OnModuleDestroy {
 
   /**
    * 处理 PROCESSING 状态：Agent处理期间收到新消息
+   * 包含超时保护：如果 PROCESSING 状态超过阈值，自动重置并重新处理
    */
   private async handleProcessingState(
     state: ConversationState,
     messageData: EnterpriseMessageCallbackDto,
   ): Promise<void> {
     const chatId = state.chatId;
+
+    // 超时保护：检查 PROCESSING 状态是否卡住
+    const PROCESSING_TIMEOUT_MS = 10 * 60 * 1000; // 10分钟（与 Agent API 超时一致）
+    const processingDuration = Date.now() - (state.currentRequest?.startTime || 0);
+
+    if (processingDuration > PROCESSING_TIMEOUT_MS) {
+      this.logger.warn(
+        `[${chatId}] PROCESSING 状态超时 (${Math.round(processingDuration / 1000)}s > ${PROCESSING_TIMEOUT_MS / 1000}s)，强制重置并重新处理`,
+      );
+
+      // 重置状态
+      await this.resetConversationState(chatId);
+
+      // 按 IDLE 状态重新处理这条消息
+      const newState: ConversationState = {
+        chatId,
+        status: ConversationStatus.IDLE,
+        firstMessageTime: Date.now(),
+        pendingMessages: [],
+        lastUpdateTime: Date.now(),
+      };
+
+      return this.handleIdleState(newState, messageData);
+    }
 
     if (!this.collectDuringProcessing) {
       this.logger.debug(`[${chatId}] 处理期间收集功能已禁用，忽略新消息`);

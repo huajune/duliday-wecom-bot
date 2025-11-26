@@ -3,6 +3,7 @@ import { BotModule } from './bot/bot.module';
 import { ChatModule } from './chat/chat.module';
 import { ContactModule } from './contact/contact.module';
 import { CustomerModule } from './customer/customer.module';
+import { GroupModule } from './group/group.module';
 import { MessageModule } from './message/message.module';
 import { MessageSenderModule } from './message-sender/message-sender.module';
 import { RoomModule } from './room/room.module';
@@ -16,6 +17,7 @@ import { UserModule } from './user/user.module';
  * - 会话管理 (Chat)
  * - 联系人管理 (Contact)
  * - 客户关系管理 (Customer)
+ * - 小组管理 (Group)
  * - 消息处理 (Message)
  * - 消息发送 (MessageSender)
  * - 群聊管理 (Room)
@@ -27,6 +29,7 @@ import { UserModule } from './user/user.module';
     ChatModule,
     ContactModule,
     CustomerModule,
+    GroupModule,
     MessageModule,
     MessageSenderModule,
     RoomModule,
@@ -37,6 +40,7 @@ import { UserModule } from './user/user.module';
     ChatModule,
     ContactModule,
     CustomerModule,
+    GroupModule,
     MessageModule,
     MessageSenderModule,
     RoomModule,

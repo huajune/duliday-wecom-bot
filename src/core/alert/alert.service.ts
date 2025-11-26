@@ -1,7 +1,8 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import axios, { AxiosInstance } from 'axios';
 import * as crypto from 'crypto';
+import { SupabaseService, AgentReplyConfig } from '@core/supabase';
 
 /**
  * 告警级别
@@ -47,12 +48,11 @@ interface ThrottleState {
  * - 简单节流（5 分钟内同类错误最多发 3 次）
  *
  * 环境变量：
- * - ENABLE_FEISHU_ALERT: 是否启用 (默认 false)
- * - FEISHU_ALERT_WEBHOOK_URL: 飞书 Webhook URL
- * - FEISHU_ALERT_SECRET: 签名密钥 (可选)
+ * - FEISHU_ALERT_WEBHOOK_URL: 飞书 Webhook URL（必填，配置后自动启用告警）
+ * - FEISHU_ALERT_SECRET: 签名密钥（可选）
  */
 @Injectable()
-export class AlertService {
+export class AlertService implements OnModuleInit {
   private readonly logger = new Logger(AlertService.name);
   private readonly httpClient: AxiosInstance;
 
@@ -61,27 +61,73 @@ export class AlertService {
   private readonly webhookUrl: string;
   private readonly secret: string;
 
-  // 节流配置（硬编码，不需要环境变量）
-  private readonly THROTTLE_WINDOW_MS = 5 * 60 * 1000; // 5 分钟
-  private readonly THROTTLE_MAX_COUNT = 3; // 窗口内最多发送 3 次
+  // 节流配置（支持动态更新）
+  private throttleWindowMs: number; // 节流窗口（毫秒）
+  private throttleMaxCount: number; // 窗口内最大告警次数
 
   // 节流状态 Map<errorType, ThrottleState>
   private readonly throttleMap = new Map<string, ThrottleState>();
 
-  constructor(private readonly configService: ConfigService) {
+  constructor(
+    private readonly configService: ConfigService,
+    private readonly supabaseService: SupabaseService,
+  ) {
     this.webhookUrl = this.configService.get<string>('FEISHU_ALERT_WEBHOOK_URL', '');
     this.secret = this.configService.get<string>('FEISHU_ALERT_SECRET', '');
-    this.enabled = this.configService.get<string>('ENABLE_FEISHU_ALERT', 'false') === 'true';
 
-    if (this.enabled && !this.webhookUrl) {
-      this.logger.warn('飞书告警已启用但未配置 FEISHU_ALERT_WEBHOOK_URL，告警将被禁用');
+    // 初始节流配置（默认值）
+    this.throttleWindowMs = 5 * 60 * 1000; // 5 分钟
+    this.throttleMaxCount = 3; // 窗口内最多发送 3 次
+
+    // 只要配置了 Webhook URL 就启用告警
+    if (this.webhookUrl) {
+      this.enabled = true;
+      this.logger.log('飞书告警服务已启用');
+    } else {
       this.enabled = false;
+      this.logger.warn('未配置 FEISHU_ALERT_WEBHOOK_URL，飞书告警已禁用');
     }
 
     this.httpClient = axios.create({ timeout: 5000 });
 
-    if (this.enabled) {
-      this.logger.log('飞书告警服务已启用');
+    // 注册配置变更回调
+    this.supabaseService.onAgentReplyConfigChange((config) => {
+      this.onConfigChange(config);
+    });
+  }
+
+  /**
+   * 模块初始化：从 Supabase 加载动态配置
+   */
+  async onModuleInit() {
+    try {
+      const config = await this.supabaseService.getAgentReplyConfig();
+      this.throttleWindowMs = config.alertThrottleWindowMs;
+      this.throttleMaxCount = config.alertThrottleMaxCount;
+      this.logger.log(
+        `已从 Supabase 加载配置: 节流窗口=${this.throttleWindowMs / 1000}s, 最大次数=${this.throttleMaxCount}`,
+      );
+    } catch (error) {
+      this.logger.warn('从 Supabase 加载配置失败，使用默认值');
+    }
+  }
+
+  /**
+   * 配置变更回调
+   */
+  private onConfigChange(config: AgentReplyConfig): void {
+    const oldWindowMs = this.throttleWindowMs;
+    const oldMaxCount = this.throttleMaxCount;
+
+    this.throttleWindowMs = config.alertThrottleWindowMs;
+    this.throttleMaxCount = config.alertThrottleMaxCount;
+
+    if (oldWindowMs !== this.throttleWindowMs || oldMaxCount !== this.throttleMaxCount) {
+      this.logger.log(
+        `告警节流配置已更新:\n` +
+          `  - 节流窗口: ${oldWindowMs / 1000}s → ${this.throttleWindowMs / 1000}s\n` +
+          `  - 最大次数: ${oldMaxCount} → ${this.throttleMaxCount}`,
+      );
     }
   }
 
@@ -144,7 +190,7 @@ export class AlertService {
     const state = this.throttleMap.get(key);
 
     // 清理过期的节流状态
-    if (state && now - state.firstSeen > this.THROTTLE_WINDOW_MS) {
+    if (state && now - state.firstSeen > this.throttleWindowMs) {
       this.throttleMap.delete(key);
     }
 
@@ -161,7 +207,7 @@ export class AlertService {
     }
 
     // 检查是否超过限制
-    if (currentState.count >= this.THROTTLE_MAX_COUNT) {
+    if (currentState.count >= this.throttleMaxCount) {
       currentState.count++;
       return false;
     }
@@ -332,10 +378,16 @@ export class AlertService {
 
   /**
    * 生成签名
+   * 飞书签名校验算法：https://open.feishu.cn/document/client-docs/bot-v3/add-custom-bot
+   * - 签名字符串：timestamp + "\n" + secret
+   * - 使用 HmacSHA256 算法，密钥为签名字符串，对空字节数组签名
+   * - 结果进行 Base64 编码
    */
   private generateSign(timestamp: string): string {
     const stringToSign = `${timestamp}\n${this.secret}`;
+    // 使用签名字符串作为 HMAC 密钥，对空 Buffer 进行签名
     const hmac = crypto.createHmac('sha256', stringToSign);
-    return hmac.update('').digest('base64');
+    hmac.update(Buffer.alloc(0)); // 对空字节数组签名
+    return hmac.digest('base64');
   }
 }

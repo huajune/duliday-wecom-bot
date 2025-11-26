@@ -176,6 +176,7 @@ export class MonitoringService implements OnModuleInit {
       record.replySegments = metadata?.replySegments ?? record.replySegments;
       record.isFallback = metadata?.isFallback ?? record.isFallback;
       record.fallbackSuccess = metadata?.fallbackSuccess ?? record.fallbackSuccess;
+      record.rawAgentResponse = metadata?.rawAgentResponse ?? record.rawAgentResponse;
 
       this.globalCounters.totalSuccess++;
       this.currentProcessing = Math.max(this.currentProcessing - 1, 0);
@@ -372,6 +373,14 @@ export class MonitoringService implements OnModuleInit {
       percentiles,
       slowestRecords,
     };
+  }
+
+  /**
+   * 获取今日用户列表（用于账号托管管理页面）
+   */
+  getTodayUsers(): TodayUser[] {
+    const currentRecords = this.filterRecordsByTimeRange(this.detailRecords, 'today');
+    return this.buildTodayUsers(currentRecords);
   }
 
   private aggregateWindowStats(stats: HourlyStats[]): {
