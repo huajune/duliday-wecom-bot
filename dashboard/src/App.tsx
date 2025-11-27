@@ -8,6 +8,7 @@ import Hosting from '@/pages/Hosting';
 import System from '@/pages/System';
 import Logs from '@/pages/Logs';
 import ConsoleLogs from '@/pages/ConsoleLogs';
+import ChatRecords from '@/pages/ChatRecords';
 
 function App() {
   return (
@@ -43,6 +44,7 @@ function App() {
           <Route path="config" element={<Config />} />
           <Route path="system" element={<System />} />
           <Route path="logs" element={<Logs />} />
+          <Route path="chat-records" element={<ChatRecords />} />
           <Route path="console" element={<ConsoleLogs />} />
         </Route>
       </Routes>

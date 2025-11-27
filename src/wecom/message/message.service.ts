@@ -154,12 +154,25 @@ export class MessageService implements OnModuleInit {
     }
 
     // 存储为 assistant 消息（包含元数据）
+    // 判断是否群聊：imRoomId 有值表示群聊
+    const isRoom = Boolean(messageData.imRoomId);
     await this.historyService.addMessageToHistory(chatId, 'assistant', content, {
       messageId: messageData.messageId,
       candidateName: messageData.contactName,
       managerName: messageData.botUserId,
       orgId: messageData.orgId,
       botId: messageData.botId,
+      messageType: messageData.messageType,
+      source: messageData.source,
+      isRoom,
+      // v1.3 新增字段
+      imBotId: messageData.imBotId,
+      imContactId: messageData.imContactId,
+      contactType: messageData.contactType,
+      isSelf: messageData.isSelf,
+      payload: messageData.payload as Record<string, unknown>,
+      avatar: messageData.avatar,
+      externalUserId: messageData.externalUserId,
     });
 
     this.logger.log(
@@ -186,6 +199,7 @@ export class MessageService implements OnModuleInit {
     if (filterResult.historyOnly) {
       const parsed = MessageParser.parse(messageData);
       const { chatId, content, contactName } = parsed;
+      const isRoom = Boolean(messageData.imRoomId);
 
       // 记录到历史（包含元数据）
       await this.historyService.addMessageToHistory(chatId, 'user', content, {
@@ -194,6 +208,17 @@ export class MessageService implements OnModuleInit {
         managerName: messageData.botUserId,
         orgId: messageData.orgId,
         botId: messageData.botId,
+        messageType: messageData.messageType,
+        source: messageData.source,
+        isRoom,
+        // v1.3 新增字段
+        imBotId: messageData.imBotId,
+        imContactId: messageData.imContactId,
+        contactType: messageData.contactType,
+        isSelf: messageData.isSelf,
+        payload: messageData.payload as Record<string, unknown>,
+        avatar: messageData.avatar,
+        externalUserId: messageData.externalUserId,
       });
 
       this.logger.log(
@@ -220,6 +245,7 @@ export class MessageService implements OnModuleInit {
     const parsed = MessageParser.parse(messageData);
     const { chatId, contactName } = parsed;
     const content = contentFromFilter ?? parsed.content;
+    const isRoom = Boolean(messageData.imRoomId);
 
     if (!content || content.trim().length === 0) {
       this.logger.debug(`[AI回复已禁用] 消息内容为空，跳过记录历史 [${messageData.messageId}]`);
@@ -232,6 +258,17 @@ export class MessageService implements OnModuleInit {
       managerName: messageData.botUserId,
       orgId: messageData.orgId,
       botId: messageData.botId,
+      messageType: messageData.messageType,
+      source: messageData.source,
+      isRoom,
+      // v1.3 新增字段
+      imBotId: messageData.imBotId,
+      imContactId: messageData.imContactId,
+      contactType: messageData.contactType,
+      isSelf: messageData.isSelf,
+      payload: messageData.payload as Record<string, unknown>,
+      avatar: messageData.avatar,
+      externalUserId: messageData.externalUserId,
     });
   }
 

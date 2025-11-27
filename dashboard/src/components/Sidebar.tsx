@@ -70,6 +70,14 @@ const LogsIcon = () => (
   </svg>
 );
 
+const ChatRecordsIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+    <path d="M8 9h8" />
+    <path d="M8 13h6" />
+  </svg>
+);
+
 const ConsoleIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
     <rect x="2" y="4" width="20" height="16" rx="2" />
@@ -117,6 +125,12 @@ export default function Sidebar() {
           className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}
         >
           <span className="nav-icon icon-logs"><LogsIcon /></span> 实时消息
+        </NavLink>
+        <NavLink
+          to="/chat-records"
+          className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}
+        >
+          <span className="nav-icon icon-chat-records"><ChatRecordsIcon /></span> 聊天记录
         </NavLink>
         <NavLink
           to="/hosting"

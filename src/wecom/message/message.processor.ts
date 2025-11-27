@@ -437,8 +437,26 @@ export class MessageProcessor implements OnModuleInit {
       const historyMessages = await this.historyService.getHistory(chatId);
       this.logger.debug(`[Bull] 使用历史消息: ${historyMessages.length} 条`);
 
-      // 添加当前用户消息到历史（复用 HistoryService）
-      await this.historyService.addMessageToHistory(chatId, 'user', mergedContent);
+      // 添加当前用户消息到历史（复用 HistoryService，包含完整元数据）
+      const isRoom = Boolean(messageData.imRoomId);
+      await this.historyService.addMessageToHistory(chatId, 'user', mergedContent, {
+        messageId: messageData.messageId,
+        candidateName: messageData.contactName || contactName,
+        managerName: messageData.botUserId,
+        orgId: messageData.orgId,
+        botId: messageData.botId,
+        messageType: messageData.messageType,
+        source: messageData.source,
+        isRoom,
+        // v1.3 新增字段
+        imBotId: messageData.imBotId,
+        imContactId: messageData.imContactId,
+        contactType: messageData.contactType,
+        isSelf: messageData.isSelf,
+        payload: messageData.payload as Record<string, unknown>,
+        avatar: messageData.avatar,
+        externalUserId: messageData.externalUserId,
+      });
 
       // 记录 AI 处理开始
       this.monitoringService.recordAiStart(messageData.messageId);

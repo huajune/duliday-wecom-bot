@@ -241,10 +241,11 @@ describe('MonitoringPersistService', () => {
       expect(mockSupabaseService.upsertMonitoringHourly).not.toHaveBeenCalled();
     });
 
-    it('should not cleanup when disabled', async () => {
+    it('should still cleanup when disabled (cleanup runs regardless of enabled state)', async () => {
       await service.cleanupExpiredData();
 
-      expect(mockSupabaseService.deleteMonitoringHourlyBefore).not.toHaveBeenCalled();
+      // 清理任务始终运行，不受 enabled 状态影响
+      expect(mockSupabaseService.deleteMonitoringHourlyBefore).toHaveBeenCalled();
     });
 
     it('should return empty array for getHistoricalData when disabled', async () => {

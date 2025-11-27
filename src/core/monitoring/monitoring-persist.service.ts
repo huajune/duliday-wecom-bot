@@ -37,6 +37,7 @@ export class MonitoringPersistService implements OnModuleInit {
 
   private readonly enabled: boolean;
   private readonly RETENTION_DAYS = 30;
+  private readonly CHAT_RETENTION_DAYS = 60; // 聊天记录保留 60 天
   private readonly TABLE_NAME = 'monitoring_hourly';
 
   constructor(
@@ -79,13 +80,12 @@ export class MonitoringPersistService implements OnModuleInit {
 
   /**
    * 每天凌晨 3 点清理过期数据
+   * - 监控数据：保留 30 天
+   * - 聊天消息：保留 90 天
    */
   @Cron('0 3 * * *')
   async cleanupExpiredData(): Promise<void> {
-    if (!this.enabled) {
-      return;
-    }
-
+    // 1. 清理监控数据（无论服务是否启用都执行）
     try {
       const cutoffDate = new Date();
       cutoffDate.setDate(cutoffDate.getDate() - this.RETENTION_DAYS);
@@ -93,12 +93,27 @@ export class MonitoringPersistService implements OnModuleInit {
       const deletedCount = await this.deleteOldRecords(cutoffDate);
       if (deletedCount > 0) {
         this.logger.log(
-          `[监控持久化] 已清理 ${deletedCount} 条过期数据 (${this.RETENTION_DAYS} 天前)`,
+          `[监控持久化] 已清理 ${deletedCount} 条过期监控数据 (${this.RETENTION_DAYS} 天前)`,
         );
       }
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
-      this.logger.error(`[监控持久化] 清理过期数据失败: ${message}`);
+      this.logger.error(`[监控持久化] 清理监控数据失败: ${message}`);
+    }
+
+    // 2. 清理聊天消息（保留 90 天，防止超出 Supabase 免费额度）
+    try {
+      const deletedChatMessages = await this.supabaseService.cleanupChatMessages(
+        this.CHAT_RETENTION_DAYS,
+      );
+      if (deletedChatMessages > 0) {
+        this.logger.log(
+          `[聊天清理] 已清理 ${deletedChatMessages} 条过期聊天消息 (${this.CHAT_RETENTION_DAYS} 天前)`,
+        );
+      }
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.error(`[聊天清理] 清理聊天消息失败: ${message}`);
     }
   }
 

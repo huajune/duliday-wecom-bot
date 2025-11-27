@@ -19,7 +19,7 @@ interface FeishuRecordPayload {
 
 /**
  * 聊天记录同步服务
- * 每日 0 点将前一天的聊天记录从 Redis 同步到飞书多维表格
+ * 每日 0 点将前一天的聊天记录从 Supabase 同步到飞书多维表格
  */
 @Injectable()
 export class ChatRecordSyncService {
@@ -58,7 +58,7 @@ export class ChatRecordSyncService {
         `[ChatRecordSync] 时间范围: ${new Date(start).toISOString()} ~ ${new Date(end).toISOString()}`,
       );
 
-      // 从 Redis 获取昨天的所有聊天记录
+      // 从 Supabase 获取昨天的所有聊天记录
       const chatRecords = await this.messageHistoryService.getChatRecordsByTimeRange(start, end);
 
       if (chatRecords.length === 0) {

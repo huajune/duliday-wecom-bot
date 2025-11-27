@@ -400,3 +400,85 @@ export function useSetWorkerConcurrency() {
     },
   });
 }
+
+// ==================== 聊天记录查询 ====================
+
+// 聊天消息类型
+// v1.3: 新增 messageType, source, contactType, isSelf, avatar, externalUserId 字段
+export interface ChatMessage {
+  id: string;
+  chatId: string;
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: number;
+  candidateName?: string;
+  managerName?: string;
+  // v1.3 新增字段
+  messageType?: string; // 消息类型：TEXT, IMAGE, VOICE, FILE 等
+  source?: string; // 消息来源：MOBILE_PUSH, AI_REPLY 等
+  contactType?: string; // 客户类型：PERSONAL_WECHAT, ENTERPRISE_WECHAT 等
+  isSelf?: boolean; // 是否托管账号自己发送
+  avatar?: string; // 用户头像URL
+  externalUserId?: string; // 企微外部用户ID
+}
+
+// 聊天消息响应
+export interface ChatMessagesResponse {
+  messages: ChatMessage[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+// 会话信息
+// v1.3: 新增 avatar, contactType 字段
+export interface ChatSession {
+  chatId: string;
+  candidateName?: string;
+  managerName?: string;
+  messageCount: number;
+  lastMessage?: string;
+  lastTimestamp?: number;
+  // v1.3 新增字段
+  avatar?: string; // 用户头像URL
+  contactType?: string; // 客户类型
+}
+
+// 获取聊天消息列表
+export function useChatMessages(date?: string, page = 1, pageSize = 50) {
+  return useQuery({
+    queryKey: ['chat-messages', date, page, pageSize],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (date) params.set('date', date);
+      params.set('page', String(page));
+      params.set('pageSize', String(pageSize));
+      const { data } = await api.get(`/monitoring/chat-messages?${params.toString()}`);
+      return unwrapResponse<ChatMessagesResponse>(data);
+    },
+  });
+}
+
+// 获取会话列表
+export function useChatSessions(days: number = 1) {
+  return useQuery({
+    queryKey: ['chat-sessions', days],
+    queryFn: async () => {
+      const { data } = await api.get(`/monitoring/chat-sessions?days=${days}`);
+      return unwrapResponse<{ sessions: ChatSession[] }>(data);
+    },
+  });
+}
+
+// 获取指定会话的消息
+export function useChatSessionMessages(chatId: string | null) {
+  return useQuery({
+    queryKey: ['chat-session-messages', chatId],
+    queryFn: async () => {
+      if (!chatId) return { chatId: '', messages: [] };
+      const { data } = await api.get(`/monitoring/chat-sessions/${encodeURIComponent(chatId)}/messages`);
+      return unwrapResponse<{ chatId: string; messages: ChatMessage[] }>(data);
+    },
+    enabled: !!chatId,
+  });
+}

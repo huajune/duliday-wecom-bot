@@ -483,4 +483,94 @@ export class MonitoringController {
 
     return this.messageProcessor.setConcurrency(concurrency);
   }
+
+  // ==================== 聊天记录查询 ====================
+
+  /**
+   * 获取聊天记录（支持日期筛选）
+   * GET /monitoring/chat-messages?page=1&pageSize=50&date=2024-01-15
+   */
+  @Get('chat-messages')
+  async getChatMessages(
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+    @Query('date') date?: string,
+  ): Promise<{
+    messages: Array<{
+      id: string;
+      chatId: string;
+      role: 'user' | 'assistant';
+      content: string;
+      timestamp: number;
+      candidateName?: string;
+      managerName?: string;
+    }>;
+    total: number;
+    page: number;
+    pageSize: number;
+  }> {
+    const pageNum = parseInt(page || '1', 10);
+    const pageSizeNum = parseInt(pageSize || '50', 10);
+    const targetDate = date ? new Date(date) : new Date();
+
+    this.logger.debug(
+      `获取聊天记录: date=${targetDate.toISOString().split('T')[0]}, page=${pageNum}, pageSize=${pageSizeNum}`,
+    );
+
+    return this.supabaseService.getTodayChatMessages(targetDate, pageNum, pageSizeNum);
+  }
+
+  /**
+   * 获取所有会话列表
+   * GET /monitoring/chat-sessions?days=7
+   * v1.3: 新增 avatar, contactType 字段
+   */
+  @Get('chat-sessions')
+  async getChatSessions(@Query('days') days?: string): Promise<{
+    sessions: Array<{
+      chatId: string;
+      candidateName?: string;
+      managerName?: string;
+      messageCount: number;
+      lastMessage?: string;
+      lastTimestamp?: number;
+      // v1.3 新增字段
+      avatar?: string;
+      contactType?: string;
+    }>;
+  }> {
+    const daysNum = parseInt(days || '1', 10);
+    this.logger.debug(`获取会话列表: 最近 ${daysNum} 天`);
+    const sessions = await this.supabaseService.getChatSessionList(daysNum);
+    return { sessions };
+  }
+
+  /**
+   * 获取指定会话的聊天记录
+   * GET /monitoring/chat-sessions/:chatId/messages
+   * v1.3: 新增 messageType, source, contactType, isSelf, avatar, externalUserId 字段
+   */
+  @Get('chat-sessions/:chatId/messages')
+  async getChatSessionMessages(@Param('chatId') chatId: string): Promise<{
+    chatId: string;
+    messages: Array<{
+      messageId: string;
+      role: 'user' | 'assistant';
+      content: string;
+      timestamp: number;
+      candidateName?: string;
+      managerName?: string;
+      // v1.3 新增字段
+      messageType?: string;
+      source?: string;
+      contactType?: string;
+      isSelf?: boolean;
+      avatar?: string;
+      externalUserId?: string;
+    }>;
+  }> {
+    this.logger.debug(`获取会话消息: chatId=${chatId}`);
+    const messages = await this.supabaseService.getChatHistoryDetail(chatId);
+    return { chatId, messages };
+  }
 }
