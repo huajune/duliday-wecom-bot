@@ -2,6 +2,7 @@ import { Module, Global, forwardRef } from '@nestjs/common';
 import { ScheduleModule } from '@nestjs/schedule';
 import { MonitoringService } from './monitoring.service';
 import { MonitoringController } from './monitoring.controller';
+import { DashboardController } from './dashboard.controller';
 import { MonitoringSnapshotService } from './monitoring-snapshot.service';
 import { MonitoringAlertService } from './monitoring-alert.service';
 import { MonitoringPersistService } from './monitoring-persist.service';
@@ -23,7 +24,7 @@ import { MessageModule } from '@wecom/message/message.module';
     ScheduleModule.forRoot(), // 启用定时任务
     forwardRef(() => MessageModule),
   ],
-  controllers: [MonitoringController],
+  controllers: [MonitoringController, DashboardController],
   providers: [
     MonitoringService,
     MonitoringSnapshotService,

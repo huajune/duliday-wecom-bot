@@ -3,6 +3,7 @@ import {
   EnterpriseMessageCallbackDto,
   MessageSource,
   MessageType,
+  ContactType,
   getMessageSourceDescription,
 } from '../dto/message-callback.dto';
 import { MessageParser } from '../utils/message-parser.util';
@@ -128,7 +129,22 @@ export class MessageFilterService implements OnModuleInit {
       };
     }
 
-    // 2.5 检查用户是否被暂停托管
+    // 2.5 只处理个微用户的消息（企微、公众号消息不触发 AI 回复）
+    if (messageData.contactType !== ContactType.PERSONAL_WECHAT) {
+      this.logger.log(
+        `[过滤-客户类型] 跳过非个微用户的消息 [${messageData.messageId}], contactType=${messageData.contactType}, 期望=${ContactType.PERSONAL_WECHAT}(个微)`,
+      );
+      return {
+        pass: false,
+        reason: 'non-personal-wechat',
+        details: {
+          actual: messageData.contactType,
+          expected: ContactType.PERSONAL_WECHAT,
+        },
+      };
+    }
+
+    // 2.6 检查用户是否被暂停托管
     // 使用 imContactId 作为用户标识（私聊场景）
     const userId = messageData.imContactId || messageData.externalUserId;
     if (userId && (await this.isUserPaused(userId))) {
@@ -144,7 +160,7 @@ export class MessageFilterService implements OnModuleInit {
       };
     }
 
-    // 2.6 检查小组是否在黑名单中（仅记录历史，不触发AI回复）
+    // 2.7 检查小组是否在黑名单中（仅记录历史，不触发AI回复）
     if (messageData.groupId && (await this.isGroupBlacklisted(messageData.groupId))) {
       const content = MessageParser.extractContent(messageData);
       this.logger.log(

@@ -1066,8 +1066,9 @@ export class SupabaseService implements OnModuleInit {
 
   /**
    * 保存聊天消息到 Supabase
-   * 注意：只存储私聊消息，群聊消息会被过滤
+   * 注意：只存储个微私聊消息，群聊消息和非个微用户消息会被过滤
    * v1.3: 新增 imBotId, imContactId, contactType, isSelf, payload, avatar, externalUserId 字段
+   * v1.4: 新增 contactType 过滤，只存储个微用户消息
    */
   async saveChatMessage(message: {
     chatId: string;
@@ -1099,6 +1100,15 @@ export class SupabaseService implements OnModuleInit {
     // 过滤群聊消息，只存储私聊
     if (message.isRoom === true) {
       this.logger.debug(`跳过群聊消息存储: ${message.messageId}`);
+      return true;
+    }
+
+    // 只存储个微用户的消息（contactType === 1 表示个微）
+    // 企微、公众号消息不落库
+    if (message.contactType !== undefined && message.contactType !== 1) {
+      this.logger.debug(
+        `跳过非个微用户消息存储: ${message.messageId}, contactType=${message.contactType}`,
+      );
       return true;
     }
 
