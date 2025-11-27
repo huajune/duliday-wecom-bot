@@ -115,8 +115,9 @@ body {
 .container {
   position: relative;
   z-index: 1;
-  max-width: 1440px;
-  margin: 0 auto;
+  max-width: 100%;
+  width: 100%;
+  margin: 0;
   display: flex;
   flex-direction: column;
   gap: 24px;
@@ -1811,7 +1812,8 @@ tbody tr:hover {
 /* Adjust container to fit in content area */
 .container {
   margin: 0;
-  max-width: 1200px;
+  max-width: 100%; /* 自适应屏幕宽度 */
+  width: 100%;
 }
 
 /* Pagination styles */

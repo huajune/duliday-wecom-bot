@@ -91,7 +91,9 @@ function MessageDetailPanel({
                     <span>⚠️</span> 错误信息
                   </div>
                   <div className="error-content">
-                    {message.error}
+                    {typeof message.error === 'string'
+                      ? message.error
+                      : JSON.stringify(message.error, null, 2)}
                   </div>
                 </div>
               )}

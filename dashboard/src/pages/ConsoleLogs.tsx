@@ -35,7 +35,12 @@ export default function ConsoleLogs() {
 
   // 连接 WebSocket
   useEffect(() => {
-    const apiBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
+    // 自动检测当前访问的 host，支持 ngrok 等代理环境
+    const host = window.location.host;
+    // 如果是开发模式下的 5173 端口，连接到 8080；否则使用当前 host
+    const wsHost = host.includes(':5173') ? 'localhost:8080' : host;
+    const apiBase = import.meta.env.VITE_API_BASE_URL || `${window.location.protocol}//${wsHost}`;
+
     const socket = io(`${apiBase}/logs`, {
       transports: ['websocket', 'polling'],
     });
