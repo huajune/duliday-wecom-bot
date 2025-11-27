@@ -1105,7 +1105,12 @@ export class SupabaseService implements OnModuleInit {
 
     // 只存储个微用户的消息（contactType === 1 表示个微）
     // 企微、公众号消息不落库
-    if (message.contactType !== undefined && message.contactType !== 1) {
+    // 注意：assistant 消息（机器人回复）不受此限制，始终存储
+    if (
+      message.role !== 'assistant' &&
+      message.contactType !== undefined &&
+      message.contactType !== 1
+    ) {
       this.logger.debug(
         `跳过非个微用户消息存储: ${message.messageId}, contactType=${message.contactType}`,
       );
