@@ -41,25 +41,34 @@ export class MessageController {
   @RawResponse() // 企微回调必须返回原始格式，不使用统一包装
   @Post()
   async receiveMessage(@Body() body: any) {
-    // 打印原始回调数据（用于对比分析）
-    this.logger.debug('=== [原始消息回调数据] ===');
-    this.logger.debug(JSON.stringify(body, null, 2));
-    this.logger.debug('=========================');
-
     // 自动检测并转换为统一格式
     const callbackType = this.callbackAdapter.detectCallbackType(body);
-    this.logger.log(
-      `收到消息回调 [${callbackType}]: messageId=${body.messageId || body.data?.messageId}`,
-    );
+
+    // 打印原始回调数据（使用 log 级别确保生产环境可见）
+    this.logger.log('=== [消息回调] ===');
+    this.logger.log(`类型=${callbackType}, messageId=${body.messageId || body.data?.messageId}`);
+    this.logger.log(`原始数据: ${JSON.stringify(body)}`);
 
     // 统一转换为企业级格式
     const normalizedCallback = this.callbackAdapter.normalizeCallback(body);
 
+    // 打印标准化后的关键字段
     this.logger.log(
-      `处理消息: messageId=${normalizedCallback.messageId}, source=${normalizedCallback.source}, chatId=${normalizedCallback.chatId}`,
+      `[标准化] messageId=${normalizedCallback.messageId}, ` +
+        `chatId=${normalizedCallback.chatId}, ` +
+        `isSelf=${normalizedCallback.isSelf}, ` +
+        `source=${normalizedCallback.source}, ` +
+        `contactType=${normalizedCallback.contactType}, ` +
+        `messageType=${normalizedCallback.messageType}`,
     );
 
-    return await this.messageService.handleMessage(normalizedCallback);
+    const result = await this.messageService.handleMessage(normalizedCallback);
+
+    this.logger.log(
+      `[处理完成] messageId=${normalizedCallback.messageId}, result=${JSON.stringify(result)}`,
+    );
+
+    return result;
   }
 
   /**

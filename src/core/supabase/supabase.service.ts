@@ -1494,9 +1494,10 @@ export class SupabaseService implements OnModuleInit {
       startDate.setHours(0, 0, 0, 0);
 
       // 获取指定时间范围内的会话统计信息
+      // 增加 role 字段用于区分用户消息和机器人回复
       const response = await this.supabaseHttpClient.get('/chat_messages', {
         params: {
-          select: 'chat_id,candidate_name,manager_name,content,timestamp,avatar,contact_type',
+          select: 'chat_id,candidate_name,manager_name,content,timestamp,avatar,contact_type,role',
           order: 'timestamp.desc',
           timestamp: `gte.${startDate.toISOString()}`,
         },
@@ -1528,7 +1529,8 @@ export class SupabaseService implements OnModuleInit {
             lastMessage: msg.content?.substring(0, 50) + (msg.content?.length > 50 ? '...' : ''),
             lastTimestamp: new Date(msg.timestamp).getTime(),
             avatar: msg.avatar,
-            contactType: msg.contact_type,
+            // 只有用户消息的 contactType 才是准确的（机器人回复可能继承错误的值）
+            contactType: msg.role === 'user' ? msg.contact_type : undefined,
           });
         } else {
           const session = sessionMap.get(chatId)!;
@@ -1543,7 +1545,8 @@ export class SupabaseService implements OnModuleInit {
           if (!session.avatar && msg.avatar) {
             session.avatar = msg.avatar;
           }
-          if (!session.contactType && msg.contact_type) {
+          // 只从用户消息中获取 contactType
+          if (!session.contactType && msg.contact_type && msg.role === 'user') {
             session.contactType = msg.contact_type;
           }
         }
