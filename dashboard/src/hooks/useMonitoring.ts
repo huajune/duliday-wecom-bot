@@ -64,6 +64,66 @@ export function useHealthStatus(autoRefresh = true) {
   });
 }
 
+// 可用模型列表
+export interface AvailableModelsResponse {
+  defaultModel: string;
+  availableModels: string[];
+  count: number;
+  defaultModelAvailable: boolean;
+  lastRefreshTime: string;
+}
+
+export function useAvailableModels() {
+  return useQuery({
+    queryKey: ['available-models'],
+    queryFn: async () => {
+      const { data } = await api.get('/agent/available-models');
+      return unwrapResponse<AvailableModelsResponse>(data);
+    },
+    staleTime: 60000, // 1 分钟内不重新请求
+  });
+}
+
+// 配置的工具列表
+export interface ConfiguredToolsResponse {
+  configuredTools: string[];
+  count: number;
+  allAvailable: boolean;
+  lastRefreshTime: string;
+}
+
+export function useConfiguredTools() {
+  return useQuery({
+    queryKey: ['configured-tools'],
+    queryFn: async () => {
+      const { data } = await api.get('/agent/configured-tools');
+      return unwrapResponse<ConfiguredToolsResponse>(data);
+    },
+    staleTime: 60000, // 1 分钟内不重新请求
+  });
+}
+
+// 品牌配置状态
+export interface BrandConfigStatusResponse {
+  available: boolean;
+  synced: boolean;
+  hasBrandData: boolean;
+  hasReplyPrompts: boolean;
+  lastRefreshTime: string;
+  lastUpdated: string;
+}
+
+export function useBrandConfigStatus() {
+  return useQuery({
+    queryKey: ['brand-config-status'],
+    queryFn: async () => {
+      const { data } = await api.get('/agent/config/status');
+      return unwrapResponse<BrandConfigStatusResponse>(data);
+    },
+    staleTime: 60000, // 1 分钟内不重新请求
+  });
+}
+
 // AI 回复状态
 export function useAiReplyStatus() {
   return useQuery({

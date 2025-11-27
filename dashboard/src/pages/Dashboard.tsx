@@ -18,6 +18,9 @@ import {
   useHealthStatus,
   useAiReplyStatus,
   useToggleAiReply,
+  useAvailableModels,
+  useConfiguredTools,
+  useBrandConfigStatus,
 } from '@/hooks/useMonitoring';
 import { formatDateTime, formatDuration, formatMinuteLabel, formatDayLabel } from '@/utils/format';
 
@@ -42,10 +45,16 @@ ChartJS.register(
 export default function Dashboard() {
   const [timeRange, setTimeRange] = useState<'today' | 'week' | 'month'>('today');
   const [autoRefresh, setAutoRefresh] = useState(true);
+  const [hoveredCard, setHoveredCard] = useState<'model' | 'tool' | 'brand' | null>(null);
   const { data: dashboard, isLoading: dashboardLoading, dataUpdatedAt } = useDashboard(timeRange, autoRefresh);
   const { data: health } = useHealthStatus(autoRefresh);
   const { data: aiStatus } = useAiReplyStatus();
   const toggleAiReply = useToggleAiReply();
+
+  // 详情数据（悬浮时加载）
+  const { data: modelsData } = useAvailableModels();
+  const { data: toolsData } = useConfiguredTools();
+  const { data: brandData } = useBrandConfigStatus();
 
   // 圣诞装饰效果 - 与 monitoring.html 的 DOMContentLoaded 逻辑完全一致
   useEffect(() => {
@@ -365,7 +374,13 @@ export default function Dashboard() {
               </div>
             </div>
           </article>
-          <article className="health-item" id="modelHealthCard" data-state={health?.models?.allConfiguredModelsAvailable ? 'healthy' : 'loading'}>
+          <article
+            className="health-item health-item-hoverable"
+            id="modelHealthCard"
+            data-state={health?.models?.allConfiguredModelsAvailable ? 'healthy' : 'loading'}
+            onMouseEnter={() => setHoveredCard('model')}
+            onMouseLeave={() => setHoveredCard(null)}
+          >
             <div className="health-icon">🤖</div>
             <div className="health-info">
               <div className="health-title">AI 模型</div>
@@ -376,8 +391,37 @@ export default function Dashboard() {
                 {health?.models ? `${health.models.availableCount}/${health.models.configuredCount} 模型可用` : '检查中...'}
               </div>
             </div>
+            {/* 悬浮弹窗：可用模型列表 */}
+            {hoveredCard === 'model' && modelsData && (
+              <div className="health-tooltip">
+                <div className="tooltip-title">可用模型列表</div>
+                <div className="tooltip-content">
+                  {modelsData.availableModels?.length > 0 ? (
+                    <ul className="tooltip-list">
+                      {modelsData.availableModels.map((model) => (
+                        <li key={model} className={model === modelsData.defaultModel ? 'default-item' : ''}>
+                          {model}
+                          {model === modelsData.defaultModel && <span className="default-badge">默认</span>}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <div className="tooltip-empty">暂无可用模型</div>
+                  )}
+                </div>
+                <div className="tooltip-footer">
+                  更新于 {modelsData.lastRefreshTime ? formatDateTime(modelsData.lastRefreshTime) : '-'}
+                </div>
+              </div>
+            )}
           </article>
-          <article className="health-item" id="toolHealthCard" data-state={health?.tools?.allAvailable ? 'healthy' : 'loading'}>
+          <article
+            className="health-item health-item-hoverable"
+            id="toolHealthCard"
+            data-state={health?.tools?.allAvailable ? 'healthy' : 'loading'}
+            onMouseEnter={() => setHoveredCard('tool')}
+            onMouseLeave={() => setHoveredCard(null)}
+          >
             <div className="health-icon">🧰</div>
             <div className="health-info">
               <div className="health-title">工具服务</div>
@@ -388,8 +432,34 @@ export default function Dashboard() {
                 {health?.tools ? `${health.tools.availableCount}/${health.tools.configuredCount} 工具可用` : '检查中...'}
               </div>
             </div>
+            {/* 悬浮弹窗：配置工具列表 */}
+            {hoveredCard === 'tool' && toolsData && (
+              <div className="health-tooltip">
+                <div className="tooltip-title">配置工具列表</div>
+                <div className="tooltip-content">
+                  {toolsData.configuredTools?.length > 0 ? (
+                    <ul className="tooltip-list">
+                      {toolsData.configuredTools.map((tool) => (
+                        <li key={tool}>{tool}</li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <div className="tooltip-empty">暂无配置工具</div>
+                  )}
+                </div>
+                <div className="tooltip-footer">
+                  共 {toolsData.count} 个工具 | 更新于 {toolsData.lastRefreshTime ? formatDateTime(toolsData.lastRefreshTime) : '-'}
+                </div>
+              </div>
+            )}
           </article>
-          <article className="health-item" id="brandHealthCard" data-state={health?.brandConfig?.available && health?.brandConfig?.synced ? 'healthy' : 'loading'}>
+          <article
+            className="health-item health-item-hoverable"
+            id="brandHealthCard"
+            data-state={health?.brandConfig?.available && health?.brandConfig?.synced ? 'healthy' : 'loading'}
+            onMouseEnter={() => setHoveredCard('brand')}
+            onMouseLeave={() => setHoveredCard(null)}
+          >
             <div className="health-icon">🏷️</div>
             <div className="health-info">
               <div className="health-title">品牌数据</div>
@@ -402,6 +472,43 @@ export default function Dashboard() {
                   : health?.brandConfig?.available ? '品牌数据待同步' : '检查中...'}
               </div>
             </div>
+            {/* 悬浮弹窗：品牌配置状态 */}
+            {hoveredCard === 'brand' && brandData && (
+              <div className="health-tooltip">
+                <div className="tooltip-title">品牌配置状态</div>
+                <div className="tooltip-content">
+                  <div className="tooltip-status-grid">
+                    <div className="status-row">
+                      <span className="status-label">配置可用</span>
+                      <span className={`status-value ${brandData.available ? 'success' : 'error'}`}>
+                        {brandData.available ? '是' : '否'}
+                      </span>
+                    </div>
+                    <div className="status-row">
+                      <span className="status-label">数据已同步</span>
+                      <span className={`status-value ${brandData.synced ? 'success' : 'warning'}`}>
+                        {brandData.synced ? '是' : '否'}
+                      </span>
+                    </div>
+                    <div className="status-row">
+                      <span className="status-label">品牌数据</span>
+                      <span className={`status-value ${brandData.hasBrandData ? 'success' : 'warning'}`}>
+                        {brandData.hasBrandData ? '已加载' : '未加载'}
+                      </span>
+                    </div>
+                    <div className="status-row">
+                      <span className="status-label">回复模板</span>
+                      <span className={`status-value ${brandData.hasReplyPrompts ? 'success' : 'warning'}`}>
+                        {brandData.hasReplyPrompts ? '已加载' : '未加载'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                <div className="tooltip-footer">
+                  更新于 {brandData.lastUpdated ? formatDateTime(brandData.lastUpdated) : '-'}
+                </div>
+              </div>
+            )}
           </article>
         </div>
       </section>
