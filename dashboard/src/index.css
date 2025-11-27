@@ -2494,3 +2494,25 @@ tbody tr:hover {
   background: var(--primary);
   color: #fff;
 }
+
+/* Fix for session list item wrapping */
+.session-name-wrapper {
+  flex-wrap: nowrap !important;
+}
+.candidate-name {
+  flex: 0 1 auto !important;
+  min-width: 0 !important;
+}
+.contact-type-badge {
+  flex-shrink: 0 !important;
+  white-space: nowrap !important;
+  font-size: 10px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  margin-left: 4px;
+  font-weight: 500;
+}
+.manager-badge {
+  flex-shrink: 0 !important;
+  white-space: nowrap !important;
+}

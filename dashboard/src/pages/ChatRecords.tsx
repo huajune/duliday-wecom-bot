@@ -220,12 +220,8 @@ export default function ChatRecords() {
                             <span
                               className="contact-type-badge"
                               style={{
-                                fontSize: '10px',
-                                padding: '1px 5px',
-                                borderRadius: '4px',
                                 color: contactTypeInfo.color,
                                 background: contactTypeInfo.bg,
-                                marginLeft: '4px',
                               }}
                             >
                               {contactTypeInfo.label}
