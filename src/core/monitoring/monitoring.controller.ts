@@ -523,10 +523,16 @@ export class MonitoringController {
   /**
    * 获取所有会话列表
    * GET /monitoring/chat-sessions?days=7
+   * GET /monitoring/chat-sessions?startDate=2024-01-01&endDate=2024-01-31
    * v1.3: 新增 avatar, contactType 字段
+   * v1.4: 支持精确的 startDate/endDate 时间范围筛选
    */
   @Get('chat-sessions')
-  async getChatSessions(@Query('days') days?: string): Promise<{
+  async getChatSessions(
+    @Query('days') days?: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+  ): Promise<{
     sessions: Array<{
       chatId: string;
       candidateName?: string;
@@ -539,10 +545,46 @@ export class MonitoringController {
       contactType?: string;
     }>;
   }> {
+    // 优先使用精确时间范围
+    if (startDate) {
+      const start = new Date(startDate);
+      start.setHours(0, 0, 0, 0);
+      const end = endDate ? new Date(endDate) : new Date();
+      end.setHours(23, 59, 59, 999);
+      this.logger.debug(`获取会话列表: ${start.toISOString()} ~ ${end.toISOString()}`);
+      const sessions = await this.supabaseService.getChatSessionListByDateRange(start, end);
+      return { sessions };
+    }
+
+    // 兼容旧的 days 参数
     const daysNum = parseInt(days || '1', 10);
     this.logger.debug(`获取会话列表: 最近 ${daysNum} 天`);
     const sessions = await this.supabaseService.getChatSessionList(daysNum);
     return { sessions };
+  }
+
+  /**
+   * 获取聊天趋势数据
+   * GET /monitoring/chat-trend?days=7
+   */
+  @Get('chat-trend')
+  async getChatTrend(@Query('days') days?: string): Promise<
+    Array<{
+      hour: string;
+      message_count: number;
+      active_users: number;
+      active_chats: number;
+    }>
+  > {
+    const daysNum = parseInt(days || '7', 10);
+    this.logger.debug(`获取聊天趋势: 最近 ${daysNum} 天`);
+    const history = await this.supabaseService.getMonitoringHourlyHistory(daysNum);
+    return history.map((item) => ({
+      hour: item.hour,
+      message_count: item.message_count,
+      active_users: item.active_users,
+      active_chats: item.active_chats,
+    }));
   }
 
   /**

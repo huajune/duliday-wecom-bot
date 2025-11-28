@@ -1,7 +1,7 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { MonitoringService } from './monitoring.service';
-import { AlertService } from '../alert/alert.service';
+import { FeishuAlertService } from '@core/feishu';
 import { SupabaseService, AgentReplyConfig } from '@core/supabase';
 
 /**
@@ -46,7 +46,7 @@ export class MonitoringAlertService implements OnModuleInit {
 
   constructor(
     private readonly monitoringService: MonitoringService,
-    private readonly alertService: AlertService,
+    private readonly feishuAlertService: FeishuAlertService,
     private readonly supabaseService: SupabaseService,
   ) {
     // 注册配置变更回调
@@ -149,7 +149,7 @@ export class MonitoringAlertService implements OnModuleInit {
 
     if (currentValue < critical) {
       if (this.shouldSendAlert(key)) {
-        await this.alertService.sendSimpleAlert(
+        await this.feishuAlertService.sendSimpleAlert(
           '成功率严重下降',
           `当前成功率: ${currentValue.toFixed(1)}%\n阈值: ${critical}%\n今日消息数: ${totalMessages}\n建议: 立即检查 Agent API 状态`,
           'critical',
@@ -158,7 +158,7 @@ export class MonitoringAlertService implements OnModuleInit {
       }
     } else if (currentValue < warning) {
       if (this.shouldSendAlert(key)) {
-        await this.alertService.sendSimpleAlert(
+        await this.feishuAlertService.sendSimpleAlert(
           '成功率下降',
           `当前成功率: ${currentValue.toFixed(1)}%\n阈值: ${warning}%\n今日消息数: ${totalMessages}`,
           'warning',
@@ -182,7 +182,7 @@ export class MonitoringAlertService implements OnModuleInit {
 
     if (currentValue > critical) {
       if (this.shouldSendAlert(key)) {
-        await this.alertService.sendSimpleAlert(
+        await this.feishuAlertService.sendSimpleAlert(
           '响应时间过长',
           `当前平均响应: ${(currentValue / 1000).toFixed(1)}秒\n阈值: ${critical / 1000}秒\n今日消息数: ${totalMessages}\n建议: 检查 Agent API 性能`,
           'critical',
@@ -191,7 +191,7 @@ export class MonitoringAlertService implements OnModuleInit {
       }
     } else if (currentValue > warning) {
       if (this.shouldSendAlert(key)) {
-        await this.alertService.sendSimpleAlert(
+        await this.feishuAlertService.sendSimpleAlert(
           '响应时间偏高',
           `当前平均响应: ${(currentValue / 1000).toFixed(1)}秒\n阈值: ${warning / 1000}秒\n今日消息数: ${totalMessages}`,
           'warning',
@@ -210,7 +210,7 @@ export class MonitoringAlertService implements OnModuleInit {
 
     if (currentValue > critical) {
       if (this.shouldSendAlert(key)) {
-        await this.alertService.sendSimpleAlert(
+        await this.feishuAlertService.sendSimpleAlert(
           '队列严重积压',
           `当前队列深度: ${currentValue}条\n阈值: ${critical}条\n建议: 检查消息处理速度`,
           'critical',
@@ -219,7 +219,7 @@ export class MonitoringAlertService implements OnModuleInit {
       }
     } else if (currentValue > warning) {
       if (this.shouldSendAlert(key)) {
-        await this.alertService.sendSimpleAlert(
+        await this.feishuAlertService.sendSimpleAlert(
           '队列积压',
           `当前队列深度: ${currentValue}条\n阈值: ${warning}条`,
           'warning',
@@ -241,7 +241,7 @@ export class MonitoringAlertService implements OnModuleInit {
 
     if (hourlyRate > critical) {
       if (this.shouldSendAlert(key)) {
-        await this.alertService.sendSimpleAlert(
+        await this.feishuAlertService.sendSimpleAlert(
           '错误率过高',
           `24小时错误数: ${errorCount}次\n每小时平均: ${hourlyRate.toFixed(1)}次\n阈值: ${critical}次/小时`,
           'critical',
@@ -250,7 +250,7 @@ export class MonitoringAlertService implements OnModuleInit {
       }
     } else if (hourlyRate > warning) {
       if (this.shouldSendAlert(key)) {
-        await this.alertService.sendSimpleAlert(
+        await this.feishuAlertService.sendSimpleAlert(
           '错误率偏高',
           `24小时错误数: ${errorCount}次\n每小时平均: ${hourlyRate.toFixed(1)}次\n阈值: ${warning}次/小时`,
           'warning',

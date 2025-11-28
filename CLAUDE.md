@@ -52,10 +52,13 @@ src/
 │
 ├── agent/                          # AI Agent Domain
 │   ├── agent.service.ts            # Agent API invocation layer
-│   ├── agent-cache.service.ts      # Multi-layer caching
 │   ├── agent-registry.service.ts   # Model/tool registry
-│   ├── agent-config.service.ts     # Config profile management
-│   └── context/                    # Agent context configurations
+│   ├── services/                   # Agent sub-services
+│   │   ├── agent-api-client.service.ts
+│   │   ├── agent-fallback.service.ts
+│   │   ├── brand-config.service.ts
+│   │   └── agent-profile-loader.service.ts
+│   └── profiles/                   # Agent context configurations
 │
 └── wecom/                          # WeChat Enterprise Domain
     ├── message/                    # Message processing (Core business)
@@ -112,10 +115,10 @@ Refactored from 1099 lines monolith → 5 sub-services (~300 lines main)
 - **Merging** - MessageMergeService (Queue-driven)
 - **Statistics** - MessageStatisticsService
 
-### 2. Multi-layer Caching
-- **Memory Cache** - Agent config profiles
-- **Redis Cache** - Agent responses, message history
-- **Bull Queue** - Message aggregation processing
+### 2. Caching Strategy
+- **Memory Cache** - Agent config profiles (ProfileLoaderService)
+- **Redis Cache** - Message history (MessageHistoryService)
+- **Bull Queue** - Message aggregation processing (MessageMergeService)
 
 ### 3. Factory Pattern
 ```typescript
@@ -171,10 +174,10 @@ Response format:
 
 | 配置 | 值 | 位置 |
 |------|-----|------|
-| 告警节流窗口 | 5 分钟 | AlertService |
-| 告警最大次数 | 3 次/类型 | AlertService |
+| 告警节流窗口 | 5 分钟 | FeishuAlertService |
+| 告警最大次数 | 3 次/类型 | FeishuAlertService |
 | 健康检查间隔 | 1 小时 | AgentRegistryService |
-| 缓存 TTL | 1 小时 | AgentCacheService |
+| Profile 缓存 TTL | 1 小时 | ProfileLoaderService |
 
 #### 配置文件说明
 - **`.env.example`** - 模板文件，列出所有可配置项

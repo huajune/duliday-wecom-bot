@@ -2,8 +2,8 @@ import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/commo
 import { ConfigService } from '@nestjs/config';
 import { AxiosInstance } from 'axios';
 import { RedisService } from '@core/redis';
-import { HttpClientFactory } from '@core/http';
-import { AlertService } from '@core/alert/alert.service';
+import { HttpClientFactory } from '@core/client-http';
+import { FeishuAlertService } from '@core/feishu';
 
 /**
  * 品牌配置接口
@@ -67,7 +67,7 @@ export class BrandConfigService implements OnModuleInit, OnModuleDestroy {
     private readonly configService: ConfigService,
     private readonly redisService: RedisService,
     private readonly httpClientFactory: HttpClientFactory,
-    private readonly alertService: AlertService,
+    private readonly feishuAlertService: FeishuAlertService,
   ) {
     this.initSupabaseClient();
   }
@@ -193,7 +193,7 @@ export class BrandConfigService implements OnModuleInit, OnModuleDestroy {
       }
 
       // 发送飞书告警
-      await this.alertService.sendAlert({
+      await this.feishuAlertService.sendAlert({
         errorType: 'system',
         error,
         scenario: isFirstLoad ? 'BRAND_CONFIG_FIRST_LOAD_FAILED' : 'BRAND_CONFIG_REFRESH_FAILED',

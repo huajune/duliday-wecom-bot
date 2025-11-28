@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { UserController } from './user.controller';
 import { UserService } from './user.service';
-import { HttpModule } from '@core/http';
+import { HttpModule } from '@core/client-http';
 import { ApiConfigModule } from '@core/config';
 
 /**

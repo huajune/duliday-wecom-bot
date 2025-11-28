@@ -106,25 +106,113 @@ export interface BusinessMetricTrendPoint {
 }
 
 /**
- * Agent 响应消息部分
+ * Agent 响应消息部分 - 文本类型
  */
-export interface AgentMessagePart {
+export interface AgentTextPart {
   type: 'text';
   text: string;
+  state?: 'done' | 'streaming';
 }
+
+/**
+ * Agent 响应消息部分 - 动态工具类型
+ */
+export interface AgentDynamicToolPart {
+  type: 'dynamic-tool';
+  toolName: string;
+  toolCallId: string;
+  state: 'pending' | 'running' | 'output-available' | 'error';
+  input?: Record<string, unknown>;
+  output?: Record<string, unknown>;
+  error?: string;
+}
+
+/**
+ * Agent 响应消息部分（联合类型）
+ */
+export type AgentMessagePart = AgentTextPart | AgentDynamicToolPart;
 
 /**
  * Agent 响应消息
  */
 export interface AgentResponseMessage {
+  id?: string;
   role: 'user' | 'assistant' | 'system';
   parts: AgentMessagePart[];
+}
+
+/**
+ * 简单消息结构（用于历史消息展示）
+ */
+export interface SimpleMessageItem {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+/**
+ * Agent 调用输入参数（用于调试，去除品牌数据）
+ */
+export interface AgentInputParams {
+  conversationId: string;
+  userMessage: string;
+  historyCount: number; // 历史消息数量
+  historyMessages?: SimpleMessageItem[]; // 历史消息详情（用于调试）
+  model?: string;
+  promptType?: string;
+  allowedTools?: string[];
+  contextStrategy?: string;
+  prune?: boolean;
+  // Prompt 相关字段（仅记录是否传入和长度，不记录内容）
+  hasSystemPrompt?: boolean;
+  systemPromptLength?: number;
+  hasContext?: boolean;
+  contextLength?: number;
+  hasToolContext?: boolean;
+  toolContextLength?: number;
+  // 品牌配置相关（configData = brandData, replyPrompts 来自 brandConfigService）
+  hasConfigData?: boolean;
+  hasReplyPrompts?: boolean;
+  brandPriorityStrategy?: string;
+  // 调试字段
+  _mergedContextKeys?: string[];
+}
+
+/**
+ * 完整 HTTP 响应结构（包含状态码、headers 等）
+ */
+export interface RawHttpResponse {
+  // HTTP 状态码
+  status: number;
+  statusText: string;
+  // 响应头（选择性保留关键字段）
+  headers?: {
+    'content-type'?: string;
+    'x-request-id'?: string;
+    'x-correlation-id'?: string;
+    [key: string]: string | undefined;
+  };
+  // 响应时间（毫秒）
+  responseTime?: number;
 }
 
 /**
  * 完整 Agent 响应结构（对应 ChatResponse）
  */
 export interface RawAgentResponse {
+  // Agent 调用输入参数（用于调试）
+  input?: AgentInputParams;
+
+  // === 完整 HTTP 响应信息 ===
+  http?: RawHttpResponse;
+
+  // === API 响应外层包装 (ApiResponse<ChatResponse>) ===
+  apiResponse?: {
+    success: boolean;
+    error?: string;
+    correlationId?: string;
+  };
+
+  // === ChatResponse 数据 ===
   // 完整消息数组（保留原始结构）
   messages: AgentResponseMessage[];
   // Token 使用统计
@@ -139,6 +227,8 @@ export interface RawAgentResponse {
     used: string[];
     skipped: string[];
   };
+
+  // === 业务层补充信息 ===
   // 是否降级响应
   isFallback?: boolean;
   // 降级原因

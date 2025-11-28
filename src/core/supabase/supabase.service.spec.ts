@@ -1,7 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { SupabaseService } from './supabase.service';
-import { HttpClientFactory } from '@core/http';
+import { HttpClientFactory } from '@core/client-http';
 import { RedisService } from '@core/redis';
 
 describe('SupabaseService', () => {

@@ -1,7 +1,7 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AxiosInstance } from 'axios';
-import { HttpClientFactory } from '@core/http';
+import { HttpClientFactory } from '@core/client-http';
 import { RedisService } from '@core/redis';
 import {
   StorageMessageType,
@@ -1142,10 +1142,11 @@ export class SupabaseService implements OnModuleInit {
         external_user_id: message.externalUserId,
       };
 
-      await this.supabaseHttpClient.post('/chat_messages', record, {
+      // 使用 on_conflict 参数配合 ignore-duplicates 策略
+      // 当 message_id 冲突时，忽略插入而不报错
+      await this.supabaseHttpClient.post('/chat_messages?on_conflict=message_id', record, {
         headers: {
-          // 忽略重复的 message_id
-          Prefer: 'resolution=ignore-duplicates',
+          Prefer: 'return=minimal,resolution=ignore-duplicates',
         },
       });
 
@@ -1500,6 +1501,7 @@ export class SupabaseService implements OnModuleInit {
           select: 'chat_id,candidate_name,manager_name,content,timestamp,avatar,contact_type,role',
           order: 'timestamp.desc',
           timestamp: `gte.${startDate.toISOString()}`,
+          limit: 10000, // 增加限制以避免数据截断
         },
       });
 
@@ -1523,26 +1525,29 @@ export class SupabaseService implements OnModuleInit {
         if (!sessionMap.has(chatId)) {
           sessionMap.set(chatId, {
             chatId,
-            candidateName: msg.candidate_name,
+            // 优先使用用户消息的名称
+            candidateName: msg.role === 'user' ? msg.candidate_name : undefined,
             managerName: msg.manager_name,
             messageCount: 1,
             lastMessage: msg.content?.substring(0, 50) + (msg.content?.length > 50 ? '...' : ''),
             lastTimestamp: new Date(msg.timestamp).getTime(),
-            avatar: msg.avatar,
+            // 优先使用用户消息的头像
+            avatar: msg.role === 'user' ? msg.avatar : undefined,
             // 只有用户消息的 contactType 才是准确的（机器人回复可能继承错误的值）
             contactType: msg.role === 'user' ? msg.contact_type : undefined,
           });
         } else {
           const session = sessionMap.get(chatId)!;
           session.messageCount++;
-          // 补充缺失的名称和头像
-          if (!session.candidateName && msg.candidate_name) {
+          // 补充缺失的名称（只从用户消息获取）
+          if (!session.candidateName && msg.role === 'user' && msg.candidate_name) {
             session.candidateName = msg.candidate_name;
           }
           if (!session.managerName && msg.manager_name) {
             session.managerName = msg.manager_name;
           }
-          if (!session.avatar && msg.avatar) {
+          // 补充缺失的头像（只从用户消息获取）
+          if (!session.avatar && msg.role === 'user' && msg.avatar) {
             session.avatar = msg.avatar;
           }
           // 只从用户消息中获取 contactType
@@ -1558,6 +1563,97 @@ export class SupabaseService implements OnModuleInit {
       );
     } catch (error) {
       this.logger.error('获取会话列表失败:', error);
+      return [];
+    }
+  }
+
+  /**
+   * 获取指定时间范围内的会话列表
+   * v1.4: 支持精确的时间范围筛选
+   * @param startDate 开始时间
+   * @param endDate 结束时间
+   */
+  async getChatSessionListByDateRange(
+    startDate: Date,
+    endDate: Date,
+  ): Promise<
+    Array<{
+      chatId: string;
+      candidateName?: string;
+      managerName?: string;
+      messageCount: number;
+      lastMessage?: string;
+      lastTimestamp?: number;
+      avatar?: string;
+      contactType?: string;
+    }>
+  > {
+    if (!this.isInitialized) {
+      return [];
+    }
+
+    try {
+      // 使用 and 条件筛选时间范围
+      const response = await this.supabaseHttpClient.get('/chat_messages', {
+        params: {
+          select: 'chat_id,candidate_name,manager_name,content,timestamp,avatar,contact_type,role',
+          order: 'timestamp.desc',
+          and: `(timestamp.gte.${startDate.toISOString()},timestamp.lte.${endDate.toISOString()})`,
+          limit: 10000,
+        },
+      });
+
+      // 按 chat_id 分组，取最新消息
+      const sessionMap = new Map<
+        string,
+        {
+          chatId: string;
+          candidateName?: string;
+          managerName?: string;
+          messageCount: number;
+          lastMessage?: string;
+          lastTimestamp?: number;
+          avatar?: string;
+          contactType?: string;
+        }
+      >();
+
+      for (const msg of response.data ?? []) {
+        const chatId = msg.chat_id;
+        if (!sessionMap.has(chatId)) {
+          sessionMap.set(chatId, {
+            chatId,
+            candidateName: msg.role === 'user' ? msg.candidate_name : undefined,
+            managerName: msg.manager_name,
+            messageCount: 1,
+            lastMessage: msg.content?.substring(0, 50) + (msg.content?.length > 50 ? '...' : ''),
+            lastTimestamp: new Date(msg.timestamp).getTime(),
+            avatar: msg.role === 'user' ? msg.avatar : undefined,
+            contactType: msg.role === 'user' ? msg.contact_type : undefined,
+          });
+        } else {
+          const session = sessionMap.get(chatId)!;
+          session.messageCount++;
+          if (!session.candidateName && msg.role === 'user' && msg.candidate_name) {
+            session.candidateName = msg.candidate_name;
+          }
+          if (!session.managerName && msg.manager_name) {
+            session.managerName = msg.manager_name;
+          }
+          if (!session.avatar && msg.role === 'user' && msg.avatar) {
+            session.avatar = msg.avatar;
+          }
+          if (!session.contactType && msg.contact_type && msg.role === 'user') {
+            session.contactType = msg.contact_type;
+          }
+        }
+      }
+
+      return Array.from(sessionMap.values()).sort(
+        (a, b) => (b.lastTimestamp || 0) - (a.lastTimestamp || 0),
+      );
+    } catch (error) {
+      this.logger.error('获取会话列表(时间范围)失败:', error);
       return [];
     }
   }
@@ -1659,10 +1755,11 @@ export class SupabaseService implements OnModuleInit {
         external_user_id: message.externalUserId,
       }));
 
-      await this.supabaseHttpClient.post('/chat_messages', records, {
+      // 使用 on_conflict 参数配合 ignore-duplicates 策略
+      // 当 message_id 冲突时，忽略插入而不报错
+      await this.supabaseHttpClient.post('/chat_messages?on_conflict=message_id', records, {
         headers: {
-          // 忽略重复的 message_id
-          Prefer: 'resolution=ignore-duplicates',
+          Prefer: 'return=minimal,resolution=ignore-duplicates',
         },
       });
 

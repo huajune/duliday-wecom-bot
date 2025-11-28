@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { HttpService } from '@core/http';
+import { HttpService } from '@core/client-http';
 import { ApiConfigService } from '@core/config';
 
 /**

@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { RoomController } from './room.controller';
 import { RoomService } from './room.service';
-import { HttpModule } from '@core/http';
+import { HttpModule } from '@core/client-http';
 import { ApiConfigModule } from '@core/config';
 
 /**

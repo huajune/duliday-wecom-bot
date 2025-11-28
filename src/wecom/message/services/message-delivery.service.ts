@@ -6,7 +6,7 @@ import { MonitoringService } from '@/core/monitoring/monitoring.service';
 import { TypingDelayService } from './message-typing-delay.service';
 import { MessageSplitter } from '../utils/message-splitter.util';
 import { DeliveryContext, DeliveryResult, MessageSegment, AgentReply } from '../types';
-import { AlertService } from '@core/alert/alert.service';
+import { FeishuAlertService } from '@core/feishu';
 
 /**
  * 消息发送服务
@@ -28,7 +28,7 @@ export class MessageDeliveryService {
     private readonly monitoringService: MonitoringService,
     private readonly typingDelayService: TypingDelayService,
     private readonly configService: ConfigService,
-    private readonly alertService: AlertService,
+    private readonly feishuAlertService: FeishuAlertService,
   ) {
     this.enableMessageSplitSend =
       this.configService.get<string>('ENABLE_MESSAGE_SPLIT_SEND', 'true') === 'true';
@@ -223,7 +223,7 @@ export class MessageDeliveryService {
     content: string,
   ): Promise<void> {
     try {
-      await this.alertService.sendAlert({
+      await this.feishuAlertService.sendAlert({
         errorType: 'delivery',
         error,
         conversationId: context.chatId,

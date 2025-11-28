@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { MessageSenderController } from './message-sender.controller';
 import { MessageSenderService } from './message-sender.service';
-import { HttpModule } from '@core/http';
+import { HttpModule } from '@core/client-http';
 import { ApiConfigModule } from '@core/config';
 
 /**

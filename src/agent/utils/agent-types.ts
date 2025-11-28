@@ -295,6 +295,13 @@ export interface AgentFallbackInfo {
 }
 
 /**
+ * 原始 HTTP 响应信息（用于调试和排障）
+ * 直接使用 Axios 响应的核心字段，便于在监控页面查看完整的 API 响应
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type RawHttpResponseInfo = any;
+
+/**
  * Agent 统一响应模型
  * 支持正常响应、降级响应和错误状态
  */
@@ -319,6 +326,9 @@ export interface AgentResult {
 
   /** 响应状态 */
   status: AgentResultStatus;
+
+  /** 原始 HTTP 响应信息（用于调试） */
+  rawHttpResponse?: RawHttpResponseInfo;
 }
 
 // ========================================

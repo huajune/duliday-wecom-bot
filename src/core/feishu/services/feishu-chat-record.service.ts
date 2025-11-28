@@ -6,7 +6,7 @@ import {
   MessageHistoryService,
   EnhancedMessageHistoryItem,
 } from '@wecom/message/services/message-history.service';
-import { feishuBitableConfig } from './feishu-bitable.config';
+import { feishuBitableConfig } from '../constants/feishu-bitable.config';
 
 interface FeishuTokenCache {
   token: string;

@@ -3,7 +3,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import axios, { AxiosInstance } from 'axios';
 import { MonitoringSnapshotService } from '@core/monitoring/monitoring-snapshot.service';
 import { MessageProcessingRecord } from '@core/monitoring/interfaces/monitoring.interface';
-import { feishuBitableConfig } from './feishu-bitable.config';
+import { feishuBitableConfig } from '../constants/feishu-bitable.config';
 import { ConfigService } from '@nestjs/config';
 
 interface FeishuTokenCache {

@@ -72,27 +72,96 @@ export interface DailyTrendPoint {
 }
 
 /**
- * Agent 响应消息部分
+ * Agent 响应消息部分 - 文本类型
  */
-export interface AgentMessagePart {
+export interface AgentTextPart {
   type: 'text';
   text: string;
+  state?: 'done' | 'streaming';
 }
+
+/**
+ * Agent 响应消息部分 - 动态工具类型
+ */
+export interface AgentDynamicToolPart {
+  type: 'dynamic-tool';
+  toolName: string;
+  toolCallId: string;
+  state: 'pending' | 'running' | 'output-available' | 'error';
+  input?: Record<string, unknown>;
+  output?: Record<string, unknown>;
+  error?: string;
+}
+
+/**
+ * Agent 响应消息部分（联合类型）
+ */
+export type AgentMessagePart = AgentTextPart | AgentDynamicToolPart;
 
 /**
  * Agent 响应消息
  */
 export interface AgentResponseMessage {
+  id?: string;
   role: 'user' | 'assistant' | 'system';
   parts: AgentMessagePart[];
+}
+
+/**
+ * 简单消息结构（用于历史消息展示）
+ */
+export interface SimpleMessageItem {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+/**
+ * Agent 调用输入参数（用于调试，去除品牌数据）
+ */
+export interface AgentInputParams {
+  conversationId: string;
+  userMessage: string;
+  historyCount: number; // 历史消息数量
+  historyMessages?: SimpleMessageItem[]; // 历史消息详情（用于调试）
+  model?: string;
+  promptType?: string;
+  allowedTools?: string[];
+  contextStrategy?: string;
+  prune?: boolean;
+  // Prompt 相关字段（仅记录是否传入和长度，不记录内容）
+  hasSystemPrompt?: boolean;
+  systemPromptLength?: number;
+  hasContext?: boolean;
+  contextLength?: number;
+  hasToolContext?: boolean;
+  toolContextLength?: number;
+  // 品牌配置相关（configData = brandData, replyPrompts 来自 brandConfigService）
+  hasConfigData?: boolean;
+  hasReplyPrompts?: boolean;
+  brandPriorityStrategy?: string;
+  // 调试字段
+  _mergedContextKeys?: string[];
 }
 
 /**
  * 完整 Agent 响应结构
  */
 export interface RawAgentResponse {
-  // 完整消息数组（保留原始结构）
-  messages: AgentResponseMessage[];
+  // HTTP 响应信息（不包含 headers）
+  http?: {
+    status: number;
+    statusText: string;
+  };
+  // API 响应外层包装
+  apiResponse?: {
+    success: boolean;
+    error?: string;
+    correlationId?: string;
+  };
+  // Agent 调用输入参数（用于调试）
+  input?: AgentInputParams;
+  // 完整消息数组（保留原始结构，包含所有类型的 parts）
+  messages: any[];
   // Token 使用统计
   usage: {
     inputTokens: number;

@@ -7,6 +7,7 @@ import {
   ChatResponse,
   SimpleMessage,
   AgentResult,
+  RawHttpResponseInfo,
 } from './utils/agent-types';
 import {
   AgentApiException,
@@ -16,7 +17,6 @@ import {
   AgentAuthException,
 } from './utils/agent-exceptions';
 import { getModelDisplayName } from './utils';
-import { AgentCacheService } from './services/agent-cache.service';
 import { AgentRegistryService } from './services/agent-registry.service';
 import { AgentFallbackService, FallbackScenario } from './services/agent-fallback.service';
 import { AgentApiClientService } from './services/agent-api-client.service';
@@ -27,10 +27,10 @@ import {
   createFallbackResult,
   createErrorResult,
 } from './utils/agent-result-helper';
-import { AlertService } from '@core/alert/alert.service';
+import { FeishuAlertService } from '@core/feishu';
 
 /**
- * Agent 服务（重构版）
+ * Agent 服务（简化版）
  * 负责调用 Agent API 的核心业务逻辑
  *
  * 职责：
@@ -42,7 +42,6 @@ import { AlertService } from '@core/alert/alert.service';
  * 已委托给其他服务：
  * - API 调用和重试 → AgentApiClientService
  * - 模型/工具验证 → AgentRegistryService
- * - 缓存管理 → AgentCacheService
  * - 降级策略 → AgentFallbackService
  * - 配置验证和品牌配置监控 → AgentConfigService (在 getProfile 中处理)
  * - 日志处理 → AgentLogger
@@ -55,10 +54,9 @@ export class AgentService {
   constructor(
     private readonly configService: ConfigService,
     private readonly apiClient: AgentApiClientService,
-    private readonly cacheService: AgentCacheService,
     private readonly registryService: AgentRegistryService,
     private readonly fallbackService: AgentFallbackService,
-    private readonly alertService: AlertService,
+    private readonly feishuAlertService: FeishuAlertService,
   ) {
     // 初始化日志工具
     this.agentLogger = new AgentLogger(this.logger, this.configService);
@@ -97,14 +95,16 @@ export class AgentService {
       // 1. 准备请求（验证 + 构建）
       const preparedRequest = this.prepareRequest(params, conversationId, historyMessages);
 
-      // 2. 执行请求（缓存协调 + API 调用）
-      const result = await this.executeRequest(preparedRequest, params, conversationId);
+      // 2. 执行请求（直接调用 API）
+      const result = await this.executeRequest(preparedRequest, conversationId);
 
       // 3. 记录结果（日志 + 统计）
-      this.recordResult(result, conversationId);
+      this.recordResult(result.data, conversationId);
 
-      // 4. 返回成功结果
-      return createSuccessResult(result.data, undefined, result.fromCache);
+      // 4. 返回成功结果（包含原始 HTTP 响应信息）
+      const agentResult = createSuccessResult(result.data, undefined, false);
+      agentResult.rawHttpResponse = result.rawHttpResponse;
+      return agentResult;
     } catch (error) {
       // 统一错误处理
       return this.handleChatError(error, conversationId);
@@ -190,56 +190,31 @@ export class AgentService {
   }
 
   /**
-   * 执行请求（缓存协调 + API 调用）
-   * 职责：尝试从缓存获取，缓存未命中则调用 API
+   * 执行请求（直接调用 API）
    */
   private async executeRequest(
-    preparedRequest: { chatRequest: ChatRequest; validatedModel: string; validatedTools: string[] },
-    params: any,
+    preparedRequest: { chatRequest: ChatRequest },
     conversationId: string,
-  ): Promise<{ data: ChatResponse; fromCache: boolean }> {
-    const { chatRequest, validatedModel, validatedTools } = preparedRequest;
+  ): Promise<{ data: ChatResponse; rawHttpResponse?: RawHttpResponseInfo }> {
+    const { chatRequest } = preparedRequest;
 
-    return await this.cacheService.fetchOrStore(
-      {
-        model: validatedModel,
-        messages: chatRequest.messages,
-        tools: validatedTools,
-        context: params.context,
-        toolContext: params.toolContext,
-        systemPrompt: params.systemPrompt,
-        promptType: params.promptType,
-        conversationId, // 【修复】添加 conversationId 避免不同会话缓存冲突
-      },
-      async () => {
-        // 缓存未命中，调用 API
-        const response = await this.apiClient.chat(chatRequest, conversationId);
-        return this.handleChatResponse(response, conversationId);
-      },
-      (response) => {
-        // 判断是否应该缓存
-        return this.cacheService.shouldCache({
-          usedTools: response.tools?.used,
-          context: params.context,
-          toolContext: params.toolContext,
-        });
-      },
-    );
+    // 直接调用 API
+    const response = await this.apiClient.chat(chatRequest, conversationId);
+    const handled = this.handleChatResponse(response, conversationId);
+
+    return { data: handled.data, rawHttpResponse: response };
   }
 
   /**
    * 记录结果（日志 + 统计）
    * 职责：记录响应日志和使用统计
    */
-  private recordResult(
-    result: { data: ChatResponse; fromCache: boolean },
-    conversationId: string,
-  ): void {
+  private recordResult(data: ChatResponse, conversationId: string): void {
     // 记录响应日志
-    this.agentLogger.logResponse(conversationId, result.data);
+    this.agentLogger.logResponse(conversationId, data);
 
     // 记录使用统计
-    this.logUsageStats(result.data, conversationId);
+    this.logUsageStats(data, conversationId);
   }
 
   /**
@@ -332,11 +307,12 @@ export class AgentService {
 
   /**
    * 处理聊天响应
+   * 返回 ChatResponse 和原始 HTTP 响应信息
    */
   private handleChatResponse(
     response: AxiosResponse<ApiResponse<ChatResponse>>,
     conversationId: string,
-  ): ChatResponse {
+  ): { data: ChatResponse } {
     // 提取 correlationId
     const correlationId =
       response.headers['x-correlation-id'] || response.data.correlationId || 'N/A';
@@ -366,7 +342,7 @@ export class AgentService {
     // 记录 correlationId
     this.logger.log(`Agent API 成功，会话: ${conversationId}, correlationId: ${correlationId}`);
 
-    return chatResponse;
+    return { data: chatResponse };
   }
 
   /**
@@ -410,7 +386,7 @@ export class AgentService {
       );
 
       // 发送飞书告警（异步，不阻塞响应）
-      this.alertService
+      this.feishuAlertService
         .sendAlert({
           errorType: 'agent',
           error,
@@ -498,7 +474,7 @@ export class AgentService {
       );
 
       // 发送飞书告警（异步，不阻塞响应）
-      this.alertService
+      this.feishuAlertService
         .sendAlert({
           errorType: 'agent',
           error,
@@ -525,7 +501,7 @@ export class AgentService {
     this.logger.error(`未知错误，返回降级消息，会话: ${conversationId}`, error);
 
     // 发送飞书告警（异步，不阻塞响应）
-    this.alertService
+    this.feishuAlertService
       .sendAlert({
         errorType: 'agent',
         error,

@@ -13,7 +13,7 @@ import {
   AgentInvocationException,
 } from '@agent';
 import { MonitoringService } from '@/core/monitoring/monitoring.service';
-import { AlertService } from '@/core/alert/alert.service';
+import { FeishuAlertService } from '@core/feishu';
 import { AgentInvokeResult, AgentReply, FallbackMessageOptions } from '../types';
 import { BrandContext } from '@agent';
 import { FallbackMessageService } from './message-fallback.service';
@@ -44,7 +44,7 @@ export class AgentGatewayService {
     private readonly profileLoader: ProfileLoaderService,
     private readonly configValidator: AgentConfigValidator,
     private readonly monitoringService: MonitoringService,
-    private readonly alertService: AlertService,
+    private readonly feishuAlertService: FeishuAlertService,
     private readonly brandConfigService: BrandConfigService,
     private readonly fallbackMessageService: FallbackMessageService,
   ) {}
@@ -335,7 +335,7 @@ export class AgentGatewayService {
     };
 
     // 异步发送告警
-    this.alertService
+    this.feishuAlertService
       .sendAlert({
         errorType: 'agent',
         error: mockError,

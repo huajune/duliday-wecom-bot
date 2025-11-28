@@ -1,7 +1,7 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { MonitoringService } from '@/core/monitoring/monitoring.service';
-import { AlertService } from '@/core/alert/alert.service';
+import { FeishuAlertService } from '@core/feishu';
 import { SupabaseService } from '@core/supabase';
 import { ScenarioType } from '@agent';
 import { AgentException } from '@/agent/utils/agent-exceptions';
@@ -58,7 +58,7 @@ export class MessageService implements OnModuleInit {
     private readonly agentGateway: AgentGatewayService, // 增强版：包含上下文构建和降级处理
     // 监控和告警
     private readonly monitoringService: MonitoringService,
-    private readonly alertService: AlertService,
+    private readonly feishuAlertService: FeishuAlertService,
     // Supabase 持久化服务
     private readonly supabaseService: SupabaseService,
   ) {
@@ -92,6 +92,9 @@ export class MessageService implements OnModuleInit {
 
     this.logger.log(
       `[handleMessage] 收到消息 [${messageData.messageId}], source=${messageData.source}(${getMessageSourceDescription(messageData.source)}), isSelf=${messageData.isSelf}`,
+    );
+    this.logger.log(
+      `[handleMessage] 收到消息 [${messageData.messageId}], JSON.stringify(messageData, null, 2)`,
     );
 
     // 管线步骤 0: 处理 bot 自己发送的消息（存储为 assistant 历史）
@@ -127,6 +130,11 @@ export class MessageService implements OnModuleInit {
         `[AI回复已禁用] 消息已记录到历史 [${messageData.messageId}]` +
           (parsed.chatId ? `, chatId=${parsed.chatId}` : ''),
       );
+      // 标记消息为成功（AI 禁用不算失败）
+      this.monitoringService.recordSuccess(messageData.messageId, {
+        scenario: MessageParser.determineScenario(messageData),
+        replyPreview: '[AI回复已禁用]',
+      });
       return { success: true, message: 'AI reply disabled, message recorded to history' };
     }
 
@@ -376,6 +384,12 @@ export class MessageService implements OnModuleInit {
         isFallback: agentResult.isFallback,
         rawAgentResponse: rawResponse
           ? {
+              // 输入参数（用于调试，不含品牌数据）
+              input: {
+                conversationId: chatId,
+                userMessage: content,
+                historyCount: historyMessages.length,
+              },
               messages: rawResponse.messages,
               usage: rawResponse.usage,
               tools: rawResponse.tools,
@@ -459,6 +473,12 @@ export class MessageService implements OnModuleInit {
         isFallback: agentResult.isFallback,
         rawAgentResponse: rawResponse
           ? {
+              // 输入参数（用于调试，不含品牌数据）
+              input: {
+                conversationId: chatId,
+                userMessage: lastContent,
+                historyCount: historyMessages.length,
+              },
               messages: rawResponse.messages,
               usage: rawResponse.usage,
               tools: rawResponse.tools,
@@ -551,7 +571,7 @@ export class MessageService implements OnModuleInit {
     // 发送告警
     const fallbackMessage = this.agentGateway.getFallbackMessage();
 
-    this.alertService
+    this.feishuAlertService
       .sendAlert({
         errorType,
         error,

@@ -188,10 +188,10 @@ curl -X POST http://localhost:8080/agent/test-chat \
 
 | 配置 | 值 | 位置 |
 |------|-----|------|
-| 告警节流窗口 | 5 分钟 | AlertService |
-| 告警最大次数 | 3 次/类型 | AlertService |
+| 告警节流窗口 | 5 分钟 | FeishuAlertService |
+| 告警最大次数 | 3 次/类型 | FeishuAlertService |
 | 健康检查间隔 | 1 小时 | AgentRegistryService |
-| 缓存 TTL | 1 小时 | AgentCacheService |
+| Profile 缓存 TTL | 1 小时 | ProfileLoaderService |
 
 > 完整配置项见 [.env.example](./.env.example)，配置策略详见 [CLAUDE.md](./CLAUDE.md#5-configuration-strategy)。
 
@@ -214,10 +214,12 @@ duliday-wecom-service/
 │   ├── agent/                       # AI Agent 领域
 │   │   ├── agent.service.ts         # Agent API 调用层
 │   │   ├── services/
-│   │   │   ├── agent-cache.service.ts      # 多层缓存
-│   │   │   ├── agent-registry.service.ts   # 模型/工具注册
-│   │   │   └── brand-config.service.ts     # 品牌配置管理
-│   │   └── context/                 # Agent 上下文配置
+│   │   │   ├── agent-api-client.service.ts  # HTTP 客户端层
+│   │   │   ├── agent-registry.service.ts    # 模型/工具注册
+│   │   │   ├── agent-fallback.service.ts    # 降级消息管理
+│   │   │   ├── brand-config.service.ts      # 品牌配置管理
+│   │   │   └── agent-profile-loader.service.ts  # Profile 加载（含缓存）
+│   │   └── profiles/                # Agent 配置文件
 │   │
 │   └── wecom/                       # 企业微信领域
 │       ├── message/                 # 消息处理（核心业务）

@@ -6,11 +6,13 @@ import {
   ProfileLoaderService,
   AgentConfigValidator,
   AgentResultHelper,
+  BrandConfigService,
 } from '@agent';
 import { EnterpriseMessageCallbackDto } from './dto/message-callback.dto';
 import { SupabaseService } from '@core/supabase';
-import { MonitoringService } from '@/core/monitoring/monitoring.service';
+import { MonitoringService } from '@core/monitoring/monitoring.service';
 import { RawAgentResponse } from '@core/monitoring/interfaces/monitoring.interface';
+import { FeishuBookingService } from '@core/feishu';
 
 // 导入子服务
 import { MessageHistoryService } from './services/message-history.service';
@@ -21,6 +23,8 @@ import { MessageDeliveryService } from './services/message-delivery.service';
 // 导入工具类
 import { MessageParser } from './utils/message-parser.util';
 import { ScenarioType } from '@agent';
+
+// 面试预约通知已迁移到 FeishuBookingService
 
 /**
  * 消息队列处理器（动态并发版）
@@ -47,6 +51,9 @@ export class MessageProcessor implements OnModuleInit {
   private readonly MIN_CONCURRENCY = 1;
   private readonly MAX_CONCURRENCY = 20;
 
+  // 缓存最后一次有效的品牌配置（用于降级）
+  private lastValidBrandConfig: Record<string, unknown> | null = null;
+
   constructor(
     @InjectQueue('message-merge') private readonly messageQueue: Queue,
     private readonly agentService: AgentService,
@@ -58,6 +65,8 @@ export class MessageProcessor implements OnModuleInit {
     private readonly supabaseService: SupabaseService,
     private readonly deliveryService: MessageDeliveryService,
     private readonly monitoringService: MonitoringService,
+    private readonly brandConfigService: BrandConfigService,
+    private readonly feishuBookingService: FeishuBookingService,
   ) {}
 
   /**
@@ -318,11 +327,16 @@ export class MessageProcessor implements OnModuleInit {
           this.logger.debug(
             `[Bull] 跳过消息 [${messageData.messageId}], 原因: ${filterResult.reason}`,
           );
+          // 立即标记被过滤的消息为成功
+          this.monitoringService.recordSuccess(messageData.messageId, {
+            scenario: ScenarioType.CANDIDATE_CONSULTATION,
+            replyPreview: `[消息被过滤: ${filterResult.reason}]`,
+          });
         }
       }
 
       if (validMessages.length === 0) {
-        this.logger.debug(`[Bull] 任务 ${job.id} 没有有效内容`);
+        this.logger.debug(`[Bull] 任务 ${job.id} 没有有效内容（已在过滤时标记状态）`);
         // 检查是否有在处理期间到达的新消息（不直接重置，避免丢失待处理消息）
         await this.mergeService.onAgentResponseReceived(chatId);
         return;
@@ -341,6 +355,19 @@ export class MessageProcessor implements OnModuleInit {
 
       // 更新任务进度
       await job.progress(100);
+
+      // 检查 AI 处理是否成功
+      if (!result.success) {
+        // AI 处理失败，记录失败状态
+        for (const msg of validMessages) {
+          this.monitoringService.recordFailure(msg.messageId, result.error || '未知错误', {
+            scenario: ScenarioType.CANDIDATE_CONSULTATION,
+          });
+        }
+        // 检查是否有待处理消息
+        await this.mergeService.onAgentResponseReceived(chatId);
+        return;
+      }
 
       // 记录处理成功 - 为聚合的每条消息记录成功状态
       for (const msg of validMessages) {
@@ -461,8 +488,13 @@ export class MessageProcessor implements OnModuleInit {
       // 记录 AI 处理开始
       this.monitoringService.recordAiStart(messageData.messageId);
 
-      // 调用 Agent API 生成回复
-      const agentResult = await this.agentService.chat({
+      // 合并品牌配置到 context（关键：确保品牌数据被传递给 Agent）
+      const mergedContext = await this.buildContextWithBrand(
+        agentProfile.context as Record<string, unknown>,
+      );
+
+      // 构建 Agent 调用参数
+      const agentParams = {
         conversationId: chatId,
         userMessage: mergedContent,
         historyMessages,
@@ -470,12 +502,39 @@ export class MessageProcessor implements OnModuleInit {
         systemPrompt: agentProfile.systemPrompt,
         promptType: agentProfile.promptType,
         allowedTools: agentProfile.allowedTools,
-        context: agentProfile.context,
+        context: mergedContext,
         toolContext: agentProfile.toolContext,
         contextStrategy: agentProfile.contextStrategy,
         prune: agentProfile.prune,
         pruneOptions: agentProfile.pruneOptions,
-      });
+      };
+
+      // 记录完整的 Agent 调用参数（用于调试）
+      this.logger.debug(
+        `[Bull][${scenarioType}] Agent 调用参数: ${JSON.stringify({
+          conversationId: agentParams.conversationId,
+          userMessage:
+            agentParams.userMessage.substring(0, 100) +
+            (agentParams.userMessage.length > 100 ? '...' : ''),
+          historyCount: agentParams.historyMessages?.length || 0,
+          model: agentParams.model || '(未指定)',
+          hasSystemPrompt: !!agentParams.systemPrompt,
+          systemPromptLength: agentParams.systemPrompt?.length || 0,
+          promptType: agentParams.promptType || '(未指定)',
+          allowedTools: agentParams.allowedTools || [],
+          hasContext: !!agentParams.context && Object.keys(agentParams.context).length > 0,
+          contextLength: JSON.stringify(agentParams.context || '').length,
+          hasConfigData: !!(agentParams.context as Record<string, unknown>)?.configData,
+          hasToolContext: !!agentParams.toolContext,
+          toolContextLength: JSON.stringify(agentParams.toolContext || '').length,
+          contextStrategy: agentParams.contextStrategy || '(未指定)',
+          prune: agentParams.prune,
+          pruneOptions: agentParams.pruneOptions || null,
+        })}`,
+      );
+
+      // 调用 Agent API 生成回复
+      const agentResult = await this.agentService.chat(agentParams);
 
       // 记录 AI 处理结束
       this.monitoringService.recordAiEnd(messageData.messageId);
@@ -536,12 +595,54 @@ export class MessageProcessor implements OnModuleInit {
       // 构建完整的 rawAgentResponse（保留原始结构）
       const isFallback = AgentResultHelper.isFallback(agentResult);
       const rawAgentResponse: RawAgentResponse = {
-        messages: aiResponse.messages.map(
-          (m: { role: string; parts: Array<{ type: string; text: string }> }) => ({
-            role: m.role as 'user' | 'assistant' | 'system',
-            parts: m.parts.map((p) => ({ type: 'text' as const, text: p.text })),
-          }),
-        ),
+        // HTTP 响应信息（来自 AgentResult.rawHttpResponse）- 不包含 headers
+        http: agentResult.rawHttpResponse
+          ? {
+              status: agentResult.rawHttpResponse.status,
+              statusText: agentResult.rawHttpResponse.statusText,
+            }
+          : undefined,
+        // API 响应外层包装（Axios response.data 就是 ApiResponse）
+        apiResponse: agentResult.rawHttpResponse?.data
+          ? {
+              success: agentResult.rawHttpResponse.data.success,
+              error: agentResult.rawHttpResponse.data.error,
+              correlationId: agentResult.rawHttpResponse.data.correlationId,
+            }
+          : undefined,
+        // 输入参数（用于调试，去除品牌数据）
+        input: {
+          conversationId: chatId,
+          userMessage: mergedContent,
+          historyCount: historyMessages.length,
+          // 包含完整历史消息（用于调试查看传给 Agent 的上下文）
+          historyMessages: historyMessages.map((m) => ({
+            role: m.role,
+            content: m.content,
+          })),
+          model: agentProfile.model,
+          promptType: agentProfile.promptType,
+          allowedTools: agentProfile.allowedTools,
+          contextStrategy: agentProfile.contextStrategy,
+          prune: agentProfile.prune,
+          // Prompt 相关字段（仅记录是否传入和长度，不记录内容）
+          hasSystemPrompt: !!agentProfile.systemPrompt,
+          systemPromptLength: agentProfile.systemPrompt?.length || 0,
+          hasContext: !!mergedContext && Object.keys(mergedContext).length > 0,
+          contextLength: JSON.stringify(mergedContext || '').length,
+          hasToolContext: !!agentProfile.toolContext,
+          toolContextLength: JSON.stringify(agentProfile.toolContext || '').length,
+          // 品牌配置相关（configData = brandData, replyPrompts 来自 brandConfigService）
+          hasConfigData: !!(mergedContext as Record<string, unknown>)?.configData,
+          hasReplyPrompts: !!(mergedContext as Record<string, unknown>)?.replyPrompts,
+          brandPriorityStrategy:
+            ((mergedContext as Record<string, unknown>)?.brandPriorityStrategy as string) ||
+            undefined,
+          // 调试：记录完整的 mergedContext keys
+          _mergedContextKeys: Object.keys(mergedContext || {}),
+        },
+        // 完整的原始 messages（不做任何过滤和映射，保留所有 part 类型）
+        messages: aiResponse.messages as any,
         usage: {
           inputTokens: aiResponse.usage?.inputTokens ?? 0,
           outputTokens: aiResponse.usage?.outputTokens ?? 0,
@@ -556,12 +657,23 @@ export class MessageProcessor implements OnModuleInit {
         fallbackReason: isFallback ? agentResult.fallbackInfo?.reason : undefined,
       };
 
+      // 调试：验证 brandPriorityStrategy 是否存在
+      this.logger.debug(
+        `[rawAgentResponse] brandPriorityStrategy = ${rawAgentResponse.input?.brandPriorityStrategy || '(未设置)'}`,
+      );
+
+      // 检测面试预约成功并发送飞书通知
+      await this.checkAndNotifyInterviewBooking(chatId, contactName, aiResponse);
+
+      // 从 messages 中提取真正使用的工具列表（而不是使用 tools.used）
+      const actuallyUsedTools = this.extractActuallyUsedTools(aiResponse.messages);
+
       // 返回成功结果
       return {
         success: true,
         replyContent,
         tokenUsage: aiResponse.usage?.totalTokens,
-        tools: aiResponse.tools?.used,
+        tools: actuallyUsedTools, // 使用从 messages 中提取的真实工具列表
         segmentCount: deliveryResult.segmentCount,
         isFallback,
         rawAgentResponse,
@@ -595,5 +707,221 @@ export class MessageProcessor implements OnModuleInit {
     }
 
     return textParts.join('\n\n');
+  }
+
+  /**
+   * 构建包含品牌配置的 context
+   * 合并 profile 中的静态 context 和动态品牌数据
+   */
+  private async buildContextWithBrand(
+    baseContext?: Record<string, unknown>,
+  ): Promise<Record<string, unknown>> {
+    try {
+      // 获取最新的品牌配置（从 Redis 缓存）
+      const brandConfig = await this.brandConfigService.getBrandConfig();
+
+      if (!brandConfig) {
+        this.logger.warn('⚠️ 无法获取品牌配置，尝试使用缓存的旧配置');
+        return this.buildFallbackContext(baseContext);
+      }
+
+      // 合并配置：基础 context + 品牌配置
+      const mergedContext = {
+        ...(baseContext || {}),
+        configData: brandConfig.brandData,
+        replyPrompts: brandConfig.replyPrompts,
+      };
+
+      // 调试日志：检查 brandPriorityStrategy 是否正确合并
+      this.logger.debug(
+        `[buildContextWithBrand] baseContext keys: ${Object.keys(baseContext || {}).join(', ')}`,
+      );
+      this.logger.debug(
+        `[buildContextWithBrand] baseContext.brandPriorityStrategy: ${(baseContext as Record<string, unknown>)?.brandPriorityStrategy || '(原始context中未找到)'}`,
+      );
+      this.logger.debug(
+        `[buildContextWithBrand] mergedContext.brandPriorityStrategy: ${(mergedContext as Record<string, unknown>)?.brandPriorityStrategy || '(合并后未找到)'}`,
+      );
+      this.logger.debug(
+        `[buildContextWithBrand] mergedContext keys: ${Object.keys(mergedContext || {}).join(', ')}`,
+      );
+
+      // 缓存成功的品牌配置
+      if (brandConfig.synced && brandConfig.brandData && brandConfig.replyPrompts) {
+        this.lastValidBrandConfig = mergedContext;
+        this.logger.debug(`✅ 已合并品牌配置到 context (synced: ${brandConfig.synced})`);
+      }
+
+      return mergedContext;
+    } catch (error) {
+      this.logger.error('❌ 合并品牌配置失败，尝试使用缓存的旧配置:', error);
+      return this.buildFallbackContext(baseContext);
+    }
+  }
+
+  /**
+   * 构建降级 context（优先使用缓存）
+   */
+  private buildFallbackContext(baseContext?: Record<string, unknown>): Record<string, unknown> {
+    if (this.lastValidBrandConfig) {
+      this.logger.warn('⚠️ 使用缓存的旧品牌配置');
+      return { ...this.lastValidBrandConfig };
+    }
+
+    this.logger.warn('⚠️ 无可用缓存，使用空配置');
+    return { ...(baseContext || {}) };
+  }
+
+  /**
+   * 检测面试预约成功并发送飞书通知
+   * 检查 Agent 响应中是否有 duliday_interview_booking 工具调用成功
+   */
+  private async checkAndNotifyInterviewBooking(
+    chatId: string,
+    contactName: string,
+    aiResponse: {
+      messages?: Array<{
+        role: string;
+        parts: Array<{
+          type: string;
+          toolName?: string;
+          state?: string;
+          output?: Record<string, unknown>;
+        }>;
+      }>;
+    },
+  ): Promise<void> {
+    if (!aiResponse.messages) return;
+
+    // 遍历所有消息，查找 duliday_interview_booking 工具调用
+    for (const message of aiResponse.messages) {
+      if (message.role !== 'assistant' || !message.parts) continue;
+
+      for (const part of message.parts) {
+        // 检查是否是面试预约工具且状态为 output-available（调用成功）
+        if (
+          part.type === 'dynamic-tool' &&
+          part.toolName === 'duliday_interview_booking' &&
+          part.state === 'output-available' &&
+          part.output
+        ) {
+          this.logger.log(`[面试预约] 检测到预约成功，准备发送飞书通知`);
+
+          // 从工具输出中提取预约信息
+          const toolOutput = part.output;
+          const bookingInfo = {
+            candidateName: contactName,
+            chatId,
+            brandName: (toolOutput.brand_name as string) || (toolOutput.brandName as string),
+            storeName: (toolOutput.store_name as string) || (toolOutput.storeName as string),
+            interviewTime:
+              (toolOutput.interview_time as string) || (toolOutput.interviewTime as string),
+            contactInfo: (toolOutput.contact_info as string) || (toolOutput.contactInfo as string),
+            toolOutput,
+          };
+
+          // 发送飞书通知（异步，不阻塞主流程）
+          this.feishuBookingService
+            .sendBookingNotification(bookingInfo)
+            .then((success: boolean) => {
+              if (success) {
+                this.logger.log(
+                  `[面试预约] 飞书通知发送成功: ${contactName} - ${bookingInfo.brandName || '未知品牌'}`,
+                );
+              } else {
+                this.logger.warn(`[面试预约] 飞书通知发送失败`);
+              }
+            })
+            .catch((error: Error) => {
+              this.logger.error(`[面试预约] 飞书通知发送异常: ${error.message}`);
+            });
+
+          // 只处理第一个预约成功的工具调用
+          return;
+        }
+      }
+    }
+  }
+
+  /**
+   * 从 messages 中提取真正使用的工具列表
+   * 遍历所有 assistant 消息的 parts，收集 toolName
+   */
+  private extractActuallyUsedTools(messages: unknown): string[] {
+    type RawMessage = {
+      role: string;
+      parts: Array<{
+        type: string;
+        toolName?: string;
+      }>;
+    };
+
+    const rawMessages = messages as RawMessage[];
+    const usedTools = new Set<string>();
+
+    for (const message of rawMessages) {
+      if (message.role !== 'assistant' || !message.parts) continue;
+
+      for (const part of message.parts) {
+        if (part.type === 'dynamic-tool' && part.toolName) {
+          usedTools.add(part.toolName);
+        }
+      }
+    }
+
+    return Array.from(usedTools);
+  }
+
+  /**
+   * 映射 Agent 消息到监控接口格式
+   * 支持 text 和 dynamic-tool 类型的 parts
+   */
+  private mapAgentMessages(
+    messages: unknown,
+  ): import('@core/monitoring/interfaces/monitoring.interface').AgentResponseMessage[] {
+    type RawMessage = {
+      id?: string;
+      role: string;
+      parts: Array<{
+        type: string;
+        text?: string;
+        state?: string;
+        toolName?: string;
+        toolCallId?: string;
+        input?: Record<string, unknown>;
+        output?: Record<string, unknown>;
+        error?: string;
+      }>;
+    };
+
+    const rawMessages = messages as RawMessage[];
+
+    return rawMessages.map((m) => ({
+      id: m.id,
+      role: m.role as 'user' | 'assistant' | 'system',
+      parts: m.parts.map(
+        (p): import('@core/monitoring/interfaces/monitoring.interface').AgentMessagePart => {
+          if (p.type === 'text') {
+            return {
+              type: 'text',
+              text: p.text || '',
+              state: p.state as 'done' | 'streaming' | undefined,
+            };
+          } else if (p.type === 'dynamic-tool') {
+            return {
+              type: 'dynamic-tool',
+              toolName: p.toolName || '',
+              toolCallId: p.toolCallId || '',
+              state: (p.state as 'pending' | 'running' | 'output-available' | 'error') || 'pending',
+              input: p.input,
+              output: p.output,
+              error: p.error,
+            };
+          }
+          // 默认作为 text 类型处理
+          return { type: 'text', text: String(p.text || '') };
+        },
+      ),
+    }));
   }
 }

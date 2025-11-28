@@ -120,7 +120,9 @@
       "Bash(NODE_ENV=development node -e \"\nconst { execSync } = require(''child_process'');\ntry {\n  const output = execSync(''pnpm run start:dev'', { \n    timeout: 12000,\n    encoding: ''utf-8'',\n    stdio: ''pipe''\n  });\n  console.log(output);\n} catch (error) {\n  console.log(error.stdout || '''');\n  console.log(error.stderr || '''');\n  if (error.killed) {\n    console.log(''✅ 服务启动成功（超时为正常现象）'');\n  }\n}\n\")",
       "Bash(pnpm remove:*)",
       "Bash(launchctl getenv:*)",
-      "Bash(defaults read:*)"
+      "Bash(defaults read:*)",
+      "Bash(node:*)",
+      "Bash(./test-feishu.sh:*)"
     ],
     "deny": [
       "Bash(git restore:*)",

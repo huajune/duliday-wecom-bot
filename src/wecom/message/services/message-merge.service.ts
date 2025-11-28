@@ -45,6 +45,11 @@ export class MessageMergeService implements OnModuleInit, OnModuleDestroy {
   // 定时器映射（只在内存中，不能序列化）
   private readonly timers = new Map<string, NodeJS.Timeout>();
 
+  // 超时扫描定时器
+  private timeoutScanTimer: NodeJS.Timeout | null = null;
+  private readonly TIMEOUT_SCAN_INTERVAL_MS = 60 * 1000; // 每分钟扫描一次
+  private readonly PROCESSING_TIMEOUT_MS = 3 * 60 * 1000; // 3分钟超时
+
   // 配置参数（支持动态更新）
   private initialMergeWindow: number; // 首次聚合等待时间
   private maxMergedMessages: number; // 最多聚合消息数
@@ -129,6 +134,89 @@ export class MessageMergeService implements OnModuleInit, OnModuleDestroy {
         this.logger.error('恢复孤立会话状态时发生错误:', error);
       });
     }, 2000);
+
+    // 启动定时超时扫描
+    this.startTimeoutScanner();
+  }
+
+  /**
+   * 启动定时超时扫描器
+   * 每分钟扫描一次，清理超时的 PROCESSING 状态
+   */
+  private startTimeoutScanner(): void {
+    this.timeoutScanTimer = setInterval(() => {
+      this.scanAndRecoverTimeoutStates().catch((error) => {
+        this.logger.error('超时扫描失败:', error);
+      });
+    }, this.TIMEOUT_SCAN_INTERVAL_MS);
+
+    this.logger.log(
+      `超时扫描器已启动，间隔: ${this.TIMEOUT_SCAN_INTERVAL_MS / 1000}s，超时阈值: ${this.PROCESSING_TIMEOUT_MS / 1000}s`,
+    );
+  }
+
+  /**
+   * 扫描并恢复超时的 PROCESSING 状态
+   */
+  private async scanAndRecoverTimeoutStates(): Promise<void> {
+    try {
+      let cursor: string | number = 0;
+      const pattern = `${this.STATE_KEY_PREFIX}*`;
+      let recoveredCount = 0;
+
+      do {
+        const [nextCursor, keys] = await this.redisService.scan(cursor, {
+          match: pattern,
+          count: 100,
+        });
+        cursor = nextCursor;
+
+        for (const key of keys) {
+          const chatId = key.replace(this.STATE_KEY_PREFIX, '');
+          const state = await this.getState(chatId);
+
+          if (!state) continue;
+
+          // 只处理 PROCESSING 状态
+          if (state.status !== ConversationStatus.PROCESSING) continue;
+
+          // 检查是否超时
+          const processingDuration = Date.now() - (state.currentRequest?.startTime || 0);
+          if (processingDuration <= this.PROCESSING_TIMEOUT_MS) continue;
+
+          this.logger.warn(
+            `[${chatId}] 扫描发现超时的 PROCESSING 状态 (${Math.round(processingDuration / 1000)}s)，` +
+              `待处理消息: ${state.pendingMessages.length} 条，正在恢复...`,
+          );
+
+          // 收集待处理消息
+          const pendingMessages = state.pendingMessages.map((pm) => pm.messageData);
+
+          // 重置状态
+          await this.resetConversationState(chatId);
+
+          // 将待处理消息重新入队
+          if (pendingMessages.length > 0) {
+            try {
+              await this.messageQueue.add('merge', { messages: pendingMessages });
+              this.logger.log(
+                `[${chatId}] 超时恢复：已将 ${pendingMessages.length} 条消息重新入队`,
+              );
+            } catch (error) {
+              this.logger.error(`[${chatId}] 超时恢复：重新入队失败:`, error);
+            }
+          }
+
+          recoveredCount++;
+        }
+      } while (cursor !== 0 && cursor !== '0');
+
+      if (recoveredCount > 0) {
+        this.logger.log(`超时扫描完成，已恢复 ${recoveredCount} 个超时会话`);
+      }
+    } catch (error) {
+      this.logger.error('扫描超时状态失败:', error);
+    }
   }
 
   /**
@@ -537,27 +625,43 @@ export class MessageMergeService implements OnModuleInit, OnModuleDestroy {
     const chatId = state.chatId;
 
     // 超时保护：检查 PROCESSING 状态是否卡住
-    const PROCESSING_TIMEOUT_MS = 10 * 60 * 1000; // 10分钟（与 Agent API 超时一致）
+    const PROCESSING_TIMEOUT_MS = 3 * 60 * 1000; // 3分钟
     const processingDuration = Date.now() - (state.currentRequest?.startTime || 0);
 
     if (processingDuration > PROCESSING_TIMEOUT_MS) {
       this.logger.warn(
-        `[${chatId}] PROCESSING 状态超时 (${Math.round(processingDuration / 1000)}s > ${PROCESSING_TIMEOUT_MS / 1000}s)，强制重置并重新处理`,
+        `[${chatId}] PROCESSING 状态超时 (${Math.round(processingDuration / 1000)}s > ${PROCESSING_TIMEOUT_MS / 1000}s)，强制重置并重新入队`,
       );
+
+      // 收集所有待处理消息（包括当前新消息）
+      const allPendingMessages = [
+        ...state.pendingMessages.map((pm) => pm.messageData),
+        messageData,
+      ];
 
       // 重置状态
       await this.resetConversationState(chatId);
 
-      // 按 IDLE 状态重新处理这条消息
-      const newState: ConversationState = {
-        chatId,
-        status: ConversationStatus.IDLE,
-        firstMessageTime: Date.now(),
-        pendingMessages: [],
-        lastUpdateTime: Date.now(),
-      };
+      // 将所有消息重新入队处理
+      if (allPendingMessages.length > 0) {
+        try {
+          await this.messageQueue.add('merge', { messages: allPendingMessages });
+          this.logger.log(`[${chatId}] 超时后已将 ${allPendingMessages.length} 条消息重新入队`);
+        } catch (error) {
+          this.logger.error(`[${chatId}] 超时后重新入队失败:`, error);
+          // 降级：按 IDLE 状态重新处理当前消息
+          const newState: ConversationState = {
+            chatId,
+            status: ConversationStatus.IDLE,
+            firstMessageTime: Date.now(),
+            pendingMessages: [],
+            lastUpdateTime: Date.now(),
+          };
+          return this.handleIdleState(newState, messageData);
+        }
+      }
 
-      return this.handleIdleState(newState, messageData);
+      return;
     }
 
     if (!this.collectDuringProcessing) {
@@ -805,7 +909,14 @@ export class MessageMergeService implements OnModuleInit, OnModuleDestroy {
    * 模块销毁钩子
    */
   onModuleDestroy() {
-    // 清理所有定时器
+    // 清理超时扫描定时器
+    if (this.timeoutScanTimer) {
+      clearInterval(this.timeoutScanTimer);
+      this.timeoutScanTimer = null;
+      this.logger.log('超时扫描器已停止');
+    }
+
+    // 清理所有聚合定时器
     for (const timer of this.timers.values()) {
       clearTimeout(timer);
     }

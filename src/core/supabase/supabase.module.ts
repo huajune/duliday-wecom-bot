@@ -1,5 +1,5 @@
 import { Global, Module } from '@nestjs/common';
-import { HttpModule } from '@core/http';
+import { HttpModule } from '@core/client-http';
 import { SupabaseService } from './supabase.service';
 
 /**

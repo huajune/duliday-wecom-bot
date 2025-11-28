@@ -520,12 +520,38 @@ export function useChatMessages(date?: string, page = 1, pageSize = 50) {
 }
 
 // 获取会话列表
-export function useChatSessions(days: number = 1) {
+// v1.4: 支持精确的 startDate/endDate 时间范围筛选
+export function useChatSessions(days: number = 1, startDate?: string, endDate?: string) {
   return useQuery({
-    queryKey: ['chat-sessions', days],
+    queryKey: ['chat-sessions', days, startDate, endDate],
     queryFn: async () => {
-      const { data } = await api.get(`/monitoring/chat-sessions?days=${days}`);
+      const params = new URLSearchParams();
+      if (startDate) {
+        params.set('startDate', startDate);
+        if (endDate) params.set('endDate', endDate);
+      } else {
+        params.set('days', String(days));
+      }
+      const { data } = await api.get(`/monitoring/chat-sessions?${params.toString()}`);
       return unwrapResponse<{ sessions: ChatSession[] }>(data);
+    },
+  });
+}
+
+// 获取聊天趋势
+export function useChatTrend(days: number = 7) {
+  return useQuery({
+    queryKey: ['chat-trend', days],
+    queryFn: async () => {
+      const { data } = await api.get(`/monitoring/chat-trend?days=${days}`);
+      return unwrapResponse<
+        Array<{
+          hour: string;
+          message_count: number;
+          active_users: number;
+          active_chats: number;
+        }>
+      >(data);
     },
   });
 }

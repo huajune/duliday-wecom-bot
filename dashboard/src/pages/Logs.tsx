@@ -7,6 +7,7 @@ import type { MessageRecord } from '@/types/monitoring';
 // 场景类型中文映射
 const scenarioLabels: Record<string, string> = {
   consultation: '咨询',
+  'candidate-consultation': '候选人咨询',
   booking: '预约',
   followup: '跟进',
   general: '通用',
@@ -21,6 +22,23 @@ function MessageDetailPanel({
   onClose: () => void;
 }) {
   const [showRaw, setShowRaw] = useState(true);
+
+  // 从 rawAgentResponse.messages 中提取完整的 assistant 响应
+  const getFullAgentResponse = (): string => {
+    const messages = message.rawAgentResponse?.messages;
+    if (!messages || messages.length === 0) {
+      return message.replyPreview || '(无响应内容)';
+    }
+    // 找到 assistant 角色的消息，合并所有 text parts
+    const assistantMessages = messages.filter(m => m.role === 'assistant');
+    if (assistantMessages.length === 0) {
+      return message.replyPreview || '(无响应内容)';
+    }
+    // 提取所有 assistant 消息的 text 内容
+    return assistantMessages
+      .flatMap((m: any) => m.parts.filter((p: any) => p.type === 'text').map((p: any) => p.text))
+      .join('\n\n') || message.replyPreview || '(无响应内容)';
+  };
 
   return (
     <div className="drawer-overlay" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
@@ -52,10 +70,9 @@ function MessageDetailPanel({
 
           {/* Left Column: Raw Data & Conversation (65%) */}
           <div style={{ flex: '1 1 65%', padding: '24px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '24px' }}>
-
             {/* Conversation Context */}
             <div>
-              <h4 style={{ margin: '0 0 16px 0', fontSize: '14px', color: 'var(--text-muted)' }}>会话上下文</h4>
+              <h4 style={{ margin: '0 0 16px 0', fontSize: '14px', color: 'var(--text-muted)' }}>当前会话</h4>
 
               {/* User Message Bubble */}
               <div className="chat-bubble user" style={{ marginBottom: '16px' }}>
@@ -79,8 +96,8 @@ function MessageDetailPanel({
                     </span>
                   )}
                 </div>
-                <div className="bubble-content primary">
-                  {message.replyPreview || '(无响应内容)'}
+                <div className="bubble-content primary" style={{ maxHeight: '150px', overflowY: 'auto' }}>
+                  {getFullAgentResponse()}
                 </div>
               </div>
 
@@ -127,69 +144,173 @@ function MessageDetailPanel({
             </div>
           </div>
 
-          {/* Right Column: Technical Stats (35%) */}
-          <div style={{ flex: '0 0 320px', background: 'var(--bg-secondary)', borderLeft: '1px solid var(--border)', padding: '24px', overflowY: 'auto' }}>
+          {/* Right Column: Technical Stats */}
+          <div style={{ flex: '0 0 360px', background: 'var(--bg-secondary)', borderLeft: '1px solid var(--border)', padding: '20px', overflowY: 'auto' }}>
 
-            <h4 style={{ margin: '0 0 16px 0', fontSize: '14px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            <h4 style={{ margin: '0 0 16px 0', fontSize: '13px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
               技术指标
             </h4>
 
-            {/* Latency Card */}
-            <div className="stat-card">
-              <div className="stat-label">总耗时</div>
-              <div className="stat-value primary">{formatDuration(message.totalDuration)}</div>
-              <div className="stat-breakdown">
-                {message.queueDuration !== undefined && (
-                  <div className="breakdown-item">
-                    <span>排队</span>
-                    <span>{formatDuration(message.queueDuration)}</span>
-                  </div>
-                )}
-                {message.aiDuration !== undefined && (
-                  <div className="breakdown-item">
-                    <span>首条响应</span>
-                    <span>{formatDuration(message.aiDuration)}</span>
-                  </div>
-                )}
-                {message.sendDuration !== undefined && (
-                  <div className="breakdown-item">
-                    <span>发送</span>
-                    <span>{formatDuration(message.sendDuration)}</span>
-                  </div>
-                )}
+            {/* Latency & Token - Compact Row */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
+              {/* Latency Card */}
+              <div className="stat-card" style={{ marginBottom: 0, textAlign: 'center' }}>
+                <div className="stat-label" style={{ whiteSpace: 'nowrap' }}>总耗时</div>
+                <div className="stat-value primary" style={{ fontSize: '18px' }}>{formatDuration(message.totalDuration)}</div>
+              </div>
+
+              {/* Token Card */}
+              <div className="stat-card" style={{ marginBottom: 0, textAlign: 'center' }}>
+                <div className="stat-label" style={{ whiteSpace: 'nowrap' }}>Token</div>
+                <div className="stat-value warning" style={{ fontSize: '18px' }}>{message.tokenUsage?.toLocaleString() || '-'}</div>
               </div>
             </div>
 
-            {/* Token Card */}
-            {message.tokenUsage !== undefined && (
+            {/* Latency Breakdown */}
+            {(message.queueDuration !== undefined || message.aiDuration !== undefined || message.sendDuration !== undefined) && (
               <div className="stat-card">
-                <div className="stat-label">Token 消耗</div>
-                <div className="stat-value warning">{message.tokenUsage.toLocaleString()}</div>
-                {message.rawAgentResponse?.usage && (
-                  <div className="stat-breakdown">
+                <div className="stat-label">耗时明细</div>
+                <div className="stat-breakdown" style={{ marginTop: '8px', paddingTop: '0', borderTop: 'none' }}>
+                  {message.queueDuration !== undefined && (
                     <div className="breakdown-item">
-                      <span>输入</span>
-                      <span>{message.rawAgentResponse.usage.inputTokens?.toLocaleString() || '-'}</span>
+                      <span>排队</span>
+                      <span>{formatDuration(message.queueDuration)}</span>
                     </div>
+                  )}
+                  {message.aiDuration !== undefined && (
                     <div className="breakdown-item">
-                      <span>输出</span>
-                      <span>{message.rawAgentResponse.usage.outputTokens?.toLocaleString() || '-'}</span>
+                      <span>首条响应</span>
+                      <span>{formatDuration(message.aiDuration)}</span>
                     </div>
-                  </div>
-                )}
+                  )}
+                  {message.sendDuration !== undefined && (
+                    <div className="breakdown-item">
+                      <span>发送</span>
+                      <span>{formatDuration(message.sendDuration)}</span>
+                    </div>
+                  )}
+                  {message.rawAgentResponse?.usage && (
+                    <>
+                      <div className="breakdown-item" style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px dashed var(--border)' }}>
+                        <span>输入 Token</span>
+                        <span>{message.rawAgentResponse.usage.inputTokens?.toLocaleString() || '-'}</span>
+                      </div>
+                      <div className="breakdown-item">
+                        <span>输出 Token</span>
+                        <span>{message.rawAgentResponse.usage.outputTokens?.toLocaleString() || '-'}</span>
+                      </div>
+                    </>
+                  )}
+                </div>
               </div>
             )}
 
             {/* Tools Card */}
-            {message.tools && message.tools.length > 0 && (
+            {(message.tools && message.tools.length > 0) || (message.rawAgentResponse?.tools?.skipped && message.rawAgentResponse.tools.skipped.length > 0) ? (
               <div className="stat-card">
-                <div className="stat-label">使用工具</div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '8px' }}>
-                  {message.tools.map((tool, i) => (
-                    <span key={i} className="tool-tag">
-                      {tool}
+                <div className="stat-label">工具调用</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '10px' }}>
+                  {/* 使用的工具 */}
+                  {message.tools && message.tools.length > 0 && (
+                    <div>
+                      <div style={{ fontSize: '11px', color: 'var(--success)', marginBottom: '6px', fontWeight: 500 }}>
+                        ✓ 已使用 ({message.tools.length})
+                      </div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                        {message.tools.map((tool, i) => (
+                          <span key={i} className="tool-tag">
+                            {tool}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {/* Skipped 的工具 */}
+                  {message.rawAgentResponse?.tools?.skipped && message.rawAgentResponse.tools.skipped.length > 0 && (
+                    <div style={{ paddingTop: '10px', borderTop: '1px dashed var(--border)' }}>
+                      <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '6px' }}>
+                        ○ 已跳过 ({message.rawAgentResponse.tools.skipped.length})
+                      </div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                        {message.rawAgentResponse.tools.skipped.map((tool, i) => (
+                          <span key={i} className="tool-tag skipped">
+                            {tool}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : null}
+
+            {/* Input Params Card */}
+            {message.rawAgentResponse?.input && (
+              <div className="stat-card">
+                <div className="stat-label">输入参数</div>
+                <div className="stat-breakdown" style={{ marginTop: '8px', paddingTop: '0', borderTop: 'none' }}>
+                  <div className="breakdown-item">
+                    <span>历史消息</span>
+                    <span>{message.rawAgentResponse.input.historyCount} 条</span>
+                  </div>
+                  {message.rawAgentResponse.input.model && (
+                    <div className="breakdown-item">
+                      <span>模型</span>
+                      <span style={{ fontSize: '10px', maxWidth: '180px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={message.rawAgentResponse.input.model}>
+                        {message.rawAgentResponse.input.model}
+                      </span>
+                    </div>
+                  )}
+                  {message.rawAgentResponse.input.contextStrategy && (
+                    <div className="breakdown-item">
+                      <span>上下文策略</span>
+                      <span>{message.rawAgentResponse.input.contextStrategy}</span>
+                    </div>
+                  )}
+                  {message.rawAgentResponse.input.prune !== undefined && (
+                    <div className="breakdown-item">
+                      <span>剪枝</span>
+                      <span>{message.rawAgentResponse.input.prune ? '是' : '否'}</span>
+                    </div>
+                  )}
+                  {/* Prompt 相关字段 */}
+                  <div className="breakdown-item" style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px dashed var(--border)' }}>
+                    <span>systemPrompt</span>
+                    <span className={message.rawAgentResponse.input.hasSystemPrompt ? 'param-yes' : 'param-no'}>
+                      {message.rawAgentResponse.input.hasSystemPrompt ? `✓ ${message.rawAgentResponse.input.systemPromptLength} 字符` : '✗ 无'}
                     </span>
-                  ))}
+                  </div>
+                  <div className="breakdown-item">
+                    <span>context</span>
+                    <span className={message.rawAgentResponse.input.hasContext ? 'param-yes' : 'param-no'}>
+                      {message.rawAgentResponse.input.hasContext ? `✓ ${message.rawAgentResponse.input.contextLength} 字符` : '✗ 无'}
+                    </span>
+                  </div>
+                  <div className="breakdown-item">
+                    <span>toolContext</span>
+                    <span className={message.rawAgentResponse.input.hasToolContext ? 'param-yes' : 'param-no'}>
+                      {message.rawAgentResponse.input.hasToolContext ? `✓ ${message.rawAgentResponse.input.toolContextLength} 字符` : '✗ 无'}
+                    </span>
+                  </div>
+                  {/* 品牌配置相关 */}
+                  <div className="breakdown-item" style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px dashed var(--border)' }}>
+                    <span>configData</span>
+                    <span className={message.rawAgentResponse.input.hasConfigData ? 'param-yes' : 'param-no'}>
+                      {message.rawAgentResponse.input.hasConfigData ? '✓ 已加载' : '✗ 无'}
+                    </span>
+                  </div>
+                  <div className="breakdown-item">
+                    <span>replyPrompts</span>
+                    <span className={message.rawAgentResponse.input.hasReplyPrompts ? 'param-yes' : 'param-no'}>
+                      {message.rawAgentResponse.input.hasReplyPrompts ? '✓ 已加载' : '✗ 无'}
+                    </span>
+                  </div>
+                  <div className="breakdown-item">
+                    <span>品牌策略</span>
+                    <span className={message.rawAgentResponse.input.brandPriorityStrategy ? 'param-yes' : 'param-no'}>
+                      {message.rawAgentResponse.input.brandPriorityStrategy || '✗ 无'}
+                    </span>
+                  </div>
                 </div>
               </div>
             )}
@@ -197,7 +318,7 @@ function MessageDetailPanel({
             {/* Metadata Card */}
             <div className="stat-card">
               <div className="stat-label">元数据</div>
-              <div className="stat-breakdown">
+              <div className="stat-breakdown" style={{ marginTop: '8px', paddingTop: '0', borderTop: 'none' }}>
                 <div className="breakdown-item">
                   <span>场景</span>
                   <span>{scenarioLabels[message.scenario || ''] || message.scenario || '未知'}</span>
@@ -205,7 +326,7 @@ function MessageDetailPanel({
                 <div className="breakdown-item">
                   <span>会话 ID</span>
                   <span style={{ fontFamily: 'monospace', fontSize: '11px' }} title={message.chatId}>
-                    {message.chatId.slice(0, 8)}...
+                    {message.chatId.slice(0, 12)}...
                   </span>
                 </div>
               </div>
@@ -266,9 +387,9 @@ function MessageDetailPanel({
         
         .stat-card {
           background: #fff;
-          border-radius: 12px;
-          padding: 16px;
-          margin-bottom: 16px;
+          border-radius: 10px;
+          padding: 12px 14px;
+          margin-bottom: 12px;
           box-shadow: 0 1px 3px rgba(0,0,0,0.05);
         }
         .stat-label {
@@ -294,20 +415,36 @@ function MessageDetailPanel({
         }
         .breakdown-item {
           display: flex;
+          flex:1;
           justify-content: space-between;
           font-size: 12px;
           color: var(--text-secondary);
         }
-        
+
+        .param-yes {
+          color: var(--success);
+          font-weight: 500;
+        }
+        .param-no {
+          color: var(--text-muted);
+        }
+
         .tool-tag {
-          font-size: 11px;
-          padding: 4px 8px;
+          font-size: 10px;
+          padding: 3px 6px;
           background: rgba(16, 185, 129, 0.1);
           color: var(--success);
-          border-radius: 6px;
+          border-radius: 4px;
           border: 1px solid rgba(16, 185, 129, 0.2);
+          white-space: nowrap;
         }
-        
+        .tool-tag.skipped {
+          background: rgba(107, 114, 128, 0.1);
+          color: var(--text-muted);
+          border-color: rgba(107, 114, 128, 0.2);
+          text-decoration: line-through;
+        }
+
         .code-block {
           background: #1e1e1e;
           color: #d4d4d4;

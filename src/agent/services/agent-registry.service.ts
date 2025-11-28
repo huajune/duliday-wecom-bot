@@ -2,7 +2,7 @@ import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/commo
 import { ConfigService } from '@nestjs/config';
 import { parseToolsFromEnv } from '../utils';
 import { AgentApiClientService } from './agent-api-client.service';
-import { AlertService } from '@core/alert/alert.service';
+import { FeishuAlertService } from '@core/feishu';
 
 /**
  * 工具信息接口
@@ -45,7 +45,7 @@ export class AgentRegistryService implements OnModuleInit, OnModuleDestroy {
   constructor(
     private readonly configService: ConfigService,
     private readonly apiClient: AgentApiClientService,
-    private readonly alertService: AlertService,
+    private readonly feishuAlertService: FeishuAlertService,
   ) {
     // 读取配置
     this.configuredModel = this.configService.get<string>('AGENT_DEFAULT_MODEL')!;
@@ -82,7 +82,7 @@ export class AgentRegistryService implements OnModuleInit, OnModuleDestroy {
       this.logger.error('注册表初始化失败，将在后续请求时重试:', error);
 
       // 发送飞书告警（异步，不阻塞服务启动）
-      this.alertService
+      this.feishuAlertService
         .sendAlert({
           errorType: 'agent',
           error,
@@ -214,7 +214,7 @@ export class AgentRegistryService implements OnModuleInit, OnModuleDestroy {
         this.logger.error('自动刷新失败:', error);
 
         // 发送飞书告警（异步，不阻塞定时任务）
-        this.alertService
+        this.feishuAlertService
           .sendAlert({
             errorType: 'agent',
             error,

@@ -10,13 +10,12 @@ import {
 } from '@nestjs/common';
 import { AgentService } from './agent.service';
 import { AgentRegistryService } from './services/agent-registry.service';
-import { AgentCacheService } from './services/agent-cache.service';
 import { ProfileLoaderService } from './services/agent-profile-loader.service';
 import { BrandConfigService } from './services/brand-config.service';
 import { AgentConfigValidator } from './utils/agent-validator';
 import { ConfigService } from '@nestjs/config';
 import { RawResponse } from '@/core';
-import { AlertService } from '@core/alert/alert.service';
+import { FeishuAlertService } from '@core/feishu';
 
 @Controller('agent')
 export class AgentController {
@@ -28,9 +27,8 @@ export class AgentController {
     private readonly brandConfig: BrandConfigService,
     private readonly validator: AgentConfigValidator,
     private readonly registryService: AgentRegistryService,
-    private readonly cacheService: AgentCacheService,
     private readonly configService: ConfigService,
-    private readonly alertService: AlertService,
+    private readonly feishuAlertService: FeishuAlertService,
   ) {}
 
   /**
@@ -137,38 +135,6 @@ export class AgentController {
   }
 
   /**
-   * 获取注册表状态详情
-   * GET /agent/health/cache
-   */
-  @Get('health/cache')
-  async getHealthCache() {
-    const healthStatus = this.registryService.getHealthStatus();
-    const cacheStats = await this.cacheService.getStats();
-
-    return {
-      registry: healthStatus,
-      responseCache: cacheStats,
-    };
-  }
-
-  /**
-   * 清空所有会话缓存数据
-   * POST /agent/cache/clear
-   */
-  @Post('cache/clear')
-  async clearCache() {
-    this.logger.log('清空会话缓存数据');
-    await this.cacheService.clear();
-    const stats = await this.cacheService.getStats();
-
-    return {
-      success: true,
-      message: '会话缓存已清空',
-      currentCacheSize: stats.size,
-    };
-  }
-
-  /**
    * 强制刷新注册表（重新加载模型和工具列表）
    * POST /agent/health/refresh
    */
@@ -189,7 +155,7 @@ export class AgentController {
       this.logger.error('注册表刷新失败:', error);
 
       // 发送飞书告警
-      this.alertService
+      this.feishuAlertService
         .sendAlert({
           errorType: 'agent',
           error,

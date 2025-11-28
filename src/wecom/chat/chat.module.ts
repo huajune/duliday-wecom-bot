@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ChatController } from './chat.controller';
 import { ChatService } from './chat.service';
-import { HttpModule } from '@core/http';
+import { HttpModule } from '@core/client-http';
 import { ApiConfigModule } from '@core/config';
 
 /**

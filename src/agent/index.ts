@@ -20,7 +20,6 @@ export {
 
 // 内部服务通过 AgentModule 依赖注入，不对外暴露：
 // - AgentApiClientService
-// - AgentCacheService
 // - AgentFallbackService
 // - AgentRegistryService
 // - BrandConfigMonitor

@@ -5,9 +5,8 @@ import { ProfileLoaderService } from './services/agent-profile-loader.service';
 import { BrandConfigService } from './services/brand-config.service';
 import { AgentConfigValidator } from './utils/agent-validator';
 import { AgentRegistryService } from './services/agent-registry.service';
-import { AgentCacheService } from './services/agent-cache.service';
 import { ConfigService } from '@nestjs/config';
-import { AlertService } from '@core/alert/alert.service';
+import { FeishuAlertService } from '@core/feishu';
 
 describe('AgentController', () => {
   let controller: AgentController;
@@ -50,15 +49,11 @@ describe('AgentController', () => {
     logValidationWarnings: jest.fn(),
   };
 
-  const mockCacheService = {
-    getStats: jest.fn(),
-  };
-
   const mockConfigService = {
     get: jest.fn(),
   };
 
-  const mockAlertService = {
+  const mockFeishuAlertService = {
     sendAlert: jest.fn().mockResolvedValue(true),
     sendSimpleAlert: jest.fn().mockResolvedValue(true),
   };
@@ -88,16 +83,12 @@ describe('AgentController', () => {
           useValue: mockConfigValidator,
         },
         {
-          provide: AgentCacheService,
-          useValue: mockCacheService,
-        },
-        {
           provide: ConfigService,
           useValue: mockConfigService,
         },
         {
-          provide: AlertService,
-          useValue: mockAlertService,
+          provide: FeishuAlertService,
+          useValue: mockFeishuAlertService,
         },
       ],
     }).compile();

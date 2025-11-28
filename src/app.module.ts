@@ -4,11 +4,10 @@ import { ConfigModule } from '@nestjs/config';
 import { HttpModule, RedisModule } from './core';
 import { SupabaseModule } from './core/supabase';
 import { MonitoringModule } from './core/monitoring/monitoring.module';
-import { AlertModule } from './core/alert/alert.module';
 import { LoggerModule } from './core/logger';
+import { FeishuModule } from './core/feishu';
 import { AgentModule } from './agent';
 import { WecomModule } from './wecom/wecom.module';
-import { FeishuSyncModule } from './core/feishu-sync/feishu-sync.module';
 import { validate } from './core/config/env.validation';
 
 /**
@@ -51,9 +50,8 @@ import { validate } from './core/config/env.validation';
     RedisModule, // Redis 缓存服务（全局）
     SupabaseModule, // Supabase 数据库服务（全局）- 系统配置和用户托管状态持久化
     MonitoringModule, // 监控服务（全局）
-    AlertModule, // 告警服务（全局）
+    FeishuModule, // 飞书统一服务（告警、通知、多维表格同步）
     LoggerModule, // 实时日志推送（仅开发环境）
-    FeishuSyncModule, // 飞书同步（从监控快照导出数据）
 
     // ==================== 业务域 (Business Domains) ====================
     AgentModule, // AI Agent 业务域

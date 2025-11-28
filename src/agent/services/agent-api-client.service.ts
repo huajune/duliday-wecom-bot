@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AxiosInstance, AxiosResponse } from 'axios';
-import { HttpClientFactory } from '@core/http';
+import { HttpClientFactory } from '@core/client-http';
 import { AgentRateLimitException, AgentAuthException } from '../utils/agent-exceptions';
 import { ApiResponse, ChatRequest, ChatResponse } from '../utils/agent-types';
 
