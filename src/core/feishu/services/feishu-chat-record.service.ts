@@ -2,10 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { ConfigService } from '@nestjs/config';
 import axios, { AxiosInstance } from 'axios';
-import {
-  MessageHistoryService,
-  EnhancedMessageHistoryItem,
-} from '@wecom/message/services/message-history.service';
+import { SupabaseService } from '@core/supabase';
 import { feishuBitableConfig } from '../constants/feishu-bitable.config';
 
 interface FeishuTokenCache {
@@ -15,6 +12,19 @@ interface FeishuTokenCache {
 
 interface FeishuRecordPayload {
   fields: Record<string, any>;
+}
+
+/**
+ * 增强的消息历史记录项（用于飞书同步）
+ */
+interface EnhancedMessageHistoryItem {
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: number;
+  messageId: string;
+  chatId: string;
+  candidateName?: string;
+  managerName?: string;
 }
 
 /**
@@ -29,7 +39,7 @@ export class ChatRecordSyncService {
   private tokenCache?: FeishuTokenCache;
 
   constructor(
-    private readonly messageHistoryService: MessageHistoryService,
+    private readonly supabaseService: SupabaseService,
     private readonly configService: ConfigService,
   ) {
     this.http = axios.create({ timeout: 10000 });
@@ -59,7 +69,7 @@ export class ChatRecordSyncService {
       );
 
       // 从 Supabase 获取昨天的所有聊天记录
-      const chatRecords = await this.messageHistoryService.getChatRecordsByTimeRange(start, end);
+      const chatRecords = await this.getChatRecordsByTimeRange(start, end);
 
       if (chatRecords.length === 0) {
         this.logger.log('[ChatRecordSync] 前一日无聊天记录，跳过同步');
@@ -312,10 +322,7 @@ export class ChatRecordSyncService {
         `[ChatRecordSync] 时间范围: ${new Date(startTime).toISOString()} ~ ${new Date(endTime).toISOString()}`,
       );
 
-      const chatRecords = await this.messageHistoryService.getChatRecordsByTimeRange(
-        startTime,
-        endTime,
-      );
+      const chatRecords = await this.getChatRecordsByTimeRange(startTime, endTime);
 
       if (chatRecords.length === 0) {
         return {
@@ -362,5 +369,42 @@ export class ChatRecordSyncService {
         error: error?.stack,
       };
     }
+  }
+
+  /**
+   * 获取指定时间范围内的所有聊天记录（直接从 Supabase 获取）
+   * @param startTime 开始时间（毫秒时间戳）
+   * @param endTime 结束时间（毫秒时间戳）
+   * @returns 所有会话的聊天记录列表
+   */
+  private async getChatRecordsByTimeRange(
+    startTime: number,
+    endTime: number,
+  ): Promise<Array<{ chatId: string; messages: EnhancedMessageHistoryItem[] }>> {
+    this.logger.log(
+      `查询时间范围内的聊天记录: ${new Date(startTime).toISOString()} ~ ${new Date(endTime).toISOString()}`,
+    );
+
+    const records = await this.supabaseService.getChatMessagesByTimeRange(startTime, endTime);
+
+    // 转换为 EnhancedMessageHistoryItem 格式
+    const result = records.map(({ chatId, messages }) => ({
+      chatId,
+      messages: messages.map((m) => ({
+        role: m.role,
+        content: m.content,
+        timestamp: m.timestamp,
+        chatId,
+        messageId: m.messageId,
+        candidateName: m.candidateName,
+        managerName: m.managerName,
+      })) as EnhancedMessageHistoryItem[],
+    }));
+
+    this.logger.log(
+      `时间范围查询完成：找到 ${result.length} 个会话共 ${result.reduce((sum, r) => sum + r.messages.length, 0)} 条消息`,
+    );
+
+    return result;
   }
 }

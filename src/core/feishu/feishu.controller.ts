@@ -1,7 +1,7 @@
 import { Controller, Post, Body, HttpCode, Logger } from '@nestjs/common';
 import { FeishuAlertService } from './services/feishu-alert.service';
 import { FeishuBookingService } from './services/feishu-booking.service';
-// import { ChatRecordSyncService } from './services/feishu-chat-record.service'; // 暂时注释，避免循环依赖
+import { ChatRecordSyncService } from './services/feishu-chat-record.service';
 import { InterviewBookingInfo } from './interfaces/feishu.interface';
 import { AlertContext } from './services/feishu-alert.service';
 
@@ -16,7 +16,7 @@ export class FeishuController {
   constructor(
     private readonly alertService: FeishuAlertService,
     private readonly bookingService: FeishuBookingService,
-    // private readonly chatRecordSyncService: ChatRecordSyncService, // 暂时注释
+    private readonly chatRecordSyncService: ChatRecordSyncService,
   ) {}
 
   /**
@@ -57,48 +57,76 @@ export class FeishuController {
     };
   }
 
-  // 同步功能暂时注释，避免循环依赖
-  // /**
-  //  * 触发手动同步
-  //  * POST /feishu/sync/manual
-  //  */
-  // @Post('sync/manual')
-  // @HttpCode(200)
-  // async triggerManualSync(): Promise<{ success: boolean; message: string; count: number }> {
-  //   this.logger.log('触发手动同步');
-  //
-  //   try {
-  //     const result = await this.chatRecordSyncService.manualSync();
-  //
-  //     return {
-  //       success: result.success,
-  //       message: result.message,
-  //       count: result.recordCount || 0,
-  //     };
-  //   } catch (error) {
-  //     this.logger.error(`手动同步失败: ${error.message}`);
-  //     return {
-  //       success: false,
-  //       message: `同步失败: ${error.message}`,
-  //       count: 0,
-  //     };
-  //   }
-  // }
-  //
-  // /**
-  //  * 获取同步状态
-  //  * GET /feishu/sync/status
-  //  */
-  // @Get('sync/status')
-  // async getSyncStatus(): Promise<{
-  //   lastSyncTime: Date | null;
-  //   totalSynced: number;
-  //   syncEnabled: boolean;
-  // }> {
-  //   return {
-  //     lastSyncTime: null, // TODO: 实现状态跟踪
-  //     totalSynced: 0,
-  //     syncEnabled: true,
-  //   };
-  // }
+  /**
+   * 触发手动同步（前一天数据）
+   * POST /feishu/sync/manual
+   */
+  @Post('sync/manual')
+  @HttpCode(200)
+  async triggerManualSync(): Promise<{ success: boolean; message: string; count: number }> {
+    this.logger.log('触发手动同步（前一天数据）');
+
+    try {
+      const result = await this.chatRecordSyncService.manualSync();
+
+      return {
+        success: result.success,
+        message: result.message,
+        count: result.recordCount || 0,
+      };
+    } catch (error: any) {
+      this.logger.error(`手动同步失败: ${error?.message}`);
+      return {
+        success: false,
+        message: `同步失败: ${error?.message}`,
+        count: 0,
+      };
+    }
+  }
+
+  /**
+   * 同步指定日期范围的数据
+   * POST /feishu/sync/range
+   * @param body { startDate: '2024-11-28', endDate: '2024-11-30' }
+   */
+  @Post('sync/range')
+  @HttpCode(200)
+  async syncByDateRange(
+    @Body() body: { startDate: string; endDate: string },
+  ): Promise<{ success: boolean; message: string; recordCount?: number; error?: string }> {
+    const { startDate, endDate } = body;
+
+    if (!startDate || !endDate) {
+      return {
+        success: false,
+        message: '请提供 startDate 和 endDate 参数（格式：YYYY-MM-DD）',
+      };
+    }
+
+    this.logger.log(`触发手动同步: ${startDate} ~ ${endDate}`);
+
+    try {
+      // 解析日期，设置时区为中国时区
+      const start = new Date(`${startDate}T00:00:00+08:00`).getTime();
+      const end = new Date(`${endDate}T23:59:59+08:00`).getTime();
+
+      if (isNaN(start) || isNaN(end)) {
+        return {
+          success: false,
+          message: '日期格式错误，请使用 YYYY-MM-DD 格式',
+        };
+      }
+
+      const result = await this.chatRecordSyncService.syncByTimeRange(start, end);
+
+      return result;
+    } catch (error: any) {
+      this.logger.error(`手动同步失败: ${error?.message}`);
+      return {
+        success: false,
+        message: `同步失败: ${error?.message}`,
+        error: error?.stack,
+      };
+    }
+  }
 }
