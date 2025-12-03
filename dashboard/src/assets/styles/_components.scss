@@ -1,0 +1,1652 @@
+// ============================================================
+// DuLiDay Dashboard - 组件样式
+// ============================================================
+@use './variables' as *;
+
+// ========== 按钮 ==========
+.btn {
+  border-radius: 10px;
+  padding: 10px 16px;
+  border: 1px solid transparent;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-primary {
+  background: $gradient-primary;
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3);
+
+  &:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 16px rgba(139, 92, 246, 0.4);
+  }
+}
+
+.btn-ghost {
+  background: rgba(255, 255, 255, 0.6);
+  border-color: $border;
+  color: $text-secondary;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.9);
+    border-color: $border-hover;
+    color: $text-primary;
+  }
+
+  &.danger-link {
+    border-color: transparent;
+    color: $text-muted;
+    padding: 6px 10px;
+    font-size: 12px;
+
+    &:hover {
+      color: $danger;
+      border-color: rgba(239, 68, 68, 0.3);
+    }
+  }
+}
+
+// ========== 筛选器 ==========
+.filters {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+
+  button {
+    background: rgba(255, 255, 255, 0.6);
+    border: 1px solid $border;
+    color: $text-secondary;
+    border-radius: 999px;
+    padding: 6px 14px;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+
+    &:hover {
+      border-color: $primary;
+      background: rgba(139, 92, 246, 0.08);
+      color: $primary;
+    }
+
+    &.active {
+      background: $gradient-primary;
+      border-color: transparent;
+      color: #fff;
+      box-shadow: 0 2px 8px rgba(139, 92, 246, 0.3);
+    }
+  }
+}
+
+// ========== 开关 ==========
+.toggle-switch {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: $text-secondary;
+
+  input[type='checkbox'] {
+    appearance: none;
+    width: 44px;
+    height: 24px;
+    background: rgba(148, 163, 184, 0.2);
+    border: 1px solid $border;
+    border-radius: 12px;
+    position: relative;
+    cursor: pointer;
+    transition: all 0.3s ease;
+
+    &::before {
+      content: '';
+      position: absolute;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: $text-muted;
+      top: 2px;
+      left: 2px;
+      transition: all 0.3s ease;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    &:checked {
+      background: $success;
+      border-color: $success;
+
+      &::before {
+        background: white;
+        left: 22px;
+      }
+    }
+
+    &:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+  }
+
+  .status-text {
+    min-width: 40px;
+    font-weight: 500;
+
+    &.enabled {
+      color: $success;
+    }
+
+    &.disabled {
+      color: $danger;
+    }
+  }
+}
+
+// ========== 卡片 ==========
+.metric-card {
+  background: $bg-card;
+  border-radius: 20px;
+  padding: 24px;
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s ease;
+  border: 1px solid $border;
+  box-shadow: $shadow-sm;
+
+  &:hover {
+    transform: translateY(-4px);
+    box-shadow: $shadow-lg;
+    border-color: $primary-light;
+  }
+
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    opacity: 0.6;
+    pointer-events: none;
+    border-radius: inherit;
+  }
+
+  &.primary::after {
+    background: radial-gradient(circle at top right, rgba(59, 130, 246, 0.15), transparent 70%);
+  }
+
+  &.success::after {
+    background: radial-gradient(circle at top right, rgba(16, 185, 129, 0.15), transparent 70%);
+  }
+
+  &.warning::after {
+    background: radial-gradient(circle at top right, rgba(245, 158, 11, 0.15), transparent 70%);
+  }
+
+  &.danger::after {
+    background: radial-gradient(circle at top right, rgba(239, 68, 68, 0.15), transparent 70%);
+  }
+
+  &.info::after {
+    background: radial-gradient(circle at top right, rgba(6, 182, 212, 0.15), transparent 70%);
+  }
+
+  // Christmas decoration
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, #ef4444 0%, #ffffff 50%, #10b981 100%);
+    z-index: 10;
+    opacity: 0.8;
+  }
+}
+
+.metric-label {
+  font-size: 13px;
+  color: $text-muted;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.metric-value {
+  background: $gradient-primary;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.metric-subtitle {
+  font-size: 13px;
+  color: $text-secondary;
+}
+
+.metric-delta {
+  font-size: 13px;
+  font-weight: 600;
+
+  &.positive {
+    color: $success;
+  }
+
+  &.negative {
+    color: $danger;
+  }
+}
+
+// ========== 图表卡片 ==========
+.chart-card {
+  border-radius: 20px;
+  border: 1px solid $border;
+  padding: 24px;
+  background: $bg-card;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, #ef4444 0%, #ffffff 50%, #10b981 100%);
+    z-index: 10;
+    opacity: 0.8;
+  }
+}
+
+.chart-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+
+  h3 {
+    font-size: 16px;
+    font-weight: 600;
+    color: $text-primary;
+  }
+
+  p {
+    margin: 2px 0 0;
+    color: $text-secondary;
+    font-size: 13px;
+  }
+}
+
+.chart-kpi {
+  text-align: right;
+  font-size: 12px;
+  color: $text-muted;
+
+  strong {
+    display: block;
+    font-size: 18px;
+    color: $text-primary;
+  }
+}
+
+.chart-container {
+  position: relative;
+  width: 100%;
+  height: 280px;
+}
+
+// ========== 洞察卡片 ==========
+.insight-card {
+  background: $bg-card;
+  border-radius: 20px;
+  padding: 24px;
+  border: 1px solid $border;
+  box-shadow: $shadow-sm;
+  transition: all 0.3s ease;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  position: relative;
+  overflow: hidden;
+
+  &:hover {
+    transform: translateY(-4px);
+    box-shadow: $shadow-lg;
+    border-color: $primary-light;
+  }
+
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(45deg, transparent, rgba(139, 92, 246, 0.08), transparent);
+    transform: translateX(-100%);
+    transition: transform 0.6s;
+  }
+
+  &:hover::before {
+    transform: translateX(100%);
+  }
+}
+
+.insight-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: $text-primary;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.insight-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+
+  div {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  span {
+    font-size: 12px;
+    color: $text-secondary;
+  }
+
+  strong {
+    font-size: 18px;
+    color: $text-primary;
+    font-weight: 700;
+  }
+}
+
+// ========== 健康面板 ==========
+.health-panel {
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.08) 0%, rgba(147, 51, 234, 0.08) 100%);
+  border: 1px solid $border;
+  border-radius: 20px;
+  padding: 24px 32px;
+  position: relative;
+  overflow: hidden;
+
+  &::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    right: -20%;
+    width: 300px;
+    height: 300px;
+    background: radial-gradient(circle, rgba(59, 130, 246, 0.15) 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  &::after {
+    content: '';
+    position: absolute;
+    bottom: -30%;
+    left: -10%;
+    width: 200px;
+    height: 200px;
+    background: radial-gradient(circle, rgba(147, 51, 234, 0.1) 0%, transparent 70%);
+    pointer-events: none;
+  }
+}
+
+.health-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  position: relative;
+  z-index: 1;
+}
+
+.health-panel-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: $text-primary;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  &::before {
+    content: '⚡';
+    font-size: 18px;
+  }
+}
+
+.health-panel-badge {
+  font-size: 11px;
+  padding: 4px 10px;
+  border-radius: 12px;
+  background: rgba(34, 197, 94, 0.15);
+  color: $success;
+  font-weight: 500;
+
+  &.warning {
+    background: rgba(245, 158, 11, 0.15);
+    color: $warning;
+  }
+
+  &.error {
+    background: rgba(239, 68, 68, 0.15);
+    color: $danger;
+  }
+}
+
+.health-item {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.5);
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.15);
+  transition: all 0.2s ease;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.8);
+    border-color: rgba(148, 163, 184, 0.25);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(148, 163, 184, 0.15);
+  }
+
+  &[data-state='error'] {
+    border-color: rgba(239, 68, 68, 0.3);
+    background: rgba(239, 68, 68, 0.06);
+  }
+
+  &[data-state='warning'] {
+    border-color: rgba(245, 158, 11, 0.3);
+    background: rgba(245, 158, 11, 0.06);
+  }
+}
+
+.health-icon {
+  font-size: 28px;
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(139, 92, 246, 0.1);
+  border-radius: 12px;
+}
+
+.health-info {
+  flex: 1;
+}
+
+.health-title {
+  font-size: 12px;
+  color: $text-muted;
+  letter-spacing: 0.05em;
+  margin-bottom: 4px;
+}
+
+.health-status {
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+
+.health-desc {
+  color: $text-secondary;
+  font-size: 12px;
+}
+
+// ========== 控制面板 ==========
+.control-panel {
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.06) 0%, rgba(147, 51, 234, 0.06) 50%, rgba(236, 72, 153, 0.04) 100%);
+  border: 1px solid $border;
+  border-radius: 20px;
+  padding: 24px 32px;
+  position: relative;
+  overflow: hidden;
+  margin-bottom: 0;
+
+  &::before {
+    content: '';
+    position: absolute;
+    top: -60%;
+    right: -15%;
+    width: 400px;
+    height: 400px;
+    background: radial-gradient(circle, rgba(59, 130, 246, 0.12) 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  &::after {
+    content: '';
+    position: absolute;
+    bottom: -40%;
+    left: -5%;
+    width: 250px;
+    height: 250px;
+    background: radial-gradient(circle, rgba(147, 51, 234, 0.08) 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  .filters {
+    margin: 0;
+  }
+
+  .health-grid {
+    position: relative;
+    z-index: 1;
+  }
+
+  .health-panel-badge {
+    font-size: 11px;
+    padding: 4px 10px;
+    border-radius: 12px;
+    background: rgba(34, 197, 94, 0.15);
+    color: $success;
+    font-weight: 500;
+
+    &.warning {
+      background: rgba(245, 158, 11, 0.15);
+      color: $warning;
+    }
+
+    &.error {
+      background: rgba(239, 68, 68, 0.15);
+      color: $danger;
+    }
+  }
+
+  .decorative-dot {
+    position: absolute;
+    border-radius: 50%;
+    background: rgba(59, 130, 246, 0.3);
+    filter: blur(1px);
+    pointer-events: none;
+    z-index: 0;
+
+    &:nth-child(1) {
+      top: 20px;
+      right: 100px;
+      width: 6px;
+      height: 6px;
+      animation: pulse-dot 3s infinite;
+    }
+
+    &:nth-child(2) {
+      bottom: 30px;
+      right: 200px;
+      width: 4px;
+      height: 4px;
+      background: rgba(147, 51, 234, 0.4);
+      animation: pulse-dot 4s infinite 1s;
+    }
+  }
+}
+
+.control-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 20px;
+  margin-bottom: 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  position: relative;
+  z-index: 1;
+}
+
+.control-panel-left {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+
+.control-panel-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.control-panel-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: $text-primary;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-right: 20px;
+  border-right: 1px solid rgba(255, 255, 255, 0.1);
+
+  &::before {
+    content: '⚡';
+    font-size: 16px;
+  }
+}
+
+// ========== 告警控制面板 ==========
+.alert-control-panel {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.control-card {
+  background: $bg-secondary;
+  border: 1px solid $border;
+  border-radius: 12px;
+  padding: 20px;
+  transition: all 0.3s ease;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+
+  &.active {
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.15), rgba(16, 185, 129, 0.05));
+    border-color: rgba(16, 185, 129, 0.3);
+  }
+
+  &.toggle-card {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+
+    .control-card-header {
+      margin-bottom: 0;
+      flex-direction: column;
+      align-items: flex-start;
+    }
+  }
+}
+
+.control-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.control-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: $text-primary;
+  margin-bottom: 4px;
+}
+
+.control-subtitle {
+  font-size: 12px;
+  color: $text-muted;
+}
+
+.control-value {
+  font-size: 18px;
+  font-weight: 700;
+  color: $primary;
+}
+
+.control-toggle-btn {
+  width: 52px;
+  height: 28px;
+  border-radius: 14px;
+  border: none;
+  cursor: pointer;
+  position: relative;
+  transition: all 0.3s ease;
+  background: $border;
+
+  &.active {
+    background: #10b981;
+  }
+
+  &:disabled {
+    cursor: wait;
+    opacity: 0.7;
+  }
+}
+
+.control-toggle-handle {
+  position: absolute;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: white;
+  top: 3px;
+  left: 3px;
+  transition: all 0.3s cubic-bezier(0.4, 0.0, 0.2, 1);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+
+  .control-toggle-btn.active & {
+    left: 27px;
+  }
+}
+
+.control-slider {
+  width: 100%;
+  accent-color: $primary;
+  height: 4px;
+  border-radius: 2px;
+  cursor: pointer;
+}
+
+.control-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  color: $text-muted;
+  margin-top: 8px;
+}
+
+// ========== 模态框 ==========
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  backdrop-filter: blur(8px);
+  animation: fadeIn 0.3s ease;
+}
+
+.modal-content {
+  background: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  border-radius: 24px;
+  width: 90%;
+  max-width: 800px;
+  max-height: 85vh;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(255, 255, 255, 0.5) inset;
+  display: flex;
+  flex-direction: column;
+  animation: modalSlideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px;
+  border-bottom: 1px solid $border;
+  background: rgba(255, 255, 255, 0.5);
+  backdrop-filter: blur(10px);
+  z-index: 10;
+
+  h3 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 600;
+    color: $text-primary;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+}
+
+.modal-close {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.04);
+  border: none;
+  font-size: 20px;
+  color: $text-secondary;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+
+  &:hover {
+    background: rgba(0, 0, 0, 0.08);
+    color: $text-primary;
+    transform: rotate(90deg);
+  }
+}
+
+.modal-tabs {
+  display: flex;
+  padding: 0 24px;
+  border-bottom: 1px solid $border;
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.modal-tab-btn {
+  padding: 14px 20px;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: $text-secondary;
+  font-weight: 500;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+
+  &:hover {
+    color: $primary;
+    background: rgba(99, 102, 241, 0.04);
+  }
+
+  &.active {
+    color: $primary;
+    border-bottom-color: $primary;
+    font-weight: 600;
+  }
+}
+
+.modal-body {
+  padding: 24px;
+  overflow-y: auto;
+  flex: 1;
+  background: #fcfcfd;
+}
+
+.modal-section {
+  margin-bottom: 20px;
+
+  &:last-child {
+    margin-bottom: 0;
+  }
+}
+
+.modal-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: $text-secondary;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.modal-value-box {
+  padding: 16px;
+  background: #ffffff;
+  border: 1px solid $border;
+  border-radius: 12px;
+  font-size: 14px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+  transition: all 0.2s ease;
+
+  &:hover {
+    border-color: $border-hover;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+  }
+
+  &.primary {
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.04) 0%, rgba(139, 92, 246, 0.04) 100%);
+    border-color: rgba(99, 102, 241, 0.15);
+  }
+
+  &.danger {
+    background: rgba(239, 68, 68, 0.04);
+    border-color: rgba(239, 68, 68, 0.15);
+    color: $danger;
+    font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+    font-size: 13px;
+  }
+
+  &.code {
+    background: #1e293b;
+    color: #e2e8f0;
+    font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+    font-size: 12px;
+    border: 1px solid #334155;
+  }
+}
+
+.modal-info-card {
+  padding: 16px;
+  background: #ffffff;
+  border: 1px solid $border;
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.modal-info-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+}
+
+.modal-info-label {
+  color: $text-secondary;
+}
+
+.modal-info-value {
+  font-weight: 500;
+  color: $text-primary;
+}
+
+.modal-tag {
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-family: monospace;
+  background: $bg-secondary;
+  color: $text-secondary;
+
+  &.success {
+    background: rgba(16, 185, 129, 0.1);
+    color: $success;
+  }
+
+  &.warning {
+    background: rgba(245, 158, 11, 0.1);
+    color: $warning;
+  }
+}
+
+.modal-footer {
+  padding: 16px 24px;
+  border-top: 1px solid $border;
+  background: #f9fafb;
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+// ========== 抽屉 ==========
+.drawer-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.3);
+  display: flex;
+  justify-content: flex-end;
+  z-index: 1000;
+  backdrop-filter: blur(4px);
+  animation: fadeIn 0.3s ease;
+}
+
+.drawer-content {
+  background: #ffffff;
+  width: 80%;
+  max-width: 90vw;
+  height: calc(100vh - 32px);
+  margin: 16px 16px 16px 0;
+  border-radius: 24px;
+  box-shadow: -10px 0 40px rgba(0, 0, 0, 0.1);
+  display: flex;
+  flex-direction: column;
+  animation: drawerSlideLeft 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.8);
+}
+
+// ========== 表格 ==========
+.table-wrapper {
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+thead th {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: $text-muted;
+  padding: 10px 12px;
+  border-bottom: 1px solid $border;
+  text-align: left;
+}
+
+tbody td {
+  padding: 12px;
+  border-bottom: 1px solid $border;
+  font-size: 13px;
+  color: $text-secondary;
+}
+
+tbody tr:hover {
+  background: rgba(139, 92, 246, 0.04);
+}
+
+.table-cell-truncate {
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+// ========== 状态徽章 ==========
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 999px;
+  padding: 2px 10px;
+  font-size: 12px;
+  border: 1px solid transparent;
+
+  &.success {
+    border-color: rgba(16, 185, 129, 0.4);
+    color: $success;
+  }
+
+  &.warning {
+    border-color: rgba(245, 158, 11, 0.4);
+    color: $warning;
+  }
+
+  &.danger {
+    border-color: rgba(239, 68, 68, 0.4);
+    color: $danger;
+  }
+}
+
+// ========== 分页 ==========
+.pagination {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid $border;
+}
+
+.pagination-info {
+  font-size: 13px;
+  color: $text-secondary;
+}
+
+.pagination-controls {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.pagination-btn {
+  background: transparent;
+  border: 1px solid $border;
+  color: $text-secondary;
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+
+  &:hover:not(:disabled) {
+    border-color: $primary;
+    color: $text-primary;
+  }
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+}
+
+.pagination-pages {
+  display: flex;
+  gap: 4px;
+}
+
+.pagination-page {
+  background: transparent;
+  border: 1px solid $border;
+  color: $text-secondary;
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  min-width: 32px;
+  text-align: center;
+
+  &:hover {
+    border-color: $primary;
+    color: $text-primary;
+  }
+
+  &.active {
+    background: $primary;
+    border-color: $primary;
+    color: white;
+  }
+}
+
+.page-size-select {
+  background: $bg-card;
+  border: 1px solid $border;
+  color: $text-secondary;
+  border-radius: 8px;
+  padding: 6px 8px;
+  font-size: 13px;
+  cursor: pointer;
+
+  &:focus {
+    outline: none;
+    border-color: $primary;
+  }
+}
+
+// ========== 表单 ==========
+.form-group {
+  margin-bottom: 0;
+
+  label {
+    display: block;
+    font-size: 12px;
+    font-weight: 500;
+    color: $text-secondary;
+    margin-bottom: 6px;
+  }
+}
+
+.search-box-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.search-box-icon {
+  position: absolute;
+  left: 12px;
+  color: $text-muted;
+  font-size: 14px;
+}
+
+.search-input {
+  width: 100%;
+  padding: 10px 12px 10px 36px;
+  border: 1px solid $border;
+  border-radius: 12px;
+  font-size: 13px;
+  background: #fff;
+  transition: all 0.2s;
+
+  &:focus {
+    border-color: $primary;
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+  }
+}
+
+.search-input-refined {
+  width: 100%;
+  padding: 9px 12px 9px 36px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 10px;
+  font-size: 13px;
+  background: #fff;
+  transition: all 0.2s;
+  outline: none;
+
+  &:focus {
+    border-color: $primary;
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+  }
+}
+
+.select-input {
+  padding: 6px 10px;
+  border: 1px solid $border;
+  border-radius: 6px;
+  font-size: 12px;
+  background: #fff;
+  color: $text-secondary;
+  cursor: pointer;
+  transition: all 0.2s;
+
+  &:focus {
+    border-color: $primary;
+    outline: none;
+  }
+}
+
+.days-select {
+  padding: 8px 12px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 10px;
+  font-size: 13px;
+  color: $text-primary;
+  background: #fff;
+  cursor: pointer;
+  transition: all 0.2s;
+  min-width: 100px;
+  outline: none;
+
+  &:hover {
+    border-color: rgba(0, 0, 0, 0.15);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02);
+  }
+
+  &:focus {
+    border-color: $primary;
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+  }
+}
+
+// ========== 统计卡片 ==========
+.stat-card {
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  padding: 20px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  border-radius: 20px;
+
+  &:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.06);
+    border-color: rgba(255, 255, 255, 0.9);
+  }
+}
+
+.stat-icon {
+  width: 52px;
+  height: 52px;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 26px;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.4);
+
+  &.primary-bg { background: rgba(59, 130, 246, 0.1); color: $primary; }
+  &.success-bg { background: rgba(16, 185, 129, 0.1); color: $success; }
+  &.warning-bg { background: rgba(245, 158, 11, 0.1); color: $warning; }
+  &.info-bg { background: rgba(99, 102, 241, 0.1); color: #6366f1; }
+}
+
+.stat-content {
+  display: flex;
+  flex-direction: column;
+}
+
+.stat-label {
+  font-size: 13px;
+  color: $text-secondary;
+  margin-bottom: 4px;
+}
+
+.stat-value {
+  font-size: 24px;
+  font-weight: 700;
+  color: $text-primary;
+
+  &.primary { color: $primary; }
+  &.success { color: $success; }
+  &.warning { color: $warning; }
+}
+
+// ========== 玻璃面板 ==========
+.glass-panel {
+  background: #fff;
+  border-radius: 20px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  overflow: hidden;
+  transition: all 0.3s ease;
+
+  &:hover {
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.08);
+  }
+}
+
+.panel-header {
+  padding: 16px 20px;
+  border-bottom: 1px solid $border;
+  background: rgba(249, 250, 251, 0.5);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.panel-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+// ========== 告警类型 ==========
+.alert-type-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.alert-type-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid $border;
+
+  &:last-child {
+    border-bottom: none;
+  }
+}
+
+.alert-type-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 100px;
+  font-size: 13px;
+}
+
+.alert-type-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  font-size: 11px;
+
+  &.agent {
+    background: rgba(239, 68, 68, 0.2);
+    color: $danger;
+  }
+
+  &.message {
+    background: rgba(245, 158, 11, 0.2);
+    color: $warning;
+  }
+
+  &.delivery {
+    background: rgba(59, 130, 246, 0.2);
+    color: $primary;
+  }
+
+  &.merge {
+    background: rgba(168, 85, 247, 0.2);
+    color: #a855f7;
+  }
+
+  &.unknown {
+    background: rgba(156, 163, 175, 0.2);
+    color: $text-muted;
+  }
+}
+
+.alert-type-bar {
+  flex: 1;
+  height: 6px;
+  background: rgba(148, 163, 184, 0.15);
+  border-radius: 3px;
+  overflow: hidden;
+  position: relative;
+}
+
+.alert-type-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.3s ease;
+
+  &.agent { background: $danger; }
+  &.message { background: $warning; }
+  &.delivery { background: $primary; }
+  &.merge { background: #a855f7; }
+  &.unknown { background: $text-muted; }
+}
+
+.alert-type-stats {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 80px;
+  justify-content: flex-end;
+  font-size: 12px;
+}
+
+.alert-type-count {
+  font-weight: 600;
+  color: $text-primary;
+}
+
+.alert-type-percentage {
+  color: $text-secondary;
+}
+
+// ========== 日志工具栏 ==========
+.log-toolbar {
+  @extend .control-panel;
+  margin-bottom: 16px;
+  padding: 20px 24px;
+
+  .toolbar-header {
+    @extend .control-panel-header;
+    margin-bottom: 16px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.15);
+  }
+
+  .toolbar-title {
+    @extend .control-panel-title;
+    border-right: none;
+    padding-right: 0;
+    
+    // Icon size override
+    span {
+      font-size: 18px;
+    }
+  }
+
+  .connection-badge {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 12px;
+    border-radius: 20px;
+    border: 1px solid transparent;
+    transition: all 0.3s ease;
+
+    &.connected {
+      background: rgba(16, 185, 129, 0.12);
+      border-color: rgba(16, 185, 129, 0.3);
+      
+      .dot {
+        background: $success;
+        box-shadow: 0 0 8px $success;
+        animation: pulse-dot 2s infinite;
+      }
+      
+      .text {
+        color: $success;
+      }
+    }
+
+    &.disconnected {
+      background: rgba(239, 68, 68, 0.12);
+      border-color: rgba(239, 68, 68, 0.3);
+      
+      .dot {
+        background: $danger;
+        box-shadow: 0 0 8px $danger;
+      }
+      
+      .text {
+        color: $danger;
+      }
+    }
+
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+    }
+
+    .text {
+      font-size: 12px;
+      font-weight: 500;
+    }
+  }
+
+  .stats-badge {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 14px;
+    background: rgba(99, 102, 241, 0.08);
+    border-radius: 20px;
+    border: 1px solid rgba(99, 102, 241, 0.15);
+
+    .count {
+      font-size: 13px;
+      font-weight: 600;
+      color: $primary;
+    }
+
+    .total {
+      font-size: 12px;
+      color: $text-muted;
+    }
+  }
+
+  .toolbar-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  .filter-group {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    
+    .label {
+      font-size: 13px;
+      color: $text-muted;
+    }
+    
+    select {
+      padding: 8px 14px;
+      background: rgba(255, 255, 255, 0.7);
+      border: 1px solid $border;
+      border-radius: 10px;
+      color: $text-primary;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      outline: none;
+      
+      &:hover, &:focus {
+        border-color: $primary;
+        background: #fff;
+      }
+    }
+  }
+
+  .search-box {
+    position: relative;
+    flex: 1;
+    min-width: 200px;
+    max-width: 320px;
+
+    .search-icon {
+      position: absolute;
+      left: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 14px;
+      color: $text-muted;
+      pointer-events: none;
+    }
+
+    input {
+      width: 100%;
+      padding: 8px 14px 8px 36px;
+      background: rgba(255, 255, 255, 0.7);
+      border: 1px solid $border;
+      border-radius: 10px;
+      color: $text-primary;
+      font-size: 13px;
+      transition: all 0.2s ease;
+      outline: none;
+
+      &:focus {
+        border-color: $primary;
+        background: #fff;
+        box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+      }
+    }
+  }
+
+  .action-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 16px;
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    
+    &.pause-btn {
+      background: rgba(255, 255, 255, 0.7);
+      border: 1px solid $border;
+      color: $text-primary;
+      
+      &.paused {
+        background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+        border: none;
+        color: #fff;
+        box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
+      }
+    }
+    
+    &.clear-btn {
+      background: rgba(255, 255, 255, 0.7);
+      border: 1px solid $border;
+      color: $text-secondary;
+      
+      &:hover {
+        background: #fff;
+        color: $danger;
+        border-color: rgba(239, 68, 68, 0.3);
+      }
+    }
+  }
+}
+
+// ========== 客户类型徽章 ==========
+.contact-type-badge {
+  flex-shrink: 0 !important;
+  white-space: nowrap !important;
+  font-size: 10px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  margin-left: 4px;
+  font-weight: 500;
+
+  &.personal { color: #16a34a; background: rgba(22, 163, 74, 0.1); }
+  &.enterprise { color: #2563eb; background: rgba(37, 99, 235, 0.1); }
+  &.official { color: #9333ea; background: rgba(147, 51, 234, 0.1); }
+  &.unknown { color: #6b7280; background: rgba(107, 114, 128, 0.1); }
+}
+

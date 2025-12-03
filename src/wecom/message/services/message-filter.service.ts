@@ -211,16 +211,18 @@ export class MessageFilterService implements OnModuleInit {
       };
     }
 
-    // 5. 只处理文本消息
-    if (messageData.messageType !== MessageType.TEXT) {
+    // 5. 只处理文本消息和位置消息
+    const supportedMessageTypes = [MessageType.TEXT, MessageType.LOCATION];
+    if (!supportedMessageTypes.includes(messageData.messageType)) {
       this.logger.log(
-        `[过滤-非文本] 跳过非文本消息 [${messageData.messageId}], messageType=${messageData.messageType}`,
+        `[过滤-非支持类型] 跳过不支持的消息类型 [${messageData.messageId}], messageType=${messageData.messageType}`,
       );
       return {
         pass: false,
-        reason: 'non-text-message',
+        reason: 'unsupported-message-type',
         details: {
           messageType: messageData.messageType,
+          supportedTypes: supportedMessageTypes,
         },
       };
     }
@@ -247,7 +249,7 @@ export class MessageFilterService implements OnModuleInit {
    * 注意：此方法为未来群聊 @ 触发功能预留，当实现群聊场景时会用到
    */
   checkMentioned(messageData: EnterpriseMessageCallbackDto, botWxid: string): boolean {
-    // 检查是否为文本消息
+    // 只有文本消息才支持 @（位置消息不支持）
     if (messageData.messageType !== MessageType.TEXT) {
       return false;
     }

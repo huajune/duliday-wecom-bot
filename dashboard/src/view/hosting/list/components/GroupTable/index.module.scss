@@ -1,0 +1,140 @@
+// GroupTable 组件样式
+@use '@/assets/styles/variables' as *;
+
+.section {
+  @include card;
+  padding: $spacing-lg;
+}
+
+.sectionHeader {
+  h3 {
+    margin: 0;
+  }
+}
+
+.headerCount {
+  font-size: $font-size-sm;
+  color: $text-secondary;
+  font-weight: $font-weight-normal;
+}
+
+.sectionDesc {
+  margin: 4px 0 0 0;
+  font-size: $font-size-xs;
+  color: $text-muted;
+}
+
+.tableWrapper {
+  margin-top: $spacing-md;
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+
+  th, td {
+    padding: $spacing-sm $spacing-md;
+    text-align: left;
+    border-bottom: 1px solid $border;
+  }
+
+  th {
+    font-size: $font-size-xs;
+    font-weight: $font-weight-semibold;
+    color: $text-secondary;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    background: $bg-secondary;
+  }
+
+  td {
+    font-size: $font-size-sm;
+  }
+
+  tbody tr {
+    transition: background 0.15s ease;
+
+    &:hover {
+      background: $bg-hover;
+    }
+  }
+}
+
+.groupName {
+  font-weight: $font-weight-medium;
+}
+
+.groupId {
+  font-size: 11px;
+  color: $text-muted;
+  font-family: monospace;
+}
+
+.groupDesc {
+  font-size: $font-size-xs;
+  color: $text-secondary;
+}
+
+.loadingCell {
+  text-align: center;
+  padding: $spacing-xl !important;
+  color: $text-muted;
+}
+
+.toggleSwitch {
+  display: flex;
+  align-items: center;
+  gap: $spacing-sm;
+  margin: 0;
+
+  input[type="checkbox"] {
+    width: 36px;
+    height: 20px;
+    appearance: none;
+    background: $border;
+    border-radius: 10px;
+    position: relative;
+    cursor: pointer;
+    transition: all 0.2s ease;
+
+    &::before {
+      content: '';
+      position: absolute;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: #fff;
+      top: 2px;
+      left: 2px;
+      transition: transform 0.2s ease;
+      box-shadow: $shadow-sm;
+    }
+
+    &:checked {
+      background: $primary;
+
+      &::before {
+        transform: translateX(16px);
+      }
+    }
+
+    &:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+  }
+}
+
+.statusText {
+  font-size: 11px;
+  font-weight: $font-weight-medium;
+
+  &.enabled {
+    color: $success;
+  }
+
+  &.disabled {
+    color: $text-muted;
+  }
+}

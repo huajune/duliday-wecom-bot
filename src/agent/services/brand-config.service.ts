@@ -137,17 +137,42 @@ export class BrandConfigService implements OnModuleInit, OnModuleDestroy {
       // 处理响应格式
       let brandConfig: BrandConfig;
 
-      if (response.data.success === true) {
-        brandConfig = response.data.data;
-      } else if (response.data.synced !== undefined) {
-        brandConfig = response.data;
+      // 处理可能的双重 JSON 序列化问题
+      let responseData = response.data;
+      this.logger.debug(`响应数据类型: ${typeof responseData}`);
+      if (typeof responseData === 'string') {
+        this.logger.debug(`响应数据前 200 字符: ${responseData.substring(0, 200)}`);
+        try {
+          responseData = JSON.parse(responseData);
+          this.logger.debug('响应数据是字符串，已解析为对象');
+        } catch (e) {
+          this.logger.error(`响应数据是无效的 JSON 字符串: ${e}`);
+          throw new Error('Invalid JSON response from Supabase');
+        }
+      }
+
+      if (responseData.success === true) {
+        brandConfig = responseData.data;
+      } else if (responseData.synced !== undefined) {
+        brandConfig = responseData;
       } else {
-        this.logger.warn('品牌配置格式不标准，尝试直接使用');
+        this.logger.debug('品牌配置格式不标准，尝试直接使用');
+        // 处理 brandData 可能是字符串的情况
+        let brandData = responseData.brandData || responseData;
+        if (typeof brandData === 'string') {
+          try {
+            brandData = JSON.parse(brandData);
+            this.logger.debug('brandData 是字符串，已解析为对象');
+          } catch {
+            this.logger.warn('brandData 是无效的 JSON 字符串，保持原样');
+          }
+        }
+
         brandConfig = {
           synced: true,
-          brandData: response.data.brandData || response.data,
-          replyPrompts: response.data.replyPrompts,
-          metadata: response.data.metadata,
+          brandData,
+          replyPrompts: responseData.replyPrompts,
+          metadata: responseData.metadata,
         };
       }
 

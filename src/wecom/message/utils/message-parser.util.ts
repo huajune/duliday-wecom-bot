@@ -1,4 +1,9 @@
-import { EnterpriseMessageCallbackDto, isTextPayload } from '../dto/message-callback.dto';
+import {
+  EnterpriseMessageCallbackDto,
+  isTextPayload,
+  isLocationPayload,
+  LocationPayload,
+} from '../dto/message-callback.dto';
 import { ScenarioType } from '@agent';
 
 /**
@@ -52,11 +57,50 @@ export class MessageParser {
 
   /**
    * 提取消息文本内容
+   * 支持文本消息和位置消息
    */
   static extractContent(messageData: EnterpriseMessageCallbackDto): string {
-    return isTextPayload(messageData.messageType, messageData.payload)
-      ? messageData.payload.pureText || messageData.payload.text
-      : '';
+    // 文本消息
+    if (isTextPayload(messageData.messageType, messageData.payload)) {
+      return messageData.payload.pureText || messageData.payload.text;
+    }
+
+    // 位置消息 - 转换为自然语言描述
+    if (isLocationPayload(messageData.messageType, messageData.payload)) {
+      return this.formatLocationAsText(messageData.payload);
+    }
+
+    return '';
+  }
+
+  /**
+   * 将位置信息格式化为自然语言文本
+   * 用于发送给 AI 处理
+   */
+  static formatLocationAsText(payload: LocationPayload): string {
+    const { name, address } = payload;
+
+    // 如果名称和地址相同，只显示一个
+    if (name === address) {
+      return `[位置分享] ${address}`;
+    }
+
+    // 如果有名称，显示"名称（地址）"格式
+    if (name && address) {
+      return `[位置分享] ${name}（${address}）`;
+    }
+
+    // 只有地址
+    if (address) {
+      return `[位置分享] ${address}`;
+    }
+
+    // 只有名称
+    if (name) {
+      return `[位置分享] ${name}`;
+    }
+
+    return '[位置分享] 未知位置';
   }
 
   /**
@@ -66,5 +110,52 @@ export class MessageParser {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   static determineScenario(_messageData?: EnterpriseMessageCallbackDto): ScenarioType {
     return ScenarioType.CANDIDATE_CONSULTATION;
+  }
+
+  /**
+   * 格式化当前时间为中文可读格式
+   * 用于注入到用户消息中，让 Agent 具有时间感知能力
+   * @param timestamp 可选的时间戳（毫秒），默认使用当前时间
+   * @returns 格式化的时间字符串，如 "2025-12-03 17:30 星期三"
+   */
+  static formatCurrentTime(timestamp?: number): string {
+    // 使用北京时间 (Asia/Shanghai)
+    const date = timestamp ? new Date(timestamp) : new Date();
+
+    // 使用 Intl.DateTimeFormat 获取北京时间各部分
+    const formatter = new Intl.DateTimeFormat('zh-CN', {
+      timeZone: 'Asia/Shanghai',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+      weekday: 'long',
+    });
+
+    const parts = formatter.formatToParts(date);
+    const getPart = (type: string) => parts.find((p) => p.type === type)?.value || '';
+
+    const year = getPart('year');
+    const month = getPart('month');
+    const day = getPart('day');
+    const hour = getPart('hour');
+    const minute = getPart('minute');
+    const weekday = getPart('weekday');
+
+    return `${year}-${month}-${day} ${hour}:${minute} ${weekday}`;
+  }
+
+  /**
+   * 为用户消息注入时间上下文
+   * 在消息前添加当前时间标注，使 Agent 能够理解时间相关的对话
+   * @param content 原始消息内容
+   * @param timestamp 消息时间戳（毫秒）
+   * @returns 注入时间后的消息内容
+   */
+  static injectTimeContext(content: string, timestamp?: number): string {
+    const timeStr = this.formatCurrentTime(timestamp);
+    return `[当前时间: ${timeStr}]\n${content}`;
   }
 }

@@ -161,13 +161,16 @@ export class MessageService implements OnModuleInit {
       return;
     }
 
+    // 从历史记录中获取候选人昵称（因为 isSelf=true 时 contactName 是招募经理的名字）
+    const candidateName = await this.getCandidateNameFromHistory(chatId);
+
     // 存储为 assistant 消息（包含元数据）
     // 判断是否群聊：imRoomId 有值表示群聊
     const isRoom = Boolean(messageData.imRoomId);
     await this.historyService.addMessageToHistory(chatId, 'assistant', content, {
       messageId: messageData.messageId,
-      candidateName: messageData.contactName,
-      managerName: messageData.botUserId,
+      candidateName, // 使用从历史记录中获取的候选人昵称
+      managerName: messageData.contactName || messageData.botUserId, // 自发消息时 contactName 是招募经理
       orgId: messageData.orgId,
       botId: messageData.botId,
       messageType: messageData.messageType,
@@ -702,6 +705,26 @@ export class MessageService implements OnModuleInit {
 
     // Redis 模式下不支持获取所有历史，返回统计信息
     return this.historyService.getStats();
+  }
+
+  /**
+   * 从历史记录中获取候选人昵称
+   * 用于 assistant 消息：因为 isSelf=true 时 contactName 返回的是招募经理的名字
+   */
+  private async getCandidateNameFromHistory(chatId: string): Promise<string | undefined> {
+    try {
+      // 使用 getHistoryDetail 获取包含 candidateName 的完整历史记录
+      const detail = await this.historyService.getHistoryDetail(chatId);
+      if (!detail?.messages) {
+        return undefined;
+      }
+      // 从 user 消息中查找候选人昵称
+      const userMessage = detail.messages.find((m) => m.role === 'user' && m.candidateName);
+      return userMessage?.candidateName;
+    } catch (error) {
+      this.logger.debug(`获取候选人昵称失败 [${chatId}]: ${error.message}`);
+      return undefined;
+    }
   }
 
   /**

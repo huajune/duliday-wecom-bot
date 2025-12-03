@@ -1,0 +1,120 @@
+// KpiCard 组件样式
+@use '@/assets/styles/variables' as *;
+
+.kpiGrid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: $spacing-md;
+  margin-bottom: $spacing-lg;
+
+  @include respond-to(xl) {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  @include respond-to(sm) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.kpiCard {
+  @include card($hover: true);
+  padding: $spacing-lg;
+  display: flex;
+  align-items: flex-start;
+  gap: $spacing-md;
+  position: relative;
+  overflow: hidden;
+}
+
+.kpiIcon {
+  width: 48px;
+  height: 48px;
+  border-radius: $radius-lg;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  flex-shrink: 0;
+  background: $bg-secondary;
+
+  &.primaryBg {
+    background: linear-gradient(135deg, rgba($primary, 0.1), rgba($primary, 0.05));
+    color: $primary;
+  }
+
+  &.warningBg {
+    background: linear-gradient(135deg, rgba($warning, 0.1), rgba($warning, 0.05));
+    color: $warning;
+  }
+
+  &.dangerBg {
+    background: linear-gradient(135deg, rgba($danger, 0.1), rgba($danger, 0.05));
+    color: $danger;
+  }
+
+  &.infoBg {
+    background: linear-gradient(135deg, rgba($info, 0.1), rgba($info, 0.05));
+    color: $info;
+  }
+}
+
+.kpiContent {
+  flex: 1;
+  min-width: 0;
+}
+
+.kpiLabel {
+  font-size: $font-size-xs;
+  color: $text-muted;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: $spacing-xs;
+}
+
+.kpiValue {
+  font-size: $font-size-3xl;
+  font-weight: $font-weight-bold;
+  color: $text-primary;
+  line-height: $line-height-tight;
+  margin-bottom: $spacing-xs;
+
+  &.primary {
+    color: $primary;
+  }
+
+  &.warning {
+    color: $warning;
+  }
+
+  &.danger {
+    color: $danger;
+  }
+
+  &.info {
+    color: $info;
+  }
+}
+
+.kpiTrend {
+  font-size: $font-size-xs;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+
+  &.up {
+    color: $danger;
+  }
+
+  &.down {
+    color: $success;
+  }
+
+  &.flat {
+    color: $text-muted;
+  }
+}
+
+.trendLabel {
+  color: $text-muted;
+  font-weight: $font-weight-normal;
+}

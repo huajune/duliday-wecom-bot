@@ -1,0 +1,33 @@
+// Config List 页面样式
+@use '@/assets/styles/variables' as *;
+
+.page {
+  padding: $spacing-md;
+}
+
+.loadingText {
+  padding: $spacing-xl;
+  text-align: center;
+  color: $text-muted;
+  font-size: $font-size-sm;
+}
+
+.categorySection {
+  margin-bottom: $spacing-lg;
+}
+
+.categoryTitle {
+  font-size: $font-size-xs;
+  font-weight: $font-weight-semibold;
+  color: $text-muted;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: $spacing-sm;
+  padding-left: $spacing-xs;
+}
+
+.cardGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: $spacing-sm;
+}

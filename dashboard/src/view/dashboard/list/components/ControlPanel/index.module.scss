@@ -1,0 +1,185 @@
+// ControlPanel 组件样式
+@use '@/assets/styles/variables' as *;
+
+.controlPanel {
+  position: relative;
+  @include card;
+  padding: $spacing-md $spacing-lg;
+  margin-bottom: $spacing-lg;
+  overflow: hidden;
+}
+
+.decorativeDot {
+  position: absolute;
+  width: 200px;
+  height: 200px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(99, 102, 241, 0.1) 0%, transparent 70%);
+  pointer-events: none;
+
+  &:first-of-type {
+    top: -100px;
+    right: -50px;
+  }
+
+  &:last-of-type {
+    bottom: -100px;
+    left: -50px;
+  }
+}
+
+.header {
+  @include flex-between;
+  position: relative;
+  z-index: 1;
+  flex-wrap: wrap;
+  gap: $spacing-md;
+}
+
+.left {
+  display: flex;
+  align-items: center;
+  gap: $spacing-lg;
+  flex-wrap: wrap;
+}
+
+.title {
+  font-size: $font-size-lg;
+  font-weight: $font-weight-semibold;
+  color: $text-primary;
+}
+
+.filters {
+  display: flex;
+  gap: $spacing-xs;
+  background: $bg-secondary;
+  padding: 3px;
+  border-radius: $radius-md;
+
+  button {
+    @include button-base;
+    padding: 6px 16px;
+    background: transparent;
+    color: $text-secondary;
+    border-radius: $radius-sm;
+
+    &:hover {
+      color: $text-primary;
+    }
+
+    &.active {
+      background: $bg-card;
+      color: $primary;
+      box-shadow: $shadow-sm;
+    }
+  }
+}
+
+.toggleSwitch {
+  display: flex;
+  align-items: center;
+  gap: $spacing-sm;
+  font-size: $font-size-sm;
+  color: $text-secondary;
+
+  input[type="checkbox"] {
+    width: 40px;
+    height: 22px;
+    appearance: none;
+    background: $border;
+    border-radius: $radius-full;
+    position: relative;
+    cursor: pointer;
+    transition: background $transition-fast;
+
+    &::before {
+      content: '';
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      width: 18px;
+      height: 18px;
+      background: white;
+      border-radius: 50%;
+      transition: transform $transition-fast;
+      box-shadow: $shadow-sm;
+    }
+
+    &:checked {
+      background: $success;
+
+      &::before {
+        transform: translateX(18px);
+      }
+    }
+  }
+}
+
+.statusText {
+  font-size: $font-size-xs;
+  font-weight: $font-weight-medium;
+
+  &.enabled {
+    color: $success;
+  }
+
+  &.disabled {
+    color: $text-muted;
+  }
+}
+
+.right {
+  display: flex;
+  align-items: center;
+  gap: $spacing-md;
+}
+
+.healthBadge {
+  @include badge($success-soft, $success);
+
+  &.warning {
+    background: $warning-soft;
+    color: $warning;
+  }
+
+  &.error {
+    background: $danger-soft;
+    color: $danger;
+  }
+}
+
+.autoRefresh {
+  display: flex;
+  align-items: center;
+  gap: $spacing-xs;
+  font-size: $font-size-sm;
+  color: $text-secondary;
+  cursor: pointer;
+
+  input[type="checkbox"] {
+    width: 14px;
+    height: 14px;
+    accent-color: $primary;
+  }
+}
+
+.lastUpdate {
+  display: flex;
+  align-items: center;
+  gap: $spacing-xs;
+  font-size: $font-size-xs;
+  color: $text-muted;
+}
+
+.statusIndicator {
+  width: 6px;
+  height: 6px;
+  background: $success;
+  border-radius: 50%;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}

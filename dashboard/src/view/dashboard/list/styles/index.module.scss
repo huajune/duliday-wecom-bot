@@ -1,0 +1,30 @@
+// Dashboard 页面样式
+@use '@/assets/styles/variables' as *;
+
+.page {
+  padding: $spacing-md;
+}
+
+// 圣诞装饰
+.christmasSticker {
+  position: absolute;
+  font-size: 16px;
+  pointer-events: none;
+  animation: float 3s ease-in-out infinite;
+  z-index: 10;
+
+  &.stickerTr {
+    top: -8px;
+    right: -4px;
+  }
+
+  &.stickerTl {
+    top: -8px;
+    left: -4px;
+  }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-5px) rotate(5deg); }
+}

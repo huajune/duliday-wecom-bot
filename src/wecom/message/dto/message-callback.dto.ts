@@ -406,6 +406,13 @@ export function isLinkPayload(type: MessageType, payload: any): payload is LinkP
 }
 
 /**
+ * 判断 payload 是否为位置消息
+ */
+export function isLocationPayload(type: MessageType, payload: any): payload is LocationPayload {
+  return type === MessageType.LOCATION && payload && typeof payload.address === 'string';
+}
+
+/**
  * 判断 payload 是否为企微系统消息
  */
 export function isWecomSystemPayload(

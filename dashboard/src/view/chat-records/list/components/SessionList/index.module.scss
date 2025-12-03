@@ -1,0 +1,211 @@
+// SessionList 组件样式
+@use '@/assets/styles/variables' as *;
+
+.panel {
+  @include card;
+  display: flex;
+  flex-direction: column;
+  width: 380px;
+  min-width: 320px;
+  max-height: 100%;
+
+  @include respond-to(lg) {
+    width: 100%;
+    max-height: 400px;
+  }
+}
+
+.header {
+  padding: $spacing-md;
+  border-bottom: 1px solid $border;
+}
+
+.headerTop {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: $spacing-sm;
+}
+
+.title {
+  margin: 0;
+  font-size: $font-size-base;
+  font-weight: $font-weight-semibold;
+  color: $text-primary;
+}
+
+.count {
+  font-size: $font-size-xs;
+  color: $text-muted;
+  background: rgba(0, 0, 0, 0.04);
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+
+.searchWrapper {
+  position: relative;
+  flex: 1;
+}
+
+.searchIcon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: $font-size-sm;
+  pointer-events: none;
+}
+
+.searchInput {
+  width: 100%;
+  padding: 10px 12px 10px 36px;
+  font-size: $font-size-sm;
+  border: 1px solid $border;
+  border-radius: $radius-md;
+  background: $bg-secondary;
+  transition: all 0.2s ease;
+
+  &:focus {
+    outline: none;
+    border-color: $primary;
+    background: #fff;
+    box-shadow: 0 0 0 3px rgba($primary, 0.1);
+  }
+
+  &::placeholder {
+    color: $text-muted;
+  }
+}
+
+.listContainer {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.stateContainer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 24px;
+  color: $text-muted;
+  text-align: center;
+}
+
+.stateIcon {
+  font-size: 48px;
+  opacity: 0.3;
+  margin-bottom: 12px;
+}
+
+.sessionItem {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.04);
+
+  &:hover {
+    background: $bg-hover;
+  }
+
+  &.active {
+    background: rgba($primary, 0.06);
+    border-left: 3px solid $primary;
+  }
+}
+
+.avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: $font-size-base;
+  font-weight: $font-weight-semibold;
+  color: #fff;
+  background: linear-gradient(135deg, #60a5fa, #3b82f6);
+  flex-shrink: 0;
+  object-fit: cover;
+
+  &.hidden {
+    display: none;
+  }
+}
+
+.sessionContent {
+  flex: 1;
+  min-width: 0;
+}
+
+.topRow {
+  @include flex-between;
+  margin-bottom: 4px;
+}
+
+.nameWrapper {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  flex: 1;
+}
+
+.candidateName {
+  font-size: $font-size-sm;
+  font-weight: $font-weight-semibold;
+  color: $text-primary;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 120px;
+}
+
+.contactTypeBadge {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: $font-weight-medium;
+  flex-shrink: 0;
+}
+
+.managerBadge {
+  font-size: 11px;
+  color: $text-muted;
+  white-space: nowrap;
+}
+
+.sessionTime {
+  font-size: 11px;
+  color: $text-muted;
+  flex-shrink: 0;
+}
+
+.bottomRow {
+  @include flex-between;
+  gap: 8px;
+}
+
+.preview {
+  font-size: $font-size-xs;
+  color: $text-secondary;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+}
+
+.msgCountBadge {
+  font-size: 10px;
+  font-weight: $font-weight-semibold;
+  color: #fff;
+  background: $primary;
+  padding: 2px 6px;
+  border-radius: 10px;
+  min-width: 18px;
+  text-align: center;
+  flex-shrink: 0;
+}

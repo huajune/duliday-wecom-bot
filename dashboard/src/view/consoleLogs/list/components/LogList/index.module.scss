@@ -1,0 +1,135 @@
+// LogList 组件样式
+@use '@/assets/styles/variables' as *;
+
+.container {
+  flex: 1;
+  overflow: auto;
+  background: $bg-primary;
+  border-radius: $radius-lg;
+  border: 1px solid $border;
+  font-family: ui-monospace, "SF Mono", Menlo, Monaco, monospace;
+  font-size: $font-size-xs;
+  line-height: 1.6;
+  min-height: 500px;
+  max-height: calc(100vh - 280px);
+}
+
+.emptyState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 300px;
+  color: $text-muted;
+}
+
+.emptyIcon {
+  font-size: 40px;
+  margin-bottom: $spacing-md;
+}
+
+.emptyText {
+  font-size: $font-size-sm;
+}
+
+.emptySubText {
+  font-size: 11px;
+  margin-top: $spacing-sm;
+}
+
+.logWrapper {
+  padding: $spacing-sm 0;
+}
+
+.logEntry {
+  padding: 4px $spacing-md;
+
+  &:nth-child(odd) {
+    background: transparent;
+  }
+
+  &:nth-child(even) {
+    background: rgba(255, 255, 255, 0.02);
+  }
+}
+
+.logTimestamp {
+  color: $text-muted;
+  margin-right: $spacing-sm;
+}
+
+.logLevel {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: $font-weight-semibold;
+  margin-right: $spacing-sm;
+  min-width: 32px;
+  text-align: center;
+
+  &.log {
+    background: rgba($success, 0.1);
+    color: $success;
+  }
+
+  &.error {
+    background: rgba($danger, 0.1);
+    color: $danger;
+  }
+
+  &.warn {
+    background: rgba($warning, 0.1);
+    color: $warning;
+  }
+
+  &.debug {
+    background: rgba($primary, 0.1);
+    color: $primary;
+  }
+
+  &.verbose {
+    background: rgba(156, 163, 175, 0.1);
+    color: $text-muted;
+  }
+}
+
+.logContext {
+  color: $primary;
+  margin-right: $spacing-sm;
+}
+
+.logMessage {
+  color: $text-primary;
+}
+
+.logTrace {
+  margin-top: 4px;
+  padding: $spacing-sm;
+  background: rgba($danger, 0.1);
+  border-radius: 4px;
+  color: $danger;
+  white-space: pre-wrap;
+  font-size: 11px;
+}
+
+// 日志级别边框颜色
+.borderLog {
+  border-left: 3px solid $success;
+}
+
+.borderError {
+  border-left: 3px solid $danger;
+}
+
+.borderWarn {
+  border-left: 3px solid $warning;
+}
+
+.borderDebug {
+  border-left: 3px solid $primary;
+}
+
+.borderVerbose {
+  border-left: 3px solid $text-muted;
+}

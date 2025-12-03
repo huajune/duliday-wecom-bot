@@ -10,7 +10,7 @@
   "files": {
     "systemPrompt": "system-prompt.md",
     "context": "context.json",
-    "toolContext": "tool-context.json"
+    "generalChatPrompt": "general-chat-prompt.md"
   },
 
   "metadata": {

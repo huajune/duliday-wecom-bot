@@ -2,7 +2,7 @@
 
 > DuLiDay 企业微信服务 - 监控数据存储与展示架构
 
-**最后更新**：2025-11-25
+**最后更新**：2025-12-02
 
 ---
 
@@ -22,7 +22,7 @@
 
 ## 架构概览
 
-监控系统采用 **三层存储架构**，平衡实时性、可靠性和成本：
+监控系统采用 **简化的两层存储架构**，平衡实时性和运维成本：
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -38,36 +38,55 @@
 │   ├── errorLogs[]         错误日志, 最多 100 条                             │
 │   └── globalCounters      全局计数器                                        │
 └─────────────────────────────────────────────────────────────────────────────┘
-                    │                                    │
-                    │ 实时快照                            │ 定时持久化
-                    ▼                                    ▼
-┌───────────────────────────────────┐    ┌───────────────────────────────────┐
-│  MonitoringSnapshotService        │    │  MonitoringPersistService         │
-│  (Redis 快照层)                   │    │  (Supabase 持久层)                │
-│                                   │    │                                   │
-│  Key: monitoring:snapshot         │    │  表: monitoring_hourly            │
-│  TTL: 1 小时                      │    │  保留: 30 天                      │
-│  用途: 服务重启恢复               │    │  用途: 历史趋势分析               │
-└───────────────────────────────────┘    └───────────────────────────────────┘
+                    │
+                    │ 实时快照 (分离存储)
+                    ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  MonitoringSnapshotService (Redis 快照层)                                    │
+│                                                                             │
+│  分离存储策略 (便于单独清理):                                                 │
+│  ├── monitoring:meta          元数据 (计数器、处理状态)                      │
+│  ├── monitoring:hourly-stats  小时聚合统计                                   │
+│  ├── monitoring:error-logs    错误日志                                       │
+│  └── monitoring:records       详细消息记录 (数据量最大)                       │
+│                                                                             │
+│  TTL: 1 小时 | 允许丢失: 是 (服务重启后从零开始也可接受)                      │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+注意: 不再将监控数据持久化到 Supabase，接受服务重启后数据丢失。
+聊天消息仍存储在 Supabase，由 DataCleanupService 定期清理过期数据。
 ```
 
 ---
 
 ## 存储策略
 
-### 三层存储对比
+### 两层存储对比
 
 | 存储层 | 技术 | 数据内容 | 生命周期 | 主要用途 |
 |-------|------|---------|---------|---------|
 | **内存层** | Node.js 内存 | 完整详细记录 + 聚合统计 | 进程生命周期 | 实时查询、Dashboard API |
-| **快照层** | Redis (Upstash) | 完整内存状态快照 | TTL 1 小时 | 服务重启恢复、多实例共享 |
-| **持久层** | Supabase (PostgreSQL) | 小时聚合数据 | 30 天 | 历史趋势分析、长期报表 |
+| **快照层** | Redis (Upstash) | 分离存储的快照数据 | TTL 1 小时 | 服务重启恢复（可选）、多实例共享 |
 
-### 为什么采用三层架构？
+### 为什么简化为两层架构？
 
 1. **内存层**：提供毫秒级响应，支持 Dashboard 实时刷新（5秒轮询）
-2. **Redis 快照层**：解决服务重启数据丢失问题，支持多实例部署数据共享
-3. **Supabase 持久层**：保存长期历史数据，支持周/月维度趋势分析
+2. **Redis 快照层**：支持服务短期重启恢复，但允许数据丢失
+3. **移除 Supabase 持久层**：监控数据属于运维数据，丢失后可从零积累，无需长期保存
+
+### Redis 分离存储策略
+
+| Key | 数据内容 | 说明 |
+|-----|---------|------|
+| `monitoring:meta` | 计数器、活跃用户数、处理状态 | 轻量级元数据 |
+| `monitoring:hourly-stats` | 小时聚合统计 | 中等数据量 |
+| `monitoring:error-logs` | 错误日志列表 | 中等数据量 |
+| `monitoring:records` | 详细消息记录 | 数据量最大，可单独清理 |
+
+优点：
+- 可以单独清理某类数据（如只清理 records）
+- 减少单次写入数据量
+- 便于调试和排查问题
 
 ---
 
@@ -103,39 +122,23 @@ private persistSnapshot(): void {
 }
 ```
 
-### 2. 定时持久化路径
-
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│ 每小时整点 (EVERY_HOUR)                                                      │
-│                                                                             │
-│   MonitoringPersistService.syncHourlyData()                                 │
-│       │                                                                     │
-│       ├── buildHourlyData()                                                 │
-│       │   └── 从 MonitoringService 获取当前小时聚合数据                      │
-│       │                                                                     │
-│       └── supabaseService.upsertMonitoringHourly(data)                      │
-│           └── POST /monitoring_hourly                                       │
-│               Header: Prefer: resolution=merge-duplicates                   │
-└─────────────────────────────────────────────────────────────────────────────┘
-```
-
-### 3. 数据清理路径
+### 2. 数据清理路径
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │ 每天凌晨 3 点 (0 3 * * *)                                                    │
 │                                                                             │
-│   MonitoringPersistService.cleanupExpiredData()                             │
+│   DataCleanupService.cleanupExpiredData()                                   │
 │       │                                                                     │
-│       ├── 计算截止日期 (30 天前)                                             │
+│       ├── cleanupChatMessages()                                             │
+│       │   └── 清理 60 天前的聊天消息 (Supabase)                              │
 │       │                                                                     │
-│       └── supabaseService.deleteMonitoringHourlyBefore(cutoffDate)          │
-│           └── DELETE /monitoring_hourly?hour=lt.{cutoffDate}                │
+│       └── cleanupMonitoringHistory()                                        │
+│           └── 清理 30 天前的历史监控数据 (兼容旧数据)                         │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-### 4. 服务恢复路径
+### 3. 服务恢复路径
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -146,11 +149,16 @@ private persistSnapshot(): void {
 │       └── restoreFromSnapshot()                                             │
 │           │                                                                 │
 │           ├── snapshotService.readSnapshot()                                │
-│           │   └── Redis.get('monitoring:snapshot')                          │
+│           │   ├── Redis.get('monitoring:meta')                              │
+│           │   ├── Redis.get('monitoring:hourly-stats')                      │
+│           │   ├── Redis.get('monitoring:error-logs')                        │
+│           │   └── Redis.get('monitoring:records')                           │
 │           │                                                                 │
 │           └── applySnapshot(snapshot)                                       │
 │               └── 恢复: detailRecords, hourlyStatsMap, errorLogs,           │
-│                        globalCounters, activeUsers, activeChats             │
+│                        globalCounters (activeUsers/activeChats 从 records 重建)│
+│                                                                             │
+│   注意: 如果 Redis 数据过期或不存在，服务将从空状态启动（可接受）               │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -208,7 +216,7 @@ private peakProcessing = 0;
 
 ### MonitoringSnapshotService
 
-**职责**：实时快照存储到 Redis
+**职责**：实时快照分离存储到 Redis
 
 **文件位置**：`src/core/monitoring/monitoring-snapshot.service.ts`
 
@@ -216,9 +224,24 @@ private peakProcessing = 0;
 
 | 配置项 | 值 | 说明 |
 |-------|---|------|
-| Redis Key | `monitoring:snapshot` | 快照存储键 |
+| Redis Keys | `monitoring:meta`, `monitoring:hourly-stats`, `monitoring:error-logs`, `monitoring:records` | 分离存储键 |
 | TTL | 3600 秒 (1小时) | 自动过期时间 |
 | 环境变量 | `MONITORING_SNAPSHOT_ENABLED` | 启用开关 |
+
+**分离存储结构**：
+
+```typescript
+// 元数据（轻量级）
+interface MonitoringMeta {
+  version: number;
+  savedAt: number;
+  globalCounters: MonitoringGlobalCounters;
+  activeUsersCount: number;  // 只存数量，列表从 records 重建
+  activeChatsCount: number;
+  currentProcessing: number;
+  peakProcessing: number;
+}
+```
 
 **关键实现**：
 
@@ -231,42 +254,36 @@ saveSnapshot(snapshot: MonitoringSnapshot): void {
 }
 
 private async writeToRedis(snapshot: MonitoringSnapshot): Promise<void> {
-  await this.redisService.setex(
-    this.REDIS_KEY,
-    this.SNAPSHOT_TTL_SECONDS,
-    snapshot
-  );
+  // 并行写入所有分离的数据
+  await Promise.all([
+    this.redisService.setex(this.KEY_META, this.SNAPSHOT_TTL_SECONDS, meta),
+    this.redisService.setex(this.KEY_HOURLY_STATS, this.SNAPSHOT_TTL_SECONDS, snapshot.hourlyStats),
+    this.redisService.setex(this.KEY_ERROR_LOGS, this.SNAPSHOT_TTL_SECONDS, snapshot.errorLogs),
+    this.redisService.setex(this.KEY_RECORDS, this.SNAPSHOT_TTL_SECONDS, snapshot.detailRecords),
+  ]);
 }
 ```
 
-### MonitoringPersistService
+### DataCleanupService
 
-**职责**：小时聚合数据持久化到 Supabase
+**职责**：定期清理过期数据
 
-**文件位置**：`src/core/monitoring/monitoring-persist.service.ts`
+**文件位置**：`src/core/monitoring/data-cleanup.service.ts`
 
 **定时任务**：
 
 | Cron 表达式 | 执行时间 | 任务 |
 |------------|---------|------|
-| `EVERY_HOUR` | 每小时整点 | 同步当前小时数据到 Supabase |
-| `0 3 * * *` | 每天凌晨3点 | 清理 30 天前的过期数据 |
+| `0 3 * * *` | 每天凌晨3点 | 清理过期聊天消息（60天）和监控历史数据（30天） |
 
-**聚合数据结构**：
+**主要方法**：
 
-```typescript
-interface MonitoringHourlyData {
-  hour: string;          // ISO 格式时间 (小时整点)
-  message_count: number; // 消息总数
-  success_count: number; // 成功数
-  failure_count: number; // 失败数
-  avg_duration: number;  // 平均响应时间 (ms)
-  p95_duration: number;  // P95 响应时间 (ms)
-  active_users: number;  // 活跃用户数
-  active_chats: number;  // 活跃会话数
-  total_tokens: number;  // Token 使用量
-}
-```
+| 方法 | 用途 |
+|-----|------|
+| `cleanupExpiredData()` | 定时清理任务入口 |
+| `cleanupChatMessages()` | 清理过期聊天消息 |
+| `cleanupMonitoringHistory()` | 清理过期监控历史（兼容旧数据） |
+| `triggerCleanup()` | 手动触发清理 |
 
 ---
 
@@ -434,8 +451,7 @@ CREATE INDEX idx_monitoring_hourly_hour ON monitoring_hourly(hour DESC);
 
 | 服务 | Cron 表达式 | 执行频率 | 任务描述 |
 |-----|------------|---------|---------|
-| MonitoringPersistService | `EVERY_HOUR` | 每小时 | 同步聚合数据到 Supabase |
-| MonitoringPersistService | `0 3 * * *` | 每天 3:00 | 清理 30 天前数据 |
+| DataCleanupService | `0 3 * * *` | 每天 3:00 | 清理过期聊天消息和监控历史数据 |
 | MonitoringService | `setInterval` | 每小时 | 清理过期内存数据 |
 
 ### 内存数据清理

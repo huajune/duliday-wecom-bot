@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { SupabaseService } from '@core/supabase';
+import { MessageParser } from '../utils/message-parser.util';
 
 /**
  * 消息历史记录项（基础版本）
@@ -52,13 +53,22 @@ export class MessageHistoryService {
 
   /**
    * 获取指定会话的历史消息（用于 AI 上下文）
-   * 从 Supabase 获取最新 N 条消息
+   * 从 Supabase 获取最新 N 条消息，并为每条消息注入时间上下文
    */
   async getHistory(
     chatId: string,
   ): Promise<Array<{ role: 'user' | 'assistant'; content: string }>> {
     try {
-      return await this.supabaseService.getChatHistory(chatId, this.maxHistoryForContext);
+      const rawHistory = await this.supabaseService.getChatHistory(
+        chatId,
+        this.maxHistoryForContext,
+      );
+
+      // 为每条历史消息注入时间上下文
+      return rawHistory.map((msg) => ({
+        role: msg.role,
+        content: MessageParser.injectTimeContext(msg.content, msg.timestamp),
+      }));
     } catch (error) {
       this.logger.error(`获取会话历史失败 [${chatId}]:`, error);
       return [];
@@ -67,6 +77,7 @@ export class MessageHistoryService {
 
   /**
    * 获取会话历史（用于 Agent 上下文，可排除指定消息ID）
+   * 为每条历史消息注入时间上下文
    */
   async getHistoryForContext(
     chatId: string,
@@ -79,7 +90,11 @@ export class MessageHistoryService {
       );
 
       if (!excludeMessageId) {
-        return history.slice(0, this.maxHistoryForContext);
+        // 为每条历史消息注入时间上下文
+        return history.slice(0, this.maxHistoryForContext).map((msg) => ({
+          role: msg.role,
+          content: MessageParser.injectTimeContext(msg.content, msg.timestamp),
+        }));
       }
 
       // 需要获取完整详情来过滤 messageId
@@ -88,9 +103,10 @@ export class MessageHistoryService {
         .filter((item) => item.messageId !== excludeMessageId)
         .slice(-this.maxHistoryForContext);
 
+      // 为每条历史消息注入时间上下文
       return filtered.map((item) => ({
         role: item.role,
-        content: item.content,
+        content: MessageParser.injectTimeContext(item.content, item.timestamp),
       }));
     } catch (error) {
       this.logger.error(`获取会话历史失败 [${chatId}]:`, error);

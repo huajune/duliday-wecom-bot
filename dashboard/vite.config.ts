@@ -9,9 +9,17 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  css: {
+    preprocessorOptions: {
+      scss: {
+        api: 'modern',
+        additionalData: `@use "${path.resolve(__dirname, './src/assets/styles/_variables.scss')}" as *;`,
+      },
+    },
+  },
   server: {
-    host: '0.0.0.0', // 允许通过本地 IP 访问开发服务
-    port: 5173,
+    host: '0.0.0.0',
+    port: 5175, // 使用不同端口避免冲突
     proxy: {
       '/api': {
         target: 'http://localhost:8080',

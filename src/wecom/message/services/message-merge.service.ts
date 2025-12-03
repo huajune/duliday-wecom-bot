@@ -727,8 +727,17 @@ export class MessageMergeService implements OnModuleInit, OnModuleDestroy {
 
     // 添加任务到 Bull 队列
     try {
-      await this.messageQueue.add('merge', { messages: messagesToProcess });
-      this.logger.log(`[${chatId}] 任务已添加到队列，消息数: ${messagesToProcess.length}`);
+      const job = await this.messageQueue.add('merge', { messages: messagesToProcess });
+      this.logger.log(
+        `[${chatId}] 任务已添加到队列，消息数: ${messagesToProcess.length}, jobId: ${job.id}`,
+      );
+
+      // 诊断：检查任务状态
+      const jobCounts = await this.messageQueue.getJobCounts();
+      this.logger.log(
+        `[${chatId}] 队列状态: waiting=${jobCounts.waiting}, active=${jobCounts.active}, ` +
+          `completed=${jobCounts.completed}, failed=${jobCounts.failed}`,
+      );
     } catch (error) {
       this.logger.error(`[${chatId}] 任务添加到队列失败:`, error);
       await this.resetConversationState(chatId);

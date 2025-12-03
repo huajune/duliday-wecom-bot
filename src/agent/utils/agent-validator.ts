@@ -36,14 +36,14 @@ export class AgentConfigValidator {
   validateBrandConfig(profile: AgentProfile): BrandConfigValidation {
     const missingFields: string[] = [];
 
-    // 检查品牌数据
+    // 检查品牌数据（API 契约使用 configData 字段）
     const hasBrandData =
-      profile.context?.brandData &&
-      typeof profile.context.brandData === 'object' &&
-      Object.keys(profile.context.brandData).length > 0;
+      profile.context?.configData &&
+      typeof profile.context.configData === 'object' &&
+      Object.keys(profile.context.configData).length > 0;
 
     if (!hasBrandData) {
-      missingFields.push('context.brandData');
+      missingFields.push('context.configData');
     }
 
     // 检查回复提示词
@@ -100,9 +100,9 @@ export class AgentConfigValidator {
       return { isValid: false, errors };
     }
 
-    // 验证特定字段的类型
-    if (context.brandData && typeof context.brandData !== 'object') {
-      errors.push('context.brandData 必须是对象类型');
+    // 验证特定字段的类型（API 契约使用 configData 字段）
+    if (context.configData && typeof context.configData !== 'object') {
+      errors.push('context.configData 必须是对象类型');
     }
 
     if (context.replyPrompts && typeof context.replyPrompts !== 'object') {

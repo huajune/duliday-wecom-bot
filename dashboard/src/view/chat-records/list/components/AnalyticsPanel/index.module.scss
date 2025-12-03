@@ -1,0 +1,128 @@
+// AnalyticsPanel 组件样式
+@use '@/assets/styles/variables' as *;
+
+.panelWrapper {
+  overflow: hidden;
+  transition: all 0.4s ease-in-out;
+  max-height: 0;
+  margin-bottom: 0;
+
+  &.show {
+    max-height: 600px;
+    margin-bottom: $spacing-md;
+  }
+}
+
+.panel {
+  @include card;
+  padding: 20px 24px;
+}
+
+.header {
+  @include flex-between;
+  margin-bottom: $spacing-md;
+}
+
+.leftSection {
+  display: flex;
+  align-items: center;
+  gap: $spacing-md;
+}
+
+.title {
+  font-size: $font-size-sm;
+  font-weight: $font-weight-semibold;
+  color: $text-primary;
+}
+
+.filters {
+  display: flex;
+  gap: $spacing-xs;
+}
+
+.filterBtn {
+  @include button-secondary;
+  padding: 6px 12px;
+  font-size: $font-size-xs;
+
+  &.active {
+    @include button-primary;
+  }
+}
+
+.rightSection {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+
+.stats {
+  display: flex;
+  align-items: center;
+  gap: $spacing-md;
+  font-size: $font-size-sm;
+}
+
+.statItem {
+  span:first-child {
+    color: $text-muted;
+  }
+
+  span:last-child {
+    font-weight: $font-weight-bold;
+
+    &.primary {
+      color: $primary;
+    }
+
+    &.success {
+      color: $success;
+    }
+  }
+}
+
+.divider {
+  width: 1px;
+  height: 20px;
+  background: $border;
+}
+
+.legend {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: $font-size-xs;
+  color: $text-muted;
+}
+
+.legendItem {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.legendDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+
+  &.primary {
+    background: #6366f1;
+  }
+
+  &.success {
+    background: #10b981;
+  }
+}
+
+.chartContainer {
+  height: 320px;
+}
+
+.emptyState {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: $text-muted;
+}

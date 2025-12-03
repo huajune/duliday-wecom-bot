@@ -1,0 +1,133 @@
+// MetricCard 组件样式 - 与 dashboard 原版保持一致
+@use '@/assets/styles/variables' as *;
+
+.metricGrid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: $spacing-md;
+  margin-bottom: $spacing-lg;
+
+  @include respond-to(xl) {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  @include respond-to(md) {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  @include respond-to(sm) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.metricCard {
+  background: $bg-card;
+  border-radius: 20px;
+  padding: 24px;
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s ease;
+  border: 1px solid $border;
+  box-shadow: $shadow-sm;
+
+  &:hover {
+    transform: translateY(-4px);
+    box-shadow: $shadow-lg;
+    border-color: $primary-light;
+  }
+
+  // 渐变背景装饰
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    opacity: 0.6;
+    pointer-events: none;
+    border-radius: inherit;
+  }
+
+  // 变体样式 - 渐变背景
+  &.primary::after {
+    background: radial-gradient(circle at top right, rgba(59, 130, 246, 0.15), transparent 70%);
+  }
+
+  &.success::after {
+    background: radial-gradient(circle at top right, rgba(16, 185, 129, 0.15), transparent 70%);
+  }
+
+  &.warning::after {
+    background: radial-gradient(circle at top right, rgba(245, 158, 11, 0.15), transparent 70%);
+  }
+
+  &.danger::after {
+    background: radial-gradient(circle at top right, rgba(239, 68, 68, 0.15), transparent 70%);
+  }
+
+  &.info::after {
+    background: radial-gradient(circle at top right, rgba(6, 182, 212, 0.15), transparent 70%);
+  }
+
+  // 圣诞装饰
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, #e74c3c 0%, #e74c3c 33%, #2ecc71 33%, #2ecc71 66%, #e74c3c 66%, #e74c3c 100%);
+    border-radius: 20px 20px 0 0;
+    opacity: 0.8;
+  }
+}
+
+.metricLabel {
+  font-size: 13px;
+  color: $text-muted;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: $spacing-xs;
+  display: flex;
+  align-items: center;
+  gap: $spacing-sm;
+}
+
+.timeRangeBadge {
+  font-size: 10px;
+  opacity: 0.7;
+  text-transform: none;
+}
+
+.metricValue {
+  background: $gradient-primary;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  font-size: $font-size-3xl;
+  font-weight: $font-weight-bold;
+  letter-spacing: -0.02em;
+  line-height: $line-height-tight;
+  margin-bottom: $spacing-xs;
+}
+
+.metricSubtitle {
+  font-size: 13px;
+  color: $text-secondary;
+
+  span {
+    font-weight: $font-weight-medium;
+  }
+}
+
+.metricDelta {
+  font-size: 13px;
+  font-weight: $font-weight-semibold;
+
+  &.positive {
+    color: $success;
+  }
+
+  &.negative {
+    color: $danger;
+  }
+}

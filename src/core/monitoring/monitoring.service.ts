@@ -101,19 +101,52 @@ export class MonitoringService implements OnModuleInit {
     this.currentProcessing++;
     this.peakProcessing = Math.max(this.peakProcessing, this.currentProcessing);
 
-    this.logger.debug(`记录消息接收 [${messageId}], scenario=${metadata?.scenario ?? 'unknown'}`);
+    this.logger.log(
+      `[Monitoring] 记录消息接收 [${messageId}], chatId=${chatId}, scenario=${metadata?.scenario ?? 'unknown'}`,
+    );
     this.persistSnapshot();
   }
 
   /**
+   * 记录 Worker 开始处理（用于计算真正的队列等待时间）
+   * 应在 Bull Worker 回调函数入口处调用
+   */
+  recordWorkerStart(messageId: string): void {
+    const record = this.findRecord(messageId);
+    if (record) {
+      const now = Date.now();
+      // queueDuration = Worker 开始处理时间 - 消息接收时间
+      // 这个时间包含：消息聚合等待 + Bull Queue 等待
+      record.queueDuration = now - record.receivedAt;
+      this.logger.debug(`记录 Worker 开始处理 [${messageId}], queue=${record.queueDuration}ms`);
+      this.persistSnapshot();
+    }
+  }
+
+  /**
    * 记录 AI 处理开始
+   * 应在调用 Agent API 之前调用
    */
   recordAiStart(messageId: string): void {
     const record = this.findRecord(messageId);
     if (record) {
-      record.aiStartAt = Date.now();
-      record.queueDuration = record.aiStartAt - record.receivedAt;
-      this.logger.debug(`记录 AI 开始处理 [${messageId}], queue=${record.queueDuration ?? 0}ms`);
+      const now = Date.now();
+      record.aiStartAt = now;
+
+      // 如果已经记录了 queueDuration（Worker 开始时间），计算预处理耗时
+      if (record.queueDuration !== undefined) {
+        // prepDuration = AI 开始时间 - Worker 开始时间
+        // Worker 开始时间 = receivedAt + queueDuration
+        const workerStartAt = record.receivedAt + record.queueDuration;
+        record.prepDuration = now - workerStartAt;
+        this.logger.debug(`记录 AI 开始处理 [${messageId}], prep=${record.prepDuration}ms`);
+      } else {
+        // 兼容旧逻辑：如果没有调用 recordWorkerStart，直接计算 queueDuration
+        record.queueDuration = now - record.receivedAt;
+        this.logger.debug(
+          `记录 AI 开始处理 [${messageId}], queue=${record.queueDuration}ms (legacy)`,
+        );
+      }
       this.persistSnapshot();
     }
   }
@@ -165,6 +198,10 @@ export class MonitoringService implements OnModuleInit {
     messageId: string,
     metadata?: MonitoringMetadata & { fallbackSuccess?: boolean },
   ): void {
+    this.logger.debug(
+      `[recordSuccess] 开始处理 [${messageId}], 当前记录数: ${this.detailRecords.length}`,
+    );
+
     const record = this.findRecord(messageId);
     if (record) {
       record.status = 'success';
@@ -198,6 +235,20 @@ export class MonitoringService implements OnModuleInit {
         }, fallback=${record.isFallback ? 'true' : 'false'}`,
       );
       this.persistSnapshot();
+    } else {
+      // ⚠️ 记录未找到，可能原因：
+      // 1. 服务重启后快照恢复不完整（Redis TTL 过期）
+      // 2. 环形缓冲区溢出（超过 MAX_DETAIL_RECORDS）
+      // 3. recordMessageReceived 未被调用或 messageId 不匹配
+      // 【重要】使用 error 级别确保日志可见
+      this.logger.error(
+        `[recordSuccess] ❌ 消息记录未找到 [${messageId}]，无法更新状态为 success。` +
+          `当前记录数: ${this.detailRecords.length}/${this.MAX_DETAIL_RECORDS}。` +
+          `已有记录 ID: ${this.detailRecords
+            .slice(-5)
+            .map((r) => r.messageId)
+            .join(', ')}`,
+      );
     }
   }
 
@@ -209,6 +260,10 @@ export class MonitoringService implements OnModuleInit {
     error: string,
     metadata?: MonitoringMetadata & { fallbackSuccess?: boolean },
   ): void {
+    this.logger.debug(
+      `[recordFailure] 开始处理 [${messageId}], 当前记录数: ${this.detailRecords.length}`,
+    );
+
     const record = this.findRecord(messageId);
     if (record) {
       record.status = 'failure';
@@ -242,6 +297,19 @@ export class MonitoringService implements OnModuleInit {
         `消息处理失败 [${messageId}]: ${error}, scenario=${record.scenario || 'unknown'}, fallback=${record.isFallback ? 'true' : 'false'}`,
       );
       this.persistSnapshot();
+    } else {
+      // ⚠️ 记录未找到，可能原因同 recordSuccess
+      // 【重要】使用 error 级别确保日志可见
+      this.logger.error(
+        `[recordFailure] ❌ 消息记录未找到 [${messageId}]，无法更新状态为 failure。` +
+          `当前记录数: ${this.detailRecords.length}/${this.MAX_DETAIL_RECORDS}。` +
+          `已有记录 ID: ${this.detailRecords
+            .slice(-5)
+            .map((r) => r.messageId)
+            .join(', ')}`,
+      );
+      // 即使记录不存在，也要记录错误日志
+      this.addErrorLog(messageId, error);
     }
   }
 
@@ -1768,8 +1836,11 @@ export class MonitoringService implements OnModuleInit {
   }
 
   private async restoreFromSnapshot(): Promise<void> {
+    this.logger.log('[restoreFromSnapshot] 开始从 Redis 恢复监控快照...');
+
     const snapshot = await this.snapshotService.readSnapshot();
     if (!snapshot) {
+      this.logger.log('[restoreFromSnapshot] Redis 中没有找到监控快照，将从空白状态开始');
       return;
     }
 
@@ -1780,9 +1851,48 @@ export class MonitoringService implements OnModuleInit {
     }
 
     this.applySnapshot(snapshot);
+
+    // 清理过期的 processing 状态记录（服务重启后这些记录无法被正常更新）
+    const cleanedCount = this.cleanupStaleProcessingRecords();
+
     this.logger.log(
-      `已从监控快照恢复数据: records=${this.detailRecords.length}, hourlyStats=${this.hourlyStatsMap.size}`,
+      `已从监控快照恢复数据: records=${this.detailRecords.length}, hourlyStats=${this.hourlyStatsMap.size}` +
+        (cleanedCount > 0 ? `, 已清理 ${cleanedCount} 条过期 processing 记录` : ''),
     );
+  }
+
+  /**
+   * 清理过期的 processing 状态记录
+   * 服务重启后，之前处于 processing 状态的消息将永远无法被正常完成
+   * 将超过阈值的 processing 记录标记为 failure
+   * @returns 清理的记录数
+   */
+  private cleanupStaleProcessingRecords(): number {
+    const STALE_THRESHOLD_MS = 5 * 60 * 1000; // 5 分钟
+    const now = Date.now();
+    let cleanedCount = 0;
+
+    for (const record of this.detailRecords) {
+      if (record.status === 'processing' && now - record.receivedAt > STALE_THRESHOLD_MS) {
+        record.status = 'failure';
+        record.error = '服务重启导致处理中断';
+        record.totalDuration = now - record.receivedAt;
+
+        // 更新计数器
+        this.globalCounters.totalFailure++;
+        cleanedCount++;
+
+        // 添加错误日志
+        this.addErrorLog(record.messageId, record.error);
+
+        this.logger.debug(`清理过期 processing 记录: ${record.messageId}`);
+      }
+    }
+
+    // 重置 currentProcessing 计数（服务重启后没有正在处理的任务）
+    this.currentProcessing = 0;
+
+    return cleanedCount;
   }
 
   private applySnapshot(snapshot: MonitoringSnapshot): void {

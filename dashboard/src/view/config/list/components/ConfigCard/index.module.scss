@@ -1,0 +1,126 @@
+// ConfigCard 组件样式
+@use '@/assets/styles/variables' as *;
+
+// 基础卡片样式
+.card {
+  padding: $spacing-md;
+  background: $bg-secondary;
+  border-radius: $radius-lg;
+  border: 1px solid $border;
+  transition: all $transition-fast;
+
+  &.modified {
+    border-color: $primary;
+  }
+}
+
+.header {
+  @include flex-between;
+  margin-bottom: $spacing-xs;
+}
+
+.label {
+  font-weight: $font-weight-semibold;
+  color: $text-primary;
+  font-size: $font-size-sm;
+}
+
+.value {
+  font-size: $font-size-lg;
+  font-weight: $font-weight-bold;
+  color: $primary;
+}
+
+.description {
+  font-size: $font-size-xs;
+  color: $text-muted;
+  margin: 0 0 $spacing-sm 0;
+  line-height: $line-height-relaxed;
+}
+
+// 滑块控制区域
+.sliderRow {
+  display: flex;
+  align-items: center;
+  gap: $spacing-sm;
+}
+
+.slider {
+  flex: 1;
+  height: 4px;
+  accent-color: $primary;
+  cursor: pointer;
+}
+
+.numberInput {
+  width: 70px;
+  padding: $spacing-xs $spacing-sm;
+  border: 1px solid $border;
+  border-radius: $radius-md;
+  background: $bg-primary;
+  color: $text-primary;
+  text-align: right;
+  font-size: $font-size-xs;
+  transition: border-color $transition-fast;
+
+  &:focus {
+    outline: none;
+    border-color: $primary;
+  }
+}
+
+// 底部提示
+.footer {
+  @include flex-between;
+  margin-top: $spacing-sm;
+  font-size: 11px;
+  color: $text-muted;
+}
+
+// Toggle 开关
+.toggleSwitch {
+  position: relative;
+  width: 44px;
+  height: 24px;
+
+  input {
+    position: absolute;
+    opacity: 0;
+    width: 100%;
+    height: 100%;
+    cursor: pointer;
+    z-index: 1;
+
+    & + .track {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: $border;
+      border-radius: $radius-full;
+      transition: background $transition-fast;
+
+      &::after {
+        content: '';
+        position: absolute;
+        top: 2px;
+        left: 2px;
+        width: 20px;
+        height: 20px;
+        background: $bg-card;
+        border-radius: 50%;
+        box-shadow: $shadow-sm;
+        transition: transform $transition-fast;
+      }
+    }
+
+    &:checked + .track {
+      background: $primary;
+
+      &::after {
+        transform: translateX(20px);
+      }
+    }
+  }
+}

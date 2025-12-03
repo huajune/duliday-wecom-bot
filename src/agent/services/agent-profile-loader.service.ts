@@ -27,6 +27,7 @@ interface ProfileConfig {
     systemPrompt?: string;
     context?: string;
     toolContext?: string;
+    generalChatPrompt?: string;
   };
   metadata?: {
     version?: string;
@@ -58,8 +59,13 @@ export class ProfileLoaderService implements OnModuleInit {
     private readonly registryService: AgentRegistryService,
   ) {
     // 配置文件基础路径 - profiles/ 文件夹
-    // 编译后: dist/src/agent -> ../../agent/profiles
-    this.contextBasePath = join(__dirname, '..', '..', '..', 'agent', 'profiles');
+    // 开发模式: src/agent/services -> ../profiles
+    // 生产模式: dist/agent/services -> ../profiles (需确保 profiles 目录被复制到 dist)
+    const devPath = join(__dirname, '..', 'profiles');
+    const prodPath = join(__dirname, '..', '..', '..', 'agent', 'profiles');
+
+    // 优先使用开发路径，如果不存在则尝试生产路径
+    this.contextBasePath = existsSync(devPath) ? devPath : prodPath;
     this.logger.log(`Profile 配置文件路径: ${this.contextBasePath}`);
   }
 
@@ -256,7 +262,9 @@ export class ProfileLoaderService implements OnModuleInit {
       ].join('\n'),
       context: {
         dulidayToken: this.configService.get<string>('DULIDAY_API_TOKEN'),
+        brandPriorityStrategy: 'smart', // 降级配置也需要包含此字段
       },
+      toolContext: {}, // 降级模式下 toolContext 为空对象（不是 undefined）
       contextStrategy: 'skip',
       prune: true,
       pruneOptions: {
@@ -376,12 +384,29 @@ export class ProfileLoaderService implements OnModuleInit {
       }
     }
 
-    // 加载 toolContext
+    // 加载 toolContext（兼容旧的 JSON 格式）
     if (config.files?.toolContext) {
       const toolContextPath = join(scenarioDir, config.files.toolContext);
       const toolContextData = await this.readConfigFile(toolContextPath);
       if (toolContextData) {
         profile.toolContext = this.resolveEnvVarsInObject(toolContextData);
+      }
+    }
+
+    // 加载 generalChatPrompt（新的 Markdown 格式）
+    if (config.files?.generalChatPrompt) {
+      const generalChatPath = join(scenarioDir, config.files.generalChatPrompt);
+      const generalChatContent = await this.readTextFile(generalChatPath);
+      if (generalChatContent) {
+        // 构建与原 tool-context.json 相同的嵌套结构
+        profile.toolContext = {
+          zhipin_reply_generator: {
+            replyPrompts: {
+              general_chat: generalChatContent,
+            },
+          },
+        };
+        this.logger.debug(`✅ Profile [${config.name}] 已加载 generalChatPrompt`);
       }
     }
 

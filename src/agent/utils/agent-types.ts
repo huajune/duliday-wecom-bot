@@ -152,9 +152,10 @@ export interface ChatContext {
 
 /**
  * 品牌上下文（供下游服务合并使用）
+ * 注意：API 契约要求使用 configData 字段传递品牌数据
  */
 export interface BrandContext {
-  brandData?: BrandData;
+  configData?: BrandData;
   replyPrompts?: ReplyPrompts;
   synced?: boolean;
   lastRefreshTime?: string;

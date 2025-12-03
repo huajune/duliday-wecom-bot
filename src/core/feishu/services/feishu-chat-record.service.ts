@@ -115,9 +115,14 @@ export class ChatRecordSyncService {
     for (const { chatId: _chatId, messages } of chatRecords) {
       if (messages.length === 0) continue;
 
-      // 提取候选人昵称和招募经理昵称（从消息元数据中获取）
-      const candidateName = messages.find((m) => m.candidateName)?.candidateName || '未知候选人';
-      const managerName = messages.find((m) => m.managerName)?.managerName || '未知招募经理';
+      // 提取候选人昵称（只从 user 消息中获取，因为 assistant 消息的 candidateName 可能是招募经理名字）
+      const candidateName =
+        messages.find((m) => m.role === 'user' && m.candidateName)?.candidateName || '未知候选人';
+      // 提取招募经理昵称（优先从 assistant 消息获取，因为那里的 candidateName/managerName 实际是招募经理）
+      const managerName =
+        messages.find((m) => m.role === 'assistant' && m.candidateName)?.candidateName ||
+        messages.find((m) => m.managerName)?.managerName ||
+        '未知招募经理';
 
       // 咨询时间：第一条消息的时间（飞书 DateTime 字段需要毫秒时间戳）
       const firstMessage = messages[0];

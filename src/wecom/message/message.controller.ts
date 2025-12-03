@@ -1,5 +1,6 @@
 import { Controller, Post, Body, Logger, Get, Query, Delete, Param } from '@nestjs/common';
 import { MessageService } from './message.service';
+import { MessageProcessor } from './message.processor';
 import { RawResponse } from '@core/server';
 import {
   MessageType,
@@ -27,6 +28,7 @@ export class MessageController {
 
   constructor(
     private readonly messageService: MessageService,
+    private readonly messageProcessor: MessageProcessor,
     private readonly agentService: AgentService,
     private readonly callbackAdapter: MessageCallbackAdapterService,
     private readonly filterService: MessageFilterService,
@@ -558,6 +560,61 @@ export class MessageController {
           ? '该小组在黑名单中，消息不会触发AI回复但会记录历史'
           : '该小组不在黑名单中，消息会正常触发AI回复',
       },
+    };
+  }
+
+  // ==================== 队列管理 ====================
+
+  /**
+   * 获取消息队列状态
+   * @description 获取 Bull 队列中各状态的任务数量
+   * @example GET /message/queue/status
+   */
+  @Get('queue/status')
+  async getQueueStatus() {
+    const queueStatus = await this.messageProcessor.getQueueStatus();
+    const workerStatus = this.messageProcessor.getWorkerStatus();
+
+    return {
+      success: true,
+      data: {
+        queue: queueStatus,
+        worker: workerStatus,
+      },
+      description: {
+        waiting: '等待处理的任务',
+        active: '正在处理的任务',
+        completed: '已完成的任务',
+        failed: '失败的任务',
+        delayed: '延迟执行的任务',
+        paused: '暂停的任务',
+      },
+    };
+  }
+
+  /**
+   * 清理队列中卡住的任务
+   * @description 清理 active（卡住）和 failed 状态的任务
+   * @example POST /message/queue/clean
+   * @body { "cleanActive": true, "cleanFailed": true, "cleanCompleted": false, "cleanDelayed": false }
+   */
+  @Post('queue/clean')
+  async cleanQueue(
+    @Body()
+    body?: {
+      cleanActive?: boolean;
+      cleanFailed?: boolean;
+      cleanCompleted?: boolean;
+      cleanDelayed?: boolean;
+      gracePeriodMs?: number;
+    },
+  ) {
+    const result = await this.messageProcessor.cleanStuckJobs(body);
+
+    return {
+      success: result.success,
+      data: result.cleaned,
+      message: result.message,
     };
   }
 }

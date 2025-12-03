@@ -1,0 +1,44 @@
+// InfoCard 组件样式
+@use '@/assets/styles/variables' as *;
+
+.card {
+  padding: $spacing-md;
+  background: $bg-secondary;
+  border-radius: $radius-lg;
+  border: 1px solid $border;
+}
+
+.title {
+  margin: 0 0 $spacing-md 0;
+  color: $text-primary;
+  font-size: $font-size-sm;
+}
+
+.list {
+  margin: 0;
+  padding-left: 20px;
+  font-size: $font-size-xs;
+  color: $text-secondary;
+  line-height: $line-height-relaxed;
+
+  li {
+    margin-bottom: $spacing-xs;
+
+    &:last-child {
+      margin-bottom: 0;
+    }
+  }
+
+  strong {
+    color: $text-primary;
+  }
+}
+
+.tipBox {
+  margin-top: $spacing-md;
+  padding: 10px $spacing-md;
+  background: rgba($primary, 0.05);
+  border-radius: $radius-md;
+  font-size: $font-size-xs;
+  color: $primary;
+}

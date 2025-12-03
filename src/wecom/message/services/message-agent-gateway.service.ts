@@ -17,6 +17,7 @@ import { FeishuAlertService } from '@core/feishu';
 import { AgentInvokeResult, AgentReply, FallbackMessageOptions } from '../types';
 import { BrandContext } from '@agent';
 import { FallbackMessageService } from './message-fallback.service';
+import { ReplyNormalizer } from '../utils/reply-normalizer.util';
 
 /**
  * Agent 网关服务（增强版）
@@ -81,9 +82,10 @@ export class AgentGatewayService {
       }
 
       // 合并配置：基础 context + 品牌配置
+      // 注意：API 契约要求使用 configData 字段传递品牌数据
       const mergedContext: BrandContext = {
         ...(baseContext || {}),
-        brandData: brandConfig.brandData,
+        configData: brandConfig.brandData,
         replyPrompts: brandConfig.replyPrompts,
         synced: brandConfig.synced,
         lastRefreshTime: brandConfig.lastRefreshTime,
@@ -141,14 +143,14 @@ export class AgentGatewayService {
     const {
       synced: _synced,
       lastRefreshTime: _lastRefreshTime,
-      brandData,
+      configData,
       replyPrompts,
       ...cleanedContext
     } = context;
-    // 注意：brandData 和 replyPrompts 需要传给 Agent，所以要保留
+    // 注意：configData 和 replyPrompts 需要传给 Agent，所以要保留
     return {
       ...cleanedContext,
-      ...(brandData && { brandData }),
+      ...(configData && { configData }),
       ...(replyPrompts && { replyPrompts }),
     };
   }
@@ -215,7 +217,7 @@ export class AgentGatewayService {
       const agentResult = await this.agentService.chat({
         conversationId,
         userMessage,
-        historyMessages,
+        messages: historyMessages, // API 契约字段名
         model: agentProfile.model,
         systemPrompt: agentProfile.systemPrompt,
         promptType: agentProfile.promptType,
@@ -334,6 +336,9 @@ export class AgentGatewayService {
       requestHeaders,
     };
 
+    // 提取 API 错误详情（如 "Payment Required"）
+    const apiDetails = responseData?.details;
+
     // 异步发送告警
     this.feishuAlertService
       .sendAlert({
@@ -344,6 +349,14 @@ export class AgentGatewayService {
         apiEndpoint: '/api/v1/chat',
         scenario,
         fallbackMessage: agentResult.fallbackInfo.message,
+        // 传递 API 错误详情
+        ...(apiDetails && {
+          details: {
+            apiDetails: typeof apiDetails === 'string' ? apiDetails : apiDetails,
+            statusCode: responseData?.statusCode,
+            correlationId: responseData?.correlationId,
+          },
+        }),
       })
       .catch((alertError) => {
         this.logger.error(`告警发送失败: ${alertError.message}`);
@@ -399,6 +412,7 @@ export class AgentGatewayService {
 
   /**
    * 提取 AI 回复内容
+   * 包含兜底清洗逻辑：将 Markdown 格式转换为自然口语
    */
   private extractReplyContent(chatResponse: ChatResponse): string {
     if (!chatResponse.messages || chatResponse.messages.length === 0) {
@@ -426,6 +440,18 @@ export class AgentGatewayService {
     }
 
     // 拼接所有文本内容
-    return textParts.join('\n\n');
+    const rawContent = textParts.join('\n\n');
+
+    // 🛡️ 兜底清洗：将 Markdown 列表格式转换为自然口语
+    // 即使 AI 偶尔生成带列表符号的回复，这里也能保证发出去的是人话
+    if (ReplyNormalizer.needsNormalization(rawContent)) {
+      const normalizedContent = ReplyNormalizer.normalize(rawContent);
+      this.logger.debug(
+        `[ReplyNormalizer] 已清洗回复: "${rawContent.substring(0, 50)}..." → "${normalizedContent.substring(0, 50)}..."`,
+      );
+      return normalizedContent;
+    }
+
+    return rawContent;
   }
 }

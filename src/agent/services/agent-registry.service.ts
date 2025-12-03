@@ -351,6 +351,23 @@ export class AgentRegistryService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
+   * 获取模型配置（用于传递给花卷 API 的 context.modelConfig）
+   * 花卷 API 会根据这些配置在不同阶段使用不同模型：
+   * - chatModel: 主对话模型
+   * - classifyModel: 意图分类模型
+   * - replyModel: 回复生成模型
+   *
+   * @see https://docs.wolian.cc/concepts/context#modelconfig
+   */
+  getModelConfig(): { chatModel: string; classifyModel: string; replyModel: string } {
+    return {
+      chatModel: this.chatModel,
+      classifyModel: this.classifyModel,
+      replyModel: this.replyModel,
+    };
+  }
+
+  /**
    * 获取健康状态
    * 返回模型和工具的可用性信息
    */

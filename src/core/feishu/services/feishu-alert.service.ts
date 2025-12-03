@@ -207,14 +207,51 @@ export class FeishuAlertService implements OnModuleInit {
 
   /**
    * 提取错误消息
+   * 优先级：
+   * 1. Axios 响应中的 details（最有价值的错误信息）
+   * 2. Axios 响应中的 message
+   * 3. Error.message（Axios 的通用消息如 "Request failed with status code 500"）
+   * 4. 字符串或其他类型
    */
   private extractErrorMessage(error: Error | string | unknown): string {
     if (!error) return '';
     if (typeof error === 'string') return error;
-    if (error instanceof Error) return error.message;
-    if (typeof error === 'object' && error !== null && 'message' in error) {
-      return String((error as any).message);
+
+    // 尝试提取 Axios 响应中的详细信息
+    if (typeof error === 'object' && error !== null) {
+      const axiosError = error as {
+        response?: {
+          data?: {
+            details?: string;
+            message?: string;
+            error?: string;
+          };
+          status?: number;
+        };
+        message?: string;
+      };
+
+      // 优先使用 response.data.details（如 "Payment Required"）
+      if (axiosError.response?.data?.details) {
+        const details = axiosError.response.data.details;
+        const status = axiosError.response?.status;
+        return `${details}${status ? ` (HTTP ${status})` : ''}`;
+      }
+
+      // 其次使用 response.data.message（如 "Internal server error"）
+      if (axiosError.response?.data?.message) {
+        const msg = axiosError.response.data.message;
+        const status = axiosError.response?.status;
+        return `${msg}${status ? ` (HTTP ${status})` : ''}`;
+      }
+
+      // 最后使用 error.message（如 "Request failed with status code 500"）
+      if (axiosError.message) {
+        return axiosError.message;
+      }
     }
+
+    if (error instanceof Error) return error.message;
     return String(error);
   }
 

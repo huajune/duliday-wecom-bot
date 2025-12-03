@@ -1170,7 +1170,7 @@ export class SupabaseService implements OnModuleInit {
   async getChatHistory(
     chatId: string,
     limit: number = 60,
-  ): Promise<Array<{ role: 'user' | 'assistant'; content: string }>> {
+  ): Promise<Array<{ role: 'user' | 'assistant'; content: string; timestamp: number }>> {
     if (!this.isInitialized) {
       return [];
     }
@@ -1179,7 +1179,7 @@ export class SupabaseService implements OnModuleInit {
       const response = await this.supabaseHttpClient.get('/chat_messages', {
         params: {
           chat_id: `eq.${chatId}`,
-          select: 'role,content',
+          select: 'role,content,timestamp',
           order: 'timestamp.desc',
           limit: limit,
         },
@@ -1190,6 +1190,7 @@ export class SupabaseService implements OnModuleInit {
       return messages.map((m: any) => ({
         role: m.role as 'user' | 'assistant',
         content: m.content,
+        timestamp: new Date(m.timestamp).getTime(),
       }));
     } catch (error) {
       this.logger.error(`获取会话历史失败 [${chatId}]:`, error);

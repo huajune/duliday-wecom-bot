@@ -261,6 +261,7 @@ describe('AgentController', () => {
       expect(service.chatWithProfile).toHaveBeenCalledWith('conv123', '你好', mockProfile, {
         model: 'gpt-4',
         allowedTools: undefined,
+        context: expect.any(Object), // mergedContext from brandConfig
       });
       expect(result).toEqual({
         response: mockAgentResult.data,
@@ -285,6 +286,7 @@ describe('AgentController', () => {
       expect(service.chatWithProfile).toHaveBeenCalledWith('test-user', '测试消息', mockProfile, {
         model: undefined,
         allowedTools: undefined,
+        context: expect.any(Object), // mergedContext from brandConfig
       });
       expect(result).toEqual({
         response: mockAgentResult.data,
@@ -312,6 +314,7 @@ describe('AgentController', () => {
       expect(service.chatWithProfile).toHaveBeenCalledWith('conv456', '你好', mockProfile, {
         model: undefined,
         allowedTools: undefined,
+        context: expect.any(Object), // mergedContext from brandConfig
       });
       expect(result).toEqual({
         response: mockAgentResult.data,
@@ -362,6 +365,7 @@ describe('AgentController', () => {
       expect(service.chatWithProfile).toHaveBeenCalledWith('test-user', '你好', mockProfile, {
         model: undefined,
         allowedTools: undefined,
+        context: expect.any(Object), // mergedContext from brandConfig
       });
       expect(result).toEqual({
         response: mockAgentResult.data,
@@ -393,6 +397,7 @@ describe('AgentController', () => {
         {
           model: undefined,
           allowedTools: ['duliday_job_list', 'duliday_job_details'],
+          context: expect.any(Object), // mergedContext from brandConfig
         },
       );
       expect(result).toEqual({
@@ -427,6 +432,7 @@ describe('AgentController', () => {
         {
           model: undefined,
           allowedTools: ['duliday_job_list'],
+          context: expect.any(Object), // mergedContext from brandConfig
         },
       );
       expect(result).toEqual({

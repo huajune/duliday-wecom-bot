@@ -58,18 +58,57 @@ import { MessageCallbackAdapterService } from './services/message-callback-adapt
           if (match) {
             const [, protocol, , password, host, port] = match;
             console.log('[BullModule] 使用 Upstash Redis:', host, port);
+
+            // 基础 Redis 配置（用于 createClient）
+            const baseRedisOpts = {
+              host,
+              port: parseInt(port, 10),
+              password,
+              tls: protocol === 'rediss' ? {} : undefined,
+              maxRetriesPerRequest: null, // Upstash 需要
+              enableReadyCheck: false, // Upstash 需要
+              // Upstash 推荐的轮询设置（减少 API 调用）
+              retryStrategy: (times: number) => Math.min(times * 100, 3000),
+            };
+
+            // 创建可复用的客户端连接
+            // 创建可复用的客户端连接
+            // eslint-disable-next-line @typescript-eslint/no-var-requires
+            const Redis = require('ioredis');
+            const sharedClient = new Redis(baseRedisOpts);
+            const sharedSubscriber = new Redis(baseRedisOpts);
+
+            console.log('[BullModule] 创建独立的 client/subscriber/bclient 连接');
+
             return {
-              redis: {
-                host,
-                port: parseInt(port, 10),
-                password,
-                tls: protocol === 'rediss' ? {} : undefined,
-                maxRetriesPerRequest: null, // Upstash 需要
-                enableReadyCheck: false, // Upstash 需要
+              // 使用 createClient 为每种连接类型提供正确的 Redis 实例
+              // 关键：bclient 必须是独立的连接，用于 BRPOPLPUSH 阻塞操作
+              createClient: (type: 'client' | 'subscriber' | 'bclient') => {
+                switch (type) {
+                  case 'client':
+                    console.log('[BullModule] createClient: client (复用)');
+                    return sharedClient;
+                  case 'subscriber':
+                    console.log('[BullModule] createClient: subscriber (复用)');
+                    return sharedSubscriber;
+                  case 'bclient':
+                    // bclient 必须是独立连接，不能复用！
+                    console.log('[BullModule] createClient: bclient (新建独立连接)');
+                    return new Redis(baseRedisOpts);
+                  default:
+                    throw new Error(`Unknown Redis connection type: ${type}`);
+                }
               },
               defaultJobOptions: {
                 removeOnComplete: 100, // 保留最近 100 个完成的任务
                 removeOnFail: 1000, // 保留最近 1000 个失败的任务（用于排查）
+              },
+              // Upstash 推荐的队列设置
+              settings: {
+                stalledInterval: 30000, // 30秒检查卡住的任务（默认 30s）
+                lockDuration: 60000, // 任务锁定时间 60 秒（防止重复处理）
+                lockRenewTime: 15000, // 每 15 秒续锁
+                maxStalledCount: 2, // 最多允许卡住 2 次
               },
             };
           } else {

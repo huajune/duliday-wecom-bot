@@ -1,0 +1,160 @@
+// UserTable 组件样式
+@use '@/assets/styles/variables' as *;
+
+.section {
+  background: $bg-primary;
+  border-radius: $radius-lg;
+  border: 1px solid $border;
+  padding: $spacing-lg;
+}
+
+.sectionHeader {
+  margin-bottom: $spacing-lg;
+
+  h3 {
+    margin: 0;
+    font-size: $font-size-base;
+    font-weight: $font-weight-semibold;
+    color: $text-primary;
+    display: flex;
+    align-items: center;
+    gap: $spacing-sm;
+  }
+}
+
+.userCount {
+  font-size: $font-size-sm;
+  color: $text-muted;
+  font-weight: $font-weight-normal;
+}
+
+.tableWrapper {
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: $font-size-sm;
+
+  th,
+  td {
+    padding: $spacing-md $spacing-sm;
+    text-align: left;
+    border-bottom: 1px solid $border;
+  }
+
+  th {
+    font-weight: $font-weight-semibold;
+    color: $text-muted;
+    font-size: $font-size-xs;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  td {
+    color: $text-primary;
+  }
+
+  tbody tr:hover {
+    background: rgba(255, 255, 255, 0.03);
+  }
+
+  tbody tr:last-child td {
+    border-bottom: none;
+  }
+}
+
+.loadingCell {
+  text-align: center;
+  padding: 40px !important;
+  color: $text-muted;
+}
+
+.userCell {
+  display: flex;
+  align-items: center;
+  gap: $spacing-sm;
+}
+
+.avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: rgba($primary, 0.1);
+  color: $primary;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: $font-size-xs;
+  font-weight: $font-weight-medium;
+}
+
+.chatIdCell {
+  font-family: ui-monospace, "SF Mono", Menlo, Monaco, monospace;
+  font-size: $font-size-xs;
+  color: $text-muted;
+}
+
+.groupBadge {
+  display: inline-block;
+  margin-left: 4px;
+  padding: 2px 6px;
+  font-size: 10px;
+  font-weight: $font-weight-medium;
+  border-radius: 4px;
+  background: rgba($warning, 0.1);
+  color: $warning;
+}
+
+.toggleSwitch {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transform: scale(0.8);
+  transform-origin: left center;
+
+  input[type="checkbox"] {
+    position: relative;
+    width: 36px;
+    height: 20px;
+    appearance: none;
+    background: rgba(148, 163, 184, 0.3);
+    border-radius: 10px;
+    cursor: pointer;
+    transition: background 0.2s ease;
+
+    &::before {
+      content: '';
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      width: 16px;
+      height: 16px;
+      background: #fff;
+      border-radius: 50%;
+      transition: transform 0.2s ease;
+    }
+
+    &:checked {
+      background: $success;
+
+      &::before {
+        transform: translateX(16px);
+      }
+    }
+  }
+}
+
+.statusText {
+  font-size: $font-size-xs;
+  font-weight: $font-weight-medium;
+
+  &.enabled {
+    color: $success;
+  }
+
+  &.disabled {
+    color: $text-muted;
+  }
+}

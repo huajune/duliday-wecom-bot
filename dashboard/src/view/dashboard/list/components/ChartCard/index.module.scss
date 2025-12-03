@@ -1,0 +1,65 @@
+// ChartCard 组件样式
+@use '@/assets/styles/variables' as *;
+
+.chartsRow {
+  display: flex;
+  gap: $spacing-md;
+  margin-bottom: $spacing-lg;
+
+  @include respond-to(lg) {
+    flex-direction: column;
+  }
+}
+
+.chartCard {
+  @include card;
+  padding: $spacing-lg;
+  flex: 1;
+  min-width: 0;
+  position: relative;
+  overflow: hidden;
+
+  &.fullWidth {
+    flex: 1;
+    width: 100%;
+  }
+}
+
+.chartHeader {
+  @include flex-between;
+  margin-bottom: $spacing-md;
+
+  h3 {
+    margin: 0;
+    font-size: $font-size-base;
+    font-weight: $font-weight-semibold;
+    color: $text-primary;
+  }
+
+  p {
+    margin: 2px 0 0;
+    font-size: $font-size-xs;
+    color: $text-muted;
+  }
+}
+
+.chartKpi {
+  text-align: right;
+
+  span {
+    display: block;
+    font-size: $font-size-xs;
+    color: $text-muted;
+  }
+
+  strong {
+    font-size: $font-size-xl;
+    font-weight: $font-weight-bold;
+    color: $primary;
+  }
+}
+
+.chartContainer {
+  height: 200px;
+  position: relative;
+}

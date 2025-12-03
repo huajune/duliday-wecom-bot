@@ -1,0 +1,25 @@
+// Hosting 页面主样式
+@use '@/assets/styles/variables' as *;
+
+.page {
+  padding-bottom: 40px;
+}
+
+.pageHeader {
+  margin-bottom: $spacing-lg;
+}
+
+.pageTitle {
+  margin: 0;
+  color: $text-primary;
+}
+
+.pageDesc {
+  margin: $spacing-xs 0 0 0;
+  font-size: $font-size-sm;
+  color: $text-muted;
+}
+
+.section {
+  margin-top: $spacing-lg;
+}

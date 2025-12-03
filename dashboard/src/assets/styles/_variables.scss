@@ -1,0 +1,281 @@
+// ============================================================
+// DuLiDay Dashboard - SASS 变量系统
+// ============================================================
+
+// ========== 颜色系统 ==========
+
+// 主色调
+$primary: #6366f1;
+$primary-dark: #4f46e5;
+$primary-light: #818cf8;
+$primary-soft: rgba(99, 102, 241, 0.1);
+
+// 强调色
+$accent: #8b5cf6;
+
+// 语义色
+$success: #10b981;
+$success-soft: rgba(16, 185, 129, 0.1);
+$warning: #f59e0b;
+$warning-soft: rgba(245, 158, 11, 0.1);
+$danger: #ef4444;
+$danger-soft: rgba(239, 68, 68, 0.1);
+$info: #06b6d4;
+$info-soft: rgba(6, 182, 212, 0.1);
+
+// 文字颜色
+$text-primary: #1f2937;
+$text-secondary: #6b7280;
+$text-muted: #9ca3af;
+$text-on-primary: #ffffff;
+
+// 背景颜色
+$bg-primary: #ffffff;
+$bg-page: #f3f4f6;
+$bg-card: #ffffff;
+$bg-secondary: #f9fafb;
+$bg-sidebar: #ffffff;
+$bg-hover: rgba(99, 102, 241, 0.05);
+
+// 边框颜色
+$border: #e5e7eb;
+$border-color: #e5e7eb; // alias for compatibility
+$border-hover: #d1d5db;
+$border-focus: $primary;
+
+// ========== 渐变 ==========
+$gradient-primary: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+$gradient-card: linear-gradient(135deg, #ffffff 0%, #f9fafb 100%);
+$gradient-hover: linear-gradient(135deg, rgba(99, 102, 241, 0.05) 0%, rgba(139, 92, 246, 0.05) 100%);
+
+// ========== 间距系统 ==========
+$spacing-unit: 1rem; // 16px
+
+$spacing-xs: $spacing-unit * 0.25;  // 4px
+$spacing-sm: $spacing-unit * 0.5;   // 8px
+$spacing-md: $spacing-unit;         // 16px
+$spacing-lg: $spacing-unit * 1.5;   // 24px
+$spacing-xl: $spacing-unit * 2;     // 32px
+$spacing-2xl: $spacing-unit * 3;    // 48px
+
+// ========== 断点系统 ==========
+$breakpoint-sm: 640px;
+$breakpoint-md: 768px;
+$breakpoint-lg: 1024px;
+$breakpoint-xl: 1280px;
+$breakpoint-2xl: 1536px;
+
+// ========== 圆角 ==========
+$radius-xs: 2px;
+$radius-sm: 4px;
+$radius-md: 8px;
+$radius-lg: 12px;
+$radius-xl: 16px;
+$radius-full: 9999px;
+
+// ========== 阴影 ==========
+$shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+$shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+$shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+$shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+$shadow-glow: 0 0 20px rgba(99, 102, 241, 0.15);
+
+// ========== 字体 ==========
+$font-family-sans: 'PingFang SC', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+$font-family-mono: 'Menlo', 'Monaco', 'Consolas', monospace;
+
+$font-size-xs: 12px;
+$font-size-sm: 13px;
+$font-size-base: 14px;
+$font-size-lg: 16px;
+$font-size-xl: 18px;
+$font-size-2xl: 20px;
+$font-size-3xl: 24px;
+
+$font-weight-normal: 400;
+$font-weight-medium: 500;
+$font-weight-semibold: 600;
+$font-weight-bold: 700;
+$font-weight-extrabold: 800;
+
+$line-height-tight: 1.25;
+$line-height-normal: 1.5;
+$line-height-relaxed: 1.75;
+
+// ========== 过渡 ==========
+$transition-fast: 0.15s ease;
+$transition-normal: 0.2s ease;
+$transition-slow: 0.3s ease;
+$transition-timing: cubic-bezier(0.4, 0, 0.2, 1);
+
+// ========== Z-index ==========
+$z-dropdown: 100;
+$z-sticky: 200;
+$z-fixed: 300;
+$z-modal-backdrop: 400;
+$z-modal: 500;
+$z-tooltip: 600;
+
+// ============================================================
+// Mixins
+// ============================================================
+
+// 响应式断点
+@mixin respond-to($breakpoint) {
+  @if $breakpoint == sm {
+    @media (max-width: $breakpoint-sm) { @content; }
+  } @else if $breakpoint == md {
+    @media (max-width: $breakpoint-md) { @content; }
+  } @else if $breakpoint == lg {
+    @media (max-width: $breakpoint-lg) { @content; }
+  } @else if $breakpoint == xl {
+    @media (max-width: $breakpoint-xl) { @content; }
+  }
+}
+
+// 卡片样式
+@mixin card($hover: false) {
+  background: $bg-card;
+  border-radius: $radius-lg;
+  box-shadow: $shadow-md;
+
+  @if $hover {
+    transition: transform $transition-normal, box-shadow $transition-normal;
+
+    &:hover {
+      transform: translateY(-2px);
+      box-shadow: $shadow-lg;
+    }
+  }
+}
+
+// Flex 居中
+@mixin flex-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+// Flex 两端对齐
+@mixin flex-between {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+// 文本省略
+@mixin text-ellipsis($lines: 1) {
+  @if $lines == 1 {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  } @else {
+    display: -webkit-box;
+    -webkit-line-clamp: $lines;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+}
+
+// 滚动条样式
+@mixin custom-scrollbar($width: 6px, $track: transparent, $thumb: rgba(0, 0, 0, 0.1)) {
+  &::-webkit-scrollbar {
+    width: $width;
+    height: $width;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: $track;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: $thumb;
+    border-radius: $width;
+
+    &:hover {
+      background: rgba(0, 0, 0, 0.2);
+    }
+  }
+}
+
+// 按钮基础样式
+@mixin button-base {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: $spacing-sm;
+  padding: $spacing-sm $spacing-md;
+  border: none;
+  border-radius: $radius-md;
+  font-size: $font-size-sm;
+  font-weight: $font-weight-medium;
+  cursor: pointer;
+  transition: all $transition-fast;
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}
+
+// 主要按钮
+@mixin button-primary {
+  @include button-base;
+  background: $gradient-primary;
+  color: $text-on-primary;
+
+  &:hover:not(:disabled) {
+    filter: brightness(1.1);
+  }
+}
+
+// 次要按钮
+@mixin button-secondary {
+  @include button-base;
+  background: $bg-secondary;
+  color: $text-secondary;
+
+  &:hover:not(:disabled) {
+    background: $border;
+    color: $text-primary;
+  }
+}
+
+// 输入框基础样式
+@mixin input-base {
+  width: 100%;
+  padding: $spacing-sm $spacing-md;
+  border: 1px solid $border;
+  border-radius: $radius-md;
+  font-size: $font-size-base;
+  color: $text-primary;
+  background: $bg-card;
+  transition: border-color $transition-fast, box-shadow $transition-fast;
+
+  &::placeholder {
+    color: $text-muted;
+  }
+
+  &:focus {
+    outline: none;
+    border-color: $primary;
+    box-shadow: 0 0 0 3px $primary-soft;
+  }
+
+  &:disabled {
+    background: $bg-secondary;
+    cursor: not-allowed;
+  }
+}
+
+// Badge 样式
+@mixin badge($bg: $bg-secondary, $color: $text-secondary) {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: $radius-full;
+  font-size: $font-size-xs;
+  font-weight: $font-weight-medium;
+  background: $bg;
+  color: $color;
+}

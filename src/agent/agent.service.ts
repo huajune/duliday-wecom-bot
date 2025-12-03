@@ -18,15 +18,11 @@ import {
 } from './utils/agent-exceptions';
 import { getModelDisplayName } from './utils';
 import { AgentRegistryService } from './services/agent-registry.service';
-import { AgentFallbackService, FallbackScenario } from './services/agent-fallback.service';
+import { AgentFallbackService } from './services/agent-fallback.service';
 import { AgentApiClientService } from './services/agent-api-client.service';
 import { ProfileSanitizer, AgentProfile } from './utils/agent-profile-sanitizer';
 import { AgentLogger } from './utils/agent-logger';
-import {
-  createSuccessResult,
-  createFallbackResult,
-  createErrorResult,
-} from './utils/agent-result-helper';
+import { createSuccessResult, createFallbackResult } from './utils/agent-result-helper';
 import { FeishuAlertService } from '@core/feishu';
 
 /**
@@ -68,12 +64,18 @@ export class AgentService {
   /**
    * 调用 /api/v1/chat 接口（非流式）
    * 支持完整的 API 契约参数
+   *
+   * 注意：API 契约字段名映射
+   * - messages: 历史消息数组（API 契约字段名）
+   * - conversationId: 仅用于日志追踪，不传给 API
+   * - userMessage: 仅用于内部处理，会被添加到 messages 数组中
+   *
    * @returns AgentResult 统一响应模型
    */
   async chat(params: {
-    conversationId: string;
-    userMessage: string;
-    historyMessages?: SimpleMessage[];
+    conversationId: string; // 仅用于日志追踪，不传给 API
+    userMessage: string; // 用户当前消息，会被添加到 messages 数组
+    messages?: SimpleMessage[]; // API 契约字段名：历史消息数组
     model?: string;
     systemPrompt?: string;
     promptType?: string;
@@ -89,11 +91,15 @@ export class AgentService {
     };
     validateOnly?: boolean;
   }): Promise<AgentResult> {
-    const { conversationId, historyMessages = [] } = params;
+    const { conversationId, messages = [] } = params;
+
+    // 保存 chatRequest 引用，用于错误时也能附加到结果
+    let chatRequest: ChatRequest | undefined;
 
     try {
       // 1. 准备请求（验证 + 构建）
-      const preparedRequest = this.prepareRequest(params, conversationId, historyMessages);
+      const preparedRequest = this.prepareRequest(params, conversationId, messages);
+      chatRequest = preparedRequest.chatRequest;
 
       // 2. 执行请求（直接调用 API）
       const result = await this.executeRequest(preparedRequest, conversationId);
@@ -101,13 +107,18 @@ export class AgentService {
       // 3. 记录结果（日志 + 统计）
       this.recordResult(result.data, conversationId);
 
-      // 4. 返回成功结果（包含原始 HTTP 响应信息）
+      // 4. 返回成功结果（包含原始 HTTP 响应信息 + 请求参数）
       const agentResult = createSuccessResult(result.data, undefined, false);
       agentResult.rawHttpResponse = result.rawHttpResponse;
+      (agentResult as any).requestBody = chatRequest;
       return agentResult;
     } catch (error) {
-      // 统一错误处理
-      return this.handleChatError(error, conversationId);
+      // 统一错误处理，附加 chatRequest
+      const agentResult = this.handleChatError(error, conversationId);
+      if (chatRequest) {
+        (agentResult as any).requestBody = chatRequest;
+      }
+      return agentResult;
     }
   }
 
@@ -160,7 +171,7 @@ export class AgentService {
   private prepareRequest(
     params: any,
     conversationId: string,
-    historyMessages: SimpleMessage[],
+    messages: SimpleMessage[],
   ): { chatRequest: ChatRequest; validatedModel: string; validatedTools: string[] } {
     const { userMessage } = params;
 
@@ -179,7 +190,7 @@ export class AgentService {
       ...params,
       model: validatedModel,
       allowedTools: validatedTools,
-      historyMessages,
+      messages, // API 契约字段名
       userMessage,
     });
 
@@ -251,11 +262,12 @@ export class AgentService {
 
   /**
    * 构建聊天请求
+   * 注意：messages 是 API 契约字段名，包含历史消息
    */
   private buildChatRequest(params: {
     model: string;
     userMessage: string;
-    historyMessages: SimpleMessage[];
+    messages: SimpleMessage[]; // API 契约字段名：历史消息数组
     systemPrompt?: string;
     promptType?: string;
     allowedTools?: string[];
@@ -269,7 +281,7 @@ export class AgentService {
     const userMsg: SimpleMessage = { role: 'user', content: params.userMessage };
     const chatRequest: ChatRequest = {
       model: params.model,
-      messages: [...params.historyMessages, userMsg],
+      messages: [...params.messages, userMsg], // 历史消息 + 当前用户消息
       stream: false,
     };
 
@@ -279,20 +291,31 @@ export class AgentService {
     if (params.allowedTools && params.allowedTools.length > 0) {
       chatRequest.allowedTools = params.allowedTools;
     }
-    if (params.context && Object.keys(params.context).length > 0) {
-      chatRequest.context = params.context;
+    // 初始化 context（确保 modelConfig 总是被注入）
+    const context = params.context ? { ...params.context } : {};
 
-      // 调试日志：检查 context 中的 dulidayToken
-      if ('dulidayToken' in params.context) {
-        const tokenLength = params.context.dulidayToken
-          ? String(params.context.dulidayToken).length
-          : 0;
-        this.logger.debug(
-          `✅ buildChatRequest: context 中包含 dulidayToken (长度: ${tokenLength})，将传递给 Agent API`,
-        );
-      } else {
-        this.logger.warn('⚠️ buildChatRequest: context 中未找到 dulidayToken');
-      }
+    // 注入 modelConfig（花卷 API 多模型配置）
+    // 如果调用方已提供 modelConfig，则保留调用方的配置（允许覆盖）
+    if (!context.modelConfig) {
+      context.modelConfig = this.registryService.getModelConfig();
+      this.logger.debug(
+        `✅ buildChatRequest: 注入 modelConfig - chatModel: ${context.modelConfig.chatModel}, classifyModel: ${context.modelConfig.classifyModel}, replyModel: ${context.modelConfig.replyModel}`,
+      );
+    }
+
+    // 调试日志：检查 context 中的 dulidayToken
+    if ('dulidayToken' in context) {
+      const tokenLength = context.dulidayToken ? String(context.dulidayToken).length : 0;
+      this.logger.debug(
+        `✅ buildChatRequest: context 中包含 dulidayToken (长度: ${tokenLength})，将传递给 Agent API`,
+      );
+    } else {
+      this.logger.warn('⚠️ buildChatRequest: context 中未找到 dulidayToken');
+    }
+
+    // 只有在 context 有内容时才添加
+    if (Object.keys(context).length > 0) {
+      chatRequest.context = context;
     }
     if (params.toolContext && Object.keys(params.toolContext).length > 0) {
       chatRequest.toolContext = params.toolContext;
@@ -347,160 +370,58 @@ export class AgentService {
 
   /**
    * 处理聊天错误（统一降级策略）
+   * 所有错误都统一降级，确保用户无感知
+   * 飞书告警用于通知开发人员排查问题
    */
   private handleChatError(error: any, conversationId: string): AgentResult {
     this.logger.error(`Agent API 调用失败，会话: ${conversationId}`, error);
 
-    // 【优化】调用失败时打印错误栈帮助排查
-    if (error.stack) {
-      this.logger.error(`错误堆栈: ${error.stack}`);
-    }
-
+    // 提取调试信息
     const requestParams = (error as any).requestParams;
     const apiKey = (error as any).apiKey;
     const apiResponse = (error as any).apiResponse || (error as any).response;
     const requestHeaders = (error as any).requestHeaders;
 
-    // 1. 配置错误（必须抛出，这是开发问题）
-    if (error instanceof AgentConfigException) {
-      const errorResult = createErrorResult(
-        {
-          code: 'CONFIG_ERROR',
-          message: error.message,
-          retryable: false,
-        },
-        conversationId,
-      );
-      // 【修复】将 requestParams、apiKey 和 apiResponse 附加到 error 上
-      (errorResult.error as any).requestParams = requestParams;
-      (errorResult.error as any).apiKey = apiKey;
-      (errorResult.error as any).response = apiResponse;
-      (errorResult.error as any).requestHeaders = requestHeaders;
-      return errorResult;
-    }
+    // 确定错误场景（用于告警和日志）
+    const scenario = this.getErrorScenario(error);
 
-    // 2. 认证失败 → 返回错误结果（需要立即修复 API Key）+ 发送飞书告警
-    if (error instanceof AgentAuthException) {
-      this.logger.error(
-        `Agent API 认证失败 (${error.statusCode}): ${error.message}，会话: ${conversationId}`,
-      );
+    // 发送飞书告警（所有错误都告警，异步不阻塞）
+    this.sendErrorAlert(error, conversationId, requestParams, scenario);
 
-      // 发送飞书告警（异步，不阻塞响应）
-      this.feishuAlertService
-        .sendAlert({
-          errorType: 'agent',
-          error,
-          conversationId,
-          userMessage: requestParams?.userMessage || '无用户消息',
-          apiEndpoint: '/api/v1/chat',
-          scenario: 'AUTH_ERROR',
-        })
-        .catch((alertError) => {
-          this.logger.error(`飞书告警发送失败: ${alertError.message}`);
-        });
+    // 统一降级处理：所有错误都返回降级消息，确保用户无感知
+    const retryAfter = error instanceof AgentRateLimitException ? error.retryAfter : undefined;
+    const errorMessage = error.message || '未知错误';
 
-      const errorResult = createErrorResult(
-        {
-          code: 'AUTH_ERROR',
-          message: error.message,
-          retryable: false,
-          details: {
-            statusCode: error.statusCode,
-            hint: '请检查 AGENT_API_KEY 环境变量是否正确配置',
-          },
-        },
-        conversationId,
-      );
-      // 【修复】将 requestParams、apiKey 和 apiResponse 附加到 error 上，供飞书告警使用
-      (errorResult.error as any).requestParams = requestParams;
-      (errorResult.error as any).apiKey = apiKey;
-      (errorResult.error as any).response = apiResponse; // 保留原始响应
-      (errorResult.error as any).requestHeaders = requestHeaders;
-      return errorResult;
-    }
+    return this.createFallbackResultWithMetadata(errorMessage, retryAfter, conversationId, {
+      requestParams,
+      apiKey,
+      apiResponse,
+      requestHeaders,
+    });
+  }
 
-    // 3. 上下文缺失 → 返回引导消息（降级）
-    if (error instanceof AgentContextMissingException) {
-      this.logger.warn(`上下文缺失，返回引导消息，会话: ${conversationId}`);
-      const fallbackInfo = this.fallbackService.getFallbackInfo(FallbackScenario.CONTEXT_MISSING);
-      const fallbackResponse = this.createFallbackResponse(fallbackInfo.message);
-      const fallbackResult = createFallbackResult(fallbackResponse, fallbackInfo, conversationId);
-      // 【修复】附加 requestParams、apiKey 和 apiResponse
-      (fallbackResult as any).requestParams = requestParams;
-      (fallbackResult as any).apiKey = apiKey;
-      (fallbackResult as any).response = apiResponse;
-      (fallbackResult as any).requestHeaders = requestHeaders;
-      return fallbackResult;
-    }
+  /**
+   * 获取错误场景标识
+   */
+  private getErrorScenario(error: any): string {
+    if (error instanceof AgentConfigException) return 'CONFIG_ERROR';
+    if (error instanceof AgentAuthException) return 'AUTH_ERROR';
+    if (error instanceof AgentContextMissingException) return 'CONTEXT_MISSING';
+    if (error instanceof AgentRateLimitException) return 'RATE_LIMIT';
+    if (error instanceof AgentApiException) return 'AGENT_API_ERROR';
+    if (error.code === 'ECONNREFUSED' || error.code === 'ETIMEDOUT') return 'NETWORK_ERROR';
+    return 'OTHER_ERROR';
+  }
 
-    // 4. 频率限制 → 返回等待消息（降级）
-    if (error instanceof AgentRateLimitException) {
-      this.logger.warn(`请求频率受限，返回等待消息，会话: ${conversationId}`);
-      const fallbackInfo = this.fallbackService.getFallbackInfo(
-        FallbackScenario.RATE_LIMIT,
-        error.retryAfter,
-      );
-      const fallbackResponse = this.createFallbackResponse(fallbackInfo.message);
-      const fallbackResult = createFallbackResult(fallbackResponse, fallbackInfo, conversationId);
-      // 【修复】附加 requestParams、apiKey 和 apiResponse
-      (fallbackResult as any).requestParams = requestParams;
-      (fallbackResult as any).apiKey = apiKey;
-      (fallbackResult as any).response = apiResponse;
-      (fallbackResult as any).requestHeaders = requestHeaders;
-      return fallbackResult;
-    }
-
-    // 5. 网络错误 → 返回通用降级消息
-    if (error.code === 'ECONNREFUSED' || error.code === 'ETIMEDOUT') {
-      this.logger.error(`网络连接失败，返回降级消息，会话: ${conversationId}`, {
-        code: error.code,
-      });
-      const fallbackInfo = this.fallbackService.getFallbackInfo(FallbackScenario.NETWORK_ERROR);
-      const fallbackResponse = this.createFallbackResponse(fallbackInfo.message);
-      const fallbackResult = createFallbackResult(fallbackResponse, fallbackInfo, conversationId);
-      // 【修复】附加 requestParams、apiKey 和 apiResponse
-      (fallbackResult as any).requestParams = requestParams;
-      (fallbackResult as any).apiKey = apiKey;
-      (fallbackResult as any).response = apiResponse;
-      (fallbackResult as any).requestHeaders = requestHeaders;
-      return fallbackResult;
-    }
-
-    // 6. Agent API 异常 → 根据错误类型决定 + 发送飞书告警
-    if (error instanceof AgentApiException) {
-      const fallbackInfo = this.fallbackService.getFallbackInfo(FallbackScenario.AGENT_API_ERROR);
-      this.logger.warn(
-        `Agent API 异常，返回降级消息: "${fallbackInfo.message}"，会话: ${conversationId}`,
-      );
-
-      // 发送飞书告警（异步，不阻塞响应）
-      this.feishuAlertService
-        .sendAlert({
-          errorType: 'agent',
-          error,
-          conversationId,
-          userMessage: requestParams?.userMessage || '无用户消息',
-          apiEndpoint: '/api/v1/chat',
-          scenario: 'AGENT_API_ERROR',
-        })
-        .catch((alertError) => {
-          this.logger.error(`飞书告警发送失败: ${alertError.message}`);
-        });
-
-      const fallbackResponse = this.createFallbackResponse(fallbackInfo.message);
-      const fallbackResult = createFallbackResult(fallbackResponse, fallbackInfo, conversationId);
-      // 附加 requestParams、apiKey 和 apiResponse
-      (fallbackResult as any).requestParams = requestParams;
-      (fallbackResult as any).apiKey = apiKey;
-      (fallbackResult as any).response = apiResponse;
-      (fallbackResult as any).requestHeaders = requestHeaders;
-      return fallbackResult;
-    }
-
-    // 7. 其他未知错误 → 返回通用降级消息 + 发送飞书告警
-    this.logger.error(`未知错误，返回降级消息，会话: ${conversationId}`, error);
-
-    // 发送飞书告警（异步，不阻塞响应）
+  /**
+   * 发送飞书告警（异步，不阻塞）
+   */
+  private sendErrorAlert(
+    error: any,
+    conversationId: string,
+    requestParams: any,
+    scenario: string,
+  ): void {
     this.feishuAlertService
       .sendAlert({
         errorType: 'agent',
@@ -508,20 +429,30 @@ export class AgentService {
         conversationId,
         userMessage: requestParams?.userMessage || '无用户消息',
         apiEndpoint: '/api/v1/chat',
-        scenario: 'UNKNOWN_ERROR',
+        scenario,
       })
       .catch((alertError) => {
         this.logger.error(`飞书告警发送失败: ${alertError.message}`);
       });
+  }
 
-    const fallbackInfo = this.fallbackService.getFallbackInfo(FallbackScenario.NETWORK_ERROR);
+  /**
+   * 创建降级响应（附加元数据）
+   */
+  private createFallbackResultWithMetadata(
+    errorMessage: string,
+    retryAfter: number | undefined,
+    conversationId: string,
+    metadata: { requestParams?: any; apiKey?: any; apiResponse?: any; requestHeaders?: any },
+  ): AgentResult {
+    const fallbackInfo = this.fallbackService.getFallbackInfo(errorMessage, retryAfter);
     const fallbackResponse = this.createFallbackResponse(fallbackInfo.message);
     const fallbackResult = createFallbackResult(fallbackResponse, fallbackInfo, conversationId);
-    // 【修复】附加 requestParams、apiKey 和 apiResponse
-    (fallbackResult as any).requestParams = requestParams;
-    (fallbackResult as any).apiKey = apiKey;
-    (fallbackResult as any).response = apiResponse;
-    (fallbackResult as any).requestHeaders = requestHeaders;
+    // 附加调试信息
+    (fallbackResult as any).requestParams = metadata.requestParams;
+    (fallbackResult as any).apiKey = metadata.apiKey;
+    (fallbackResult as any).response = metadata.apiResponse;
+    (fallbackResult as any).requestHeaders = metadata.requestHeaders;
     return fallbackResult;
   }
 

@@ -150,8 +150,14 @@ export interface SimpleMessageItem {
 }
 
 /**
- * Agent 调用输入参数（用于调试，去除品牌数据）
+ * 模型配置（花卷 API 多模型配置）
  */
+export interface ModelConfigParams {
+  chatModel?: string; // 主对话模型
+  classifyModel?: string; // 意图分类模型
+  replyModel?: string; // 回复生成模型
+}
+
 export interface AgentInputParams {
   conversationId: string;
   userMessage: string;
@@ -162,6 +168,8 @@ export interface AgentInputParams {
   allowedTools?: string[];
   contextStrategy?: string;
   prune?: boolean;
+  // 模型配置（花卷 API 多模型配置）
+  modelConfig?: ModelConfigParams;
   // Prompt 相关字段（仅记录是否传入和长度，不记录内容）
   hasSystemPrompt?: boolean;
   systemPromptLength?: number;
@@ -175,6 +183,11 @@ export interface AgentInputParams {
   brandPriorityStrategy?: string;
   // 调试字段
   _mergedContextKeys?: string[];
+  // 完整原始入参 JSON（超长字段已省略，用于 Dashboard 展示调试）
+  rawParams?: string;
+  // rawParams 来源：'ChatRequest' 表示使用实际 API 请求体，'agentParams' 表示回退到处理器参数
+  // 当错误发生在 prepareRequest 之前（如参数验证失败），chatRequest 为 undefined，此时回退到 agentParams
+  rawParamsSource?: 'ChatRequest' | 'agentParams';
 }
 
 /**
@@ -210,6 +223,8 @@ export interface RawAgentResponse {
     success: boolean;
     error?: string;
     correlationId?: string;
+    // 错误详情（保留原始 API 返回的 details 字段，如 "Payment Required"）
+    details?: string | Record<string, unknown>;
   };
 
   // === ChatResponse 数据 ===
@@ -233,6 +248,10 @@ export interface RawAgentResponse {
   isFallback?: boolean;
   // 降级原因
   fallbackReason?: string;
+  // 回复内容来源（用于排障）
+  // 'zhipin_reply_generator.output.reply' - 从回复生成工具提取
+  // 'assistant.parts.text' - 从 assistant 消息的 text part 提取
+  replySource?: 'zhipin_reply_generator.output.reply' | 'assistant.parts.text';
 }
 
 export interface MonitoringMetadata {
@@ -269,7 +288,8 @@ export interface MessageProcessingRecord {
   totalDuration?: number; // 总耗时
   aiDuration?: number; // AI 处理耗时
   sendDuration?: number; // 消息发送耗时
-  queueDuration?: number; // 排队耗时（AI 开始前）
+  queueDuration?: number; // 排队耗时（消息接收到 Worker 开始处理）
+  prepDuration?: number; // 预处理耗时（Worker 内部，AI 调用前的准备工作）
 
   // 状态
   status: 'processing' | 'success' | 'failure';

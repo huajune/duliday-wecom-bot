@@ -1,14 +1,16 @@
 import { Routes, Route } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import Layout from '@/components/Layout';
-import Dashboard from '@/pages/Dashboard';
-import Users from '@/pages/Users';
-import Config from '@/pages/Config';
-import Hosting from '@/pages/Hosting';
-import System from '@/pages/System';
-import Logs from '@/pages/Logs';
-import ConsoleLogs from '@/pages/ConsoleLogs';
-import ChatRecords from '@/pages/ChatRecords';
+
+// View imports - 使用 view/模块/list 目录结构
+import Dashboard from '@/view/dashboard/list';
+import Logs from '@/view/logs/list';
+import ChatRecords from '@/view/chat-records/list';
+import System from '@/view/system/list';
+import Config from '@/view/config/list';
+import ConsoleLogs from '@/view/consoleLogs/list';
+import Hosting from '@/view/hosting/list';
+import Users from '@/view/users/list';
 
 function App() {
   return (

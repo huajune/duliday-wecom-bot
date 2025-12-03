@@ -1,0 +1,69 @@
+// ============================================================
+// DuLiDay Dashboard - 主样式入口
+// ============================================================
+//
+// 样式架构:
+// 1. _variables.scss - SCSS 变量和 Mixins
+// 2. _common.scss    - 基础重置和全局样式
+// 3. _layout.scss    - 布局相关 (sidebar, content, grids)
+// 4. _components.scss - UI 组件 (buttons, cards, modals, tables)
+// 5. _utilities.scss  - 工具类和动画
+//
+// 组件级样式使用 CSS Modules: *.module.scss
+// ============================================================
+
+// 1. 变量和 Mixins (必须最先导入)
+@use './variables' as *;
+
+// 2. 基础重置
+@use './common';
+
+// 3. 布局
+@use './layout';
+
+// 4. 组件
+@use './components';
+
+// 5. 工具类和动画
+@use './utilities';
+
+// ========== CSS 变量 (用于运行时主题) ==========
+:root {
+  // 主色调 - 梦幻蓝紫
+  --primary: #{$primary};
+  --primary-dark: #{$primary-dark};
+  --primary-light: #{$primary-light};
+  --primary-soft: #{$primary-soft};
+
+  // 辅助色
+  --accent: #{$accent};
+  --success: #{$success};
+  --warning: #{$warning};
+  --danger: #{$danger};
+  --info: #{$info};
+
+  // 文字颜色
+  --text-primary: #{$text-primary};
+  --text-secondary: #{$text-secondary};
+  --text-muted: #{$text-muted};
+  --text-on-primary: #{$text-on-primary};
+
+  // 背景与边框
+  --bg-page: #{$bg-page};
+  --bg-sidebar: #{$bg-sidebar};
+  --bg-card: #{$bg-card};
+  --border: #{$border};
+  --border-hover: #{$border-hover};
+  --bg-secondary: #{$bg-secondary};
+
+  // 渐变
+  --gradient-primary: #{$gradient-primary};
+  --gradient-card: #{$gradient-card};
+  --gradient-hover: #{$gradient-hover};
+
+  // 阴影
+  --shadow-sm: #{$shadow-sm};
+  --shadow-md: #{$shadow-md};
+  --shadow-lg: #{$shadow-lg};
+  --shadow-glow: #{$shadow-glow};
+}

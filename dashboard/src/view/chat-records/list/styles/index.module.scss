@@ -1,0 +1,18 @@
+// ChatRecords 页面主样式
+@use '@/assets/styles/variables' as *;
+
+.page {
+  padding-bottom: 40px;
+}
+
+.chatLayout {
+  display: flex;
+  gap: $spacing-md;
+  height: calc(100vh - 280px);
+  min-height: 500px;
+
+  @include respond-to(lg) {
+    flex-direction: column;
+    height: auto;
+  }
+}

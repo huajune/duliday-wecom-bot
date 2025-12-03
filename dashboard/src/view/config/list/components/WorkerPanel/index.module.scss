@@ -1,0 +1,138 @@
+// WorkerPanel 组件样式
+@use '@/assets/styles/variables' as *;
+
+.panel {
+  padding: $spacing-md;
+  background: $bg-secondary;
+  border-radius: $radius-lg;
+  border: 1px solid $border;
+}
+
+.header {
+  @include flex-between;
+  margin-bottom: $spacing-xs;
+}
+
+.titleRow {
+  display: flex;
+  align-items: center;
+  gap: $spacing-sm;
+}
+
+.label {
+  font-weight: $font-weight-semibold;
+  color: $text-primary;
+  font-size: $font-size-sm;
+}
+
+.activeJobs {
+  font-size: 11px;
+  color: $success;
+}
+
+.value {
+  font-size: $font-size-lg;
+  font-weight: $font-weight-bold;
+  color: $primary;
+}
+
+.description {
+  font-size: $font-size-xs;
+  color: $text-muted;
+  margin: 0 0 $spacing-sm 0;
+  line-height: $line-height-relaxed;
+}
+
+// 吞吐量计算公式
+.formula {
+  font-size: 11px;
+  color: $text-muted;
+  padding: $spacing-sm $spacing-sm;
+  background: $bg-primary;
+  border-radius: $radius-md;
+  margin-bottom: $spacing-sm;
+  line-height: $line-height-normal;
+  font-family: $font-family-mono;
+}
+
+.formulaExample {
+  margin-top: $spacing-xs;
+  color: $text-secondary;
+}
+
+.highlight {
+  color: $primary;
+  font-weight: $font-weight-semibold;
+}
+
+// 滑块控制区域
+.sliderRow {
+  display: flex;
+  align-items: center;
+  gap: $spacing-sm;
+}
+
+.slider {
+  flex: 1;
+  height: 4px;
+  accent-color: $primary;
+  cursor: pointer;
+}
+
+.numberInput {
+  width: 50px;
+  padding: $spacing-xs $spacing-sm;
+  border: 1px solid $border;
+  border-radius: $radius-md;
+  background: $bg-primary;
+  color: $text-primary;
+  text-align: right;
+  font-size: $font-size-xs;
+  transition: border-color $transition-fast;
+
+  &:focus {
+    outline: none;
+    border-color: $primary;
+  }
+}
+
+// 底部区域
+.footer {
+  @include flex-between;
+  margin-top: $spacing-sm;
+}
+
+.rangeHint {
+  font-size: 11px;
+  color: $text-muted;
+}
+
+.actions {
+  display: flex;
+  gap: $spacing-sm;
+}
+
+.btnGhost {
+  @include button-secondary;
+  padding: 4px 10px;
+  font-size: 11px;
+}
+
+.btnPrimary {
+  @include button-primary;
+  padding: 4px 10px;
+  font-size: 11px;
+}
+
+// Loading 状态
+.loadingText {
+  padding: $spacing-md;
+  text-align: center;
+  color: $text-muted;
+  font-size: $font-size-sm;
+}
+
+.errorText {
+  color: $text-muted;
+  font-size: $font-size-sm;
+}
