@@ -16,7 +16,6 @@ import { MonitoringService } from '@/core/monitoring/monitoring.service';
 import { FeishuAlertService } from '@core/feishu';
 import { AgentInvokeResult, AgentReply, FallbackMessageOptions } from '../types';
 import { BrandContext } from '@agent';
-import { FallbackMessageService } from './message-fallback.service';
 import { ReplyNormalizer } from '../utils/reply-normalizer.util';
 
 /**
@@ -39,6 +38,15 @@ export class AgentGatewayService {
   // 缓存最后一次成功的品牌配置（用于降级）
   private lastValidBrandConfig: BrandContext | null = null;
 
+  // 默认降级话术（内联自 FallbackMessageService）
+  private readonly defaultFallbackMessages: string[] = [
+    '收到，我需要跟同事同步一下再回复您～',
+    '抱歉稍等，我需要跟同事确认一下再回复您～',
+    '您先别急，我这边马上去核实一下信息～',
+    '我这边先去对下数据，请稍等哈～',
+    '稍等片刻，我跟负责的同事了解下最新的信息～',
+  ];
+
   constructor(
     private readonly configService: ConfigService,
     private readonly agentService: AgentService,
@@ -47,7 +55,6 @@ export class AgentGatewayService {
     private readonly monitoringService: MonitoringService,
     private readonly feishuAlertService: FeishuAlertService,
     private readonly brandConfigService: BrandConfigService,
-    private readonly fallbackMessageService: FallbackMessageService,
   ) {}
 
   // ========================================
@@ -160,13 +167,31 @@ export class AgentGatewayService {
   // ========================================
 
   /**
-   * 获取降级消息
+   * 获取降级消息（内联自 FallbackMessageService）
    *
    * @param options 选项配置
    * @returns 降级消息文本
    */
   getFallbackMessage(options?: FallbackMessageOptions): string {
-    return this.fallbackMessageService.getMessage(options);
+    // 1. 优先使用自定义消息
+    if (options?.customMessage) {
+      return options.customMessage;
+    }
+
+    // 2. 其次使用环境变量配置
+    const envMessage = this.configService.get<string>('AGENT_FALLBACK_MESSAGE', '');
+    if (envMessage) {
+      return envMessage;
+    }
+
+    // 3. 不随机时返回第一条
+    if (options?.random === false) {
+      return this.defaultFallbackMessages[0];
+    }
+
+    // 4. 默认随机返回
+    const index = Math.floor(Math.random() * this.defaultFallbackMessages.length);
+    return this.defaultFallbackMessages[index];
   }
 
   // ========================================
@@ -412,11 +437,24 @@ export class AgentGatewayService {
 
   /**
    * 提取 AI 回复内容
+   * 优先级：
+   * 1. zhipin_reply_generator 工具的 reply 字段（智能回复）
+   * 2. 最后一条 assistant 消息的文本内容
+   *
    * 包含兜底清洗逻辑：将 Markdown 格式转换为自然口语
    */
   private extractReplyContent(chatResponse: ChatResponse): string {
     if (!chatResponse.messages || chatResponse.messages.length === 0) {
       throw new Error('AI 未生成有效回复');
+    }
+
+    // 🎯 优先提取 zhipin_reply_generator 工具的 reply 字段
+    const replyFromTool = this.extractReplyFromZhipinTool(chatResponse.messages);
+    if (replyFromTool) {
+      this.logger.log(
+        `[extractReplyContent] 使用 zhipin_reply_generator 的 reply: "${replyFromTool.substring(0, 50)}..."`,
+      );
+      return this.normalizeContent(replyFromTool);
     }
 
     // 获取最后一条 assistant 消息
@@ -442,6 +480,59 @@ export class AgentGatewayService {
     // 拼接所有文本内容
     const rawContent = textParts.join('\n\n');
 
+    return this.normalizeContent(rawContent);
+  }
+
+  /**
+   * 从 messages 中提取 zhipin_reply_generator 工具的 reply 字段
+   * 如果有多个调用，取最后一个有效的 reply
+   *
+   * 注意：API 响应的 parts 实际包含多种类型（text, dynamic-tool 等），
+   * 但 TypeScript 类型定义只声明了 text 类型，这里使用类型断言处理运行时多态
+   */
+  private extractReplyFromZhipinTool(messages: ChatResponse['messages']): string | null {
+    if (!messages) return null;
+
+    // 倒序遍历，找最后一个 zhipin_reply_generator 工具的输出
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const message = messages[i];
+      if (message.role !== 'assistant' || !message.parts) continue;
+
+      for (const part of message.parts) {
+        // 使用类型断言处理运行时的动态类型
+        const dynamicPart = part as unknown as {
+          type: string;
+          toolName?: string;
+          state?: string;
+          output?: { reply?: string };
+        };
+
+        if (
+          dynamicPart.type === 'dynamic-tool' &&
+          dynamicPart.toolName === 'zhipin_reply_generator' &&
+          dynamicPart.state === 'output-available' &&
+          dynamicPart.output?.reply
+        ) {
+          const reply = dynamicPart.output.reply;
+          // 验证 reply 是有效字符串
+          if (typeof reply === 'string' && reply.trim().length > 0) {
+            this.logger.debug(
+              `[extractReplyFromZhipinTool] 找到 zhipin_reply_generator reply: "${reply.substring(0, 100)}..."`,
+            );
+            return reply;
+          }
+        }
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * 规范化回复内容
+   * 将 Markdown 列表格式转换为自然口语
+   */
+  private normalizeContent(rawContent: string): string {
     // 🛡️ 兜底清洗：将 Markdown 列表格式转换为自然口语
     // 即使 AI 偶尔生成带列表符号的回复，这里也能保证发出去的是人话
     if (ReplyNormalizer.needsNormalization(rawContent)) {

@@ -12,13 +12,13 @@ import { SupabaseModule } from '@core/supabase';
 import { MessageDeduplicationService } from './services/message-deduplication.service';
 import { MessageHistoryService } from './services/message-history.service';
 import { MessageFilterService } from './services/message-filter.service';
-import { MessageMergeService } from './services/message-merge.service';
+import { SimpleMergeService } from './services/simple-merge.service';
 import { MessageStatisticsService } from './services/message-statistics.service';
 import { TypingDelayService } from './services/message-typing-delay.service';
 import { MessageDeliveryService } from './services/message-delivery.service';
 import { AgentGatewayService } from './services/message-agent-gateway.service';
-import { FallbackMessageService } from './services/message-fallback.service';
 import { MessageCallbackAdapterService } from './services/message-callback-adapter.service';
+import { MessagePipelineService } from './services/message-pipeline.service';
 
 /**
  * 消息处理模块
@@ -183,17 +183,17 @@ import { MessageCallbackAdapterService } from './services/message-callback-adapt
     // 主服务
     MessageService,
     MessageProcessor,
-    // 子服务（9个核心服务，按职责分类）
+    // 子服务（10个核心服务，按职责分类）
     MessageDeduplicationService, // 消息去重
     MessageHistoryService, // 消息历史
     MessageFilterService, // 消息过滤
-    MessageMergeService, // 消息聚合
+    SimpleMergeService, // 简化版消息聚合（使用 Bull Queue 原生能力）
     MessageStatisticsService, // 统计监控
     TypingDelayService, // 智能打字延迟
     MessageDeliveryService, // 消息发送（统一分段发送和监控）
-    AgentGatewayService, // Agent 调用网关（增强版：包含上下文构建和降级处理）
-    FallbackMessageService, // 用户降级话术集中管理
+    AgentGatewayService, // Agent 调用网关（增强版：包含上下文构建、降级处理和降级话术）
     MessageCallbackAdapterService, // 消息回调适配器（支持小组级和企业级格式）
+    MessagePipelineService, // 消息处理管线（核心处理逻辑）
   ],
   exports: [MessageService, MessageFilterService, MessageHistoryService, MessageProcessor],
 })

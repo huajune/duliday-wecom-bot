@@ -28,23 +28,12 @@ export class AgentApiClientService {
     private readonly configService: ConfigService,
     private readonly httpClientFactory: HttpClientFactory,
   ) {
-    // ⚠️ 【临时诊断】硬编码 API Key 用于排查环境变量注入问题
-    // TODO: 确认问题后恢复使用环境变量
-    this.apiKey = 'f4174f.nEA0MYE3Vz-U0O2w4HawdA.QH1lUahJwLpKnvm6';
-    const envApiKey = this.configService.get<string>('AGENT_API_KEY');
-
-    // 对比环境变量和硬编码的值
-    if (envApiKey !== this.apiKey) {
-      this.logger.warn('⚠️ 环境变量中的 API Key 与硬编码值不一致！');
-      this.logger.warn(`环境变量 API Key: ${envApiKey?.substring(0, 10)}...`);
-      this.logger.warn(`硬编码 API Key: ${this.apiKey.substring(0, 10)}...`);
-    } else {
-      this.logger.log('✅ 环境变量与硬编码 API Key 一致');
-    }
-
+    // 从环境变量读取配置
+    this.apiKey = this.configService.get<string>('AGENT_API_KEY')!;
     this.baseURL = this.configService.get<string>('AGENT_API_BASE_URL')!;
     this.timeout = this.configService.get<number>('AGENT_API_TIMEOUT') ?? 600000; // 默认 10 分钟
-    this.maxRetries = this.configService.get<number>('AGENT_API_MAX_RETRIES') ?? 5; // 默认 5 次
+    // 重试策略：Agent 层仅处理瞬时网络抖动（2次），持久性故障由 Bull Queue 层处理（3次）
+    this.maxRetries = this.configService.get<number>('AGENT_API_MAX_RETRIES') ?? 2;
 
     // 【修复】验证关键配置是否已加载，防止环境变量加载时序问题
     if (!this.apiKey) {

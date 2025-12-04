@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { MessageDeduplicationService } from './message-deduplication.service';
 import { MessageHistoryService } from './message-history.service';
-import { MessageMergeService } from './message-merge.service';
+import { SimpleMergeService } from './simple-merge.service';
 
 /**
  * 消息统计和监控服务
@@ -12,7 +12,7 @@ export class MessageStatisticsService {
   constructor(
     private readonly deduplicationService: MessageDeduplicationService,
     private readonly historyService: MessageHistoryService,
-    private readonly mergeService: MessageMergeService,
+    private readonly simpleMergeService: SimpleMergeService,
   ) {}
 
   /**
@@ -55,12 +55,13 @@ export class MessageStatisticsService {
       },
       messageDeduplication: this.deduplicationService.getStats(),
       conversationHistory: this.historyService.getStats(),
-      messageMergeQueues: this.mergeService.getStats(),
+      messageMergeQueues: this.simpleMergeService.getStats(),
     };
   }
 
   /**
    * 手动清理内存缓存
+   * 注意：SimpleMergeService 使用 Bull Queue 原生能力，不需要手动清理聚合队列
    */
   async clearCache(options?: {
     deduplication?: boolean;
@@ -96,12 +97,10 @@ export class MessageStatisticsService {
       result.cleared.history = true;
     }
 
-    // 清理消息聚合队列
+    // 消息聚合队列：SimpleMergeService 使用 Bull Queue + Redis List
+    // 清理由 Redis TTL 自动处理，无需手动清理
     if (opts.mergeQueues) {
-      if (opts.chatId) {
-        await this.mergeService.clearConversation(opts.chatId);
-      }
-      result.cleared.mergeQueues = true;
+      result.cleared.mergeQueues = true; // 标记为已清理（实际由 Redis TTL 处理）
     }
 
     return result;

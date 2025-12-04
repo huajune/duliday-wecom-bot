@@ -2,27 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { SupabaseService } from '@core/supabase';
 import { MessageParser } from '../utils/message-parser.util';
-
-/**
- * 消息历史记录项（基础版本）
- */
-interface MessageHistoryItem {
-  role: 'user' | 'assistant';
-  content: string;
-  timestamp: number;
-}
-
-/**
- * 增强的消息历史记录项（包含完整元数据，用于飞书同步）
- */
-export interface EnhancedMessageHistoryItem extends MessageHistoryItem {
-  messageId: string; // 消息ID
-  chatId: string; // 会话ID
-  candidateName?: string; // 候选人昵称（contactName）
-  managerName?: string; // 招募经理昵称（botUserId）
-  orgId?: string; // 企业ID
-  botId?: string; // Bot ID
-}
+import { EnhancedMessageHistoryItem } from '../types';
 
 /**
  * 消息历史管理服务

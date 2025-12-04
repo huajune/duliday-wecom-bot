@@ -157,6 +157,42 @@ export interface FallbackMessageOptions {
 }
 
 // ========================================
+// 消息历史相关类型
+// ========================================
+
+/**
+ * 消息历史记录项（基础版本）
+ * 用于 Agent 上下文构建
+ */
+export interface MessageHistoryItem {
+  /** 消息角色 */
+  role: 'user' | 'assistant';
+  /** 消息内容 */
+  content: string;
+  /** 时间戳（毫秒） */
+  timestamp: number;
+}
+
+/**
+ * 增强的消息历史记录项
+ * 包含完整元数据，用于飞书同步、详情查询等高级功能
+ */
+export interface EnhancedMessageHistoryItem extends MessageHistoryItem {
+  /** 消息ID */
+  messageId: string;
+  /** 会话ID */
+  chatId: string;
+  /** 候选人昵称（contactName） */
+  candidateName?: string;
+  /** 招募经理昵称（botUserId） */
+  managerName?: string;
+  /** 企业ID */
+  orgId?: string;
+  /** Bot ID */
+  botId?: string;
+}
+
+// ========================================
 // 聚合处理相关类型
 // ========================================
 
