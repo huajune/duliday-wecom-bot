@@ -16,6 +16,7 @@ import { MonitoringService } from '@/core/monitoring/monitoring.service';
 import { AgentInvokeResult, AgentReply, FallbackMessageOptions } from '../types';
 import { BrandContext } from '@agent';
 import { ReplyNormalizer } from '../utils/reply-normalizer.util';
+import { MessageParser } from '../utils/message-parser.util';
 
 /**
  * Agent 网关服务（增强版）
@@ -236,13 +237,16 @@ export class AgentGatewayService {
       // 3. 清理 context，移除内部元数据字段（不传给 Agent API）
       const cleanedContext = this.cleanContextForAgent(mergedContext);
 
-      // 4. 调用 Agent API
+      // 4. 动态注入当前时间到 System Prompt
+      const systemPrompt = this.injectCurrentTime(agentProfile.systemPrompt);
+
+      // 5. 调用 Agent API
       const agentResult = await this.agentService.chat({
         conversationId,
         userMessage,
         messages: historyMessages, // API 契约字段名
         model: agentProfile.model,
-        systemPrompt: agentProfile.systemPrompt,
+        systemPrompt,
         promptType: agentProfile.promptType,
         allowedTools: agentProfile.allowedTools,
         context: cleanedContext,
@@ -398,15 +402,6 @@ export class AgentGatewayService {
       throw new Error('AI 未生成有效回复');
     }
 
-    // 🎯 优先提取 zhipin_reply_generator 工具的 reply 字段
-    const replyFromTool = this.extractReplyFromZhipinTool(chatResponse.messages);
-    if (replyFromTool) {
-      this.logger.log(
-        `[extractReplyContent] 使用 zhipin_reply_generator 的 reply: "${replyFromTool.substring(0, 50)}..."`,
-      );
-      return this.normalizeContent(replyFromTool);
-    }
-
     // 获取最后一条 assistant 消息
     const lastAssistantMessage = chatResponse.messages.filter((m) => m.role === 'assistant').pop();
 
@@ -434,51 +429,6 @@ export class AgentGatewayService {
   }
 
   /**
-   * 从 messages 中提取 zhipin_reply_generator 工具的 reply 字段
-   * 如果有多个调用，取最后一个有效的 reply
-   *
-   * 注意：API 响应的 parts 实际包含多种类型（text, dynamic-tool 等），
-   * 但 TypeScript 类型定义只声明了 text 类型，这里使用类型断言处理运行时多态
-   */
-  private extractReplyFromZhipinTool(messages: ChatResponse['messages']): string | null {
-    if (!messages) return null;
-
-    // 倒序遍历，找最后一个 zhipin_reply_generator 工具的输出
-    for (let i = messages.length - 1; i >= 0; i--) {
-      const message = messages[i];
-      if (message.role !== 'assistant' || !message.parts) continue;
-
-      for (const part of message.parts) {
-        // 使用类型断言处理运行时的动态类型
-        const dynamicPart = part as unknown as {
-          type: string;
-          toolName?: string;
-          state?: string;
-          output?: { reply?: string };
-        };
-
-        if (
-          dynamicPart.type === 'dynamic-tool' &&
-          dynamicPart.toolName === 'zhipin_reply_generator' &&
-          dynamicPart.state === 'output-available' &&
-          dynamicPart.output?.reply
-        ) {
-          const reply = dynamicPart.output.reply;
-          // 验证 reply 是有效字符串
-          if (typeof reply === 'string' && reply.trim().length > 0) {
-            this.logger.debug(
-              `[extractReplyFromZhipinTool] 找到 zhipin_reply_generator reply: "${reply.substring(0, 100)}..."`,
-            );
-            return reply;
-          }
-        }
-      }
-    }
-
-    return null;
-  }
-
-  /**
    * 规范化回复内容
    * 将 Markdown 列表格式转换为自然口语
    */
@@ -494,5 +444,16 @@ export class AgentGatewayService {
     }
 
     return rawContent;
+  }
+
+  /**
+   * 动态注入当前时间到 System Prompt
+   * 替换 {{CURRENT_TIME}} 占位符为实际时间
+   */
+  private injectCurrentTime(systemPrompt?: string): string | undefined {
+    if (!systemPrompt) return systemPrompt;
+
+    const currentTime = MessageParser.formatCurrentTime();
+    return systemPrompt.replace('{{CURRENT_TIME}}', currentTime);
   }
 }

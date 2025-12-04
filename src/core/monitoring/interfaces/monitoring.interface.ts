@@ -209,49 +209,28 @@ export interface RawHttpResponse {
 }
 
 /**
- * 完整 Agent 响应结构（对应 ChatResponse）
+ * Agent 调用记录（用于 Dashboard 排障）
+ *
+ * 设计原则：
+ * - request: 完整的 ChatRequest 请求体
+ * - response: 完整的 ChatResponse 响应体
+ * - http: HTTP 层面的元信息（可选）
+ * - isFallback: 是否为降级响应
  */
-export interface RawAgentResponse {
-  // Agent 调用输入参数（用于调试）
-  input?: AgentInputParams;
+export interface AgentInvocationRecord {
+  /** 实际发送给 /api/v1/chat 的请求体（ChatRequest） */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  request: Record<string, any>;
 
-  // === 完整 HTTP 响应信息 ===
+  /** Agent API 的原始响应（ChatResponse） */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  response: Record<string, any>;
+
+  /** 是否为降级响应 */
+  isFallback: boolean;
+
+  /** HTTP 响应元信息（可选） */
   http?: RawHttpResponse;
-
-  // === API 响应外层包装 (ApiResponse<ChatResponse>) ===
-  apiResponse?: {
-    success: boolean;
-    error?: string;
-    correlationId?: string;
-    // 错误详情（保留原始 API 返回的 details 字段，如 "Payment Required"）
-    details?: string | Record<string, unknown>;
-  };
-
-  // === ChatResponse 数据 ===
-  // 完整消息数组（保留原始结构）
-  messages: AgentResponseMessage[];
-  // Token 使用统计
-  usage: {
-    inputTokens: number;
-    outputTokens: number;
-    totalTokens: number;
-    cachedInputTokens?: number;
-  };
-  // 工具使用情况
-  tools: {
-    used: string[];
-    skipped: string[];
-  };
-
-  // === 业务层补充信息 ===
-  // 是否降级响应
-  isFallback?: boolean;
-  // 降级原因
-  fallbackReason?: string;
-  // 回复内容来源（用于排障）
-  // 'zhipin_reply_generator.output.reply' - 从回复生成工具提取
-  // 'assistant.parts.text' - 从 assistant 消息的 text part 提取
-  replySource?: 'zhipin_reply_generator.output.reply' | 'assistant.parts.text';
 }
 
 export interface MonitoringMetadata {
@@ -262,8 +241,8 @@ export interface MonitoringMetadata {
   replySegments?: number;
   isFallback?: boolean;
   alertType?: AlertErrorType;
-  // 完整 Agent 响应（新结构）
-  rawAgentResponse?: RawAgentResponse;
+  /** Agent 调用记录（完整的请求/响应，用于排障） */
+  agentInvocation?: AgentInvocationRecord;
 }
 
 /**
@@ -305,8 +284,8 @@ export interface MessageProcessingRecord {
   replySegments?: number; // 实际发送的回复条数
   alertType?: AlertErrorType;
 
-  // 完整 Agent 响应（用于排障）
-  rawAgentResponse?: RawAgentResponse;
+  /** Agent 调用记录（完整的请求/响应，用于排障） */
+  agentInvocation?: AgentInvocationRecord;
 }
 export interface AlertTypeMetric {
   type: AlertErrorType | 'unknown';

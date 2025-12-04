@@ -5,10 +5,31 @@
  * 目标：即使 AI 偶尔生成 Markdown 格式，业务层也能保证发出去的是人话
  */
 export class ReplyNormalizer {
+  /**
+   * 时间标记正则表达式
+   * 匹配历史消息中注入的时间标记，防止模型模仿输出
+   * 格式：[消息发送时间：...] 或 [t:...] 或 [当前时间: ...]
+   * 注意：只删除标记本身，保留前后的换行符（避免文字粘连）
+   */
+  private static readonly TIME_MARKER_PATTERN =
+    /\[消息发送时间：[^\]]+\]|\[t:[^\]]+\]|\[当前时间:[^\]]+\]/g;
+
   static normalize(text: string): string {
     if (!text || typeof text !== 'string') return text;
-    if (this.containsListMarkers(text)) return this.normalizeComplexStructure(text);
-    return this.cleanWhitespace(text);
+
+    // 首先移除时间标记（防御性处理：模型可能模仿历史消息格式）
+    let cleaned = this.removeTimeMarkers(text);
+
+    if (this.containsListMarkers(cleaned)) return this.normalizeComplexStructure(cleaned);
+    return this.cleanWhitespace(cleaned);
+  }
+
+  /**
+   * 移除时间标记
+   * 防止模型模仿历史消息中的时间格式
+   */
+  private static removeTimeMarkers(text: string): string {
+    return text.replace(this.TIME_MARKER_PATTERN, '').trim();
   }
 
   private static containsListMarkers(text: string): boolean {
@@ -108,6 +129,8 @@ export class ReplyNormalizer {
 
   static needsNormalization(text: string): boolean {
     if (!text) return false;
+    // 检测时间标记（需要清理）
+    if (this.TIME_MARKER_PATTERN.test(text)) return true;
     if (/^\s*[-*•]\s+/m.test(text)) return true;
     if (/^\s*\d+[\.\)]\s+/m.test(text)) return true;
     const lines = text.split('\n').filter((l) => l.trim());

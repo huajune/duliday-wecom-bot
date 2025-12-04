@@ -21,7 +21,6 @@ import { AgentGatewayService } from './message-agent-gateway.service';
 import { MessageParser } from '../utils/message-parser.util';
 import { EnterpriseMessageCallbackDto } from '../dto/message-callback.dto';
 import { DeliveryContext, PipelineResult, AlertErrorType } from '../types';
-import { AgentInputParams } from '@core/monitoring/interfaces/monitoring.interface';
 
 /**
  * 消息处理管线服务
@@ -261,6 +260,7 @@ export class MessagePipelineService {
       // 4. 记录成功
       const rawResponse = agentResult.reply.rawResponse;
       const requestBody = (agentResult.result as any).requestBody;
+      const rawHttpResponse = agentResult.result.rawHttpResponse;
       this.monitoringService.recordSuccess(messageId, {
         scenario,
         tools: agentResult.reply.tools?.used,
@@ -268,21 +268,21 @@ export class MessagePipelineService {
         replyPreview: agentResult.reply.content,
         replySegments: deliveryResult.segmentCount,
         isFallback: agentResult.isFallback,
-        rawAgentResponse: rawResponse
-          ? {
-              input: this.buildAgentInputParams(
-                chatId,
-                content,
-                historyMessages.length,
-                requestBody,
-              ),
-              messages: rawResponse.messages,
-              usage: rawResponse.usage,
-              tools: rawResponse.tools,
-              isFallback: agentResult.isFallback,
-              fallbackReason: agentResult.result.fallbackInfo?.reason,
-            }
-          : undefined,
+        agentInvocation:
+          requestBody && rawResponse
+            ? {
+                request: requestBody,
+                response: rawResponse,
+                isFallback: agentResult.isFallback,
+                http: rawHttpResponse
+                  ? {
+                      status: rawHttpResponse.status,
+                      statusText: rawHttpResponse.statusText,
+                      headers: rawHttpResponse.headers,
+                    }
+                  : undefined,
+              }
+            : undefined,
       });
 
       // 5. 标记消息为已处理
@@ -345,6 +345,7 @@ export class MessagePipelineService {
       // 5. 标记所有聚合的消息为已处理
       const rawResponse = agentResult.reply.rawResponse;
       const requestBody = (agentResult.result as any).requestBody;
+      const rawHttpResponse = agentResult.result.rawHttpResponse;
       const sharedSuccessMetadata = {
         scenario,
         tools: agentResult.reply.tools?.used,
@@ -352,21 +353,21 @@ export class MessagePipelineService {
         replyPreview: agentResult.reply.content,
         replySegments: deliveryResult.segmentCount,
         isFallback: agentResult.isFallback,
-        rawAgentResponse: rawResponse
-          ? {
-              input: this.buildAgentInputParams(
-                chatId,
-                lastContent,
-                historyMessages.length,
-                requestBody,
-              ),
-              messages: rawResponse.messages,
-              usage: rawResponse.usage,
-              tools: rawResponse.tools,
-              isFallback: agentResult.isFallback,
-              fallbackReason: agentResult.result.fallbackInfo?.reason,
-            }
-          : undefined,
+        agentInvocation:
+          requestBody && rawResponse
+            ? {
+                request: requestBody,
+                response: rawResponse,
+                isFallback: agentResult.isFallback,
+                http: rawHttpResponse
+                  ? {
+                      status: rawHttpResponse.status,
+                      statusText: rawHttpResponse.statusText,
+                      headers: rawHttpResponse.headers,
+                    }
+                  : undefined,
+              }
+            : undefined,
       };
 
       await Promise.all(
@@ -597,57 +598,5 @@ export class MessagePipelineService {
       this.logger.debug(`获取候选人昵称失败 [${chatId}]: ${errorMessage}`);
       return undefined;
     }
-  }
-
-  /**
-   * 构建 Agent 输入参数（用于监控记录）
-   * 从 requestBody 中提取完整的 API 请求参数
-   */
-  private buildAgentInputParams(
-    conversationId: string,
-    userMessage: string,
-    historyCount: number,
-    requestBody?: Record<string, unknown>,
-  ): AgentInputParams {
-    // 基础参数（始终记录）
-    const baseParams: AgentInputParams = {
-      conversationId,
-      userMessage,
-      historyCount,
-    };
-
-    // 如果没有 requestBody，返回基础参数
-    if (!requestBody) {
-      return baseParams;
-    }
-
-    // 从 requestBody 提取完整参数（排除敏感/超大字段）
-    const {
-      model,
-      promptType,
-      allowedTools,
-      contextStrategy,
-      prune,
-      systemPrompt,
-      context,
-      toolContext,
-    } = requestBody as Record<string, unknown>;
-
-    return {
-      ...baseParams,
-      // 模型和配置
-      model: model as string | undefined,
-      promptType: promptType as string | undefined,
-      allowedTools: allowedTools as string[] | undefined,
-      contextStrategy: contextStrategy as string | undefined,
-      prune: prune as boolean | undefined,
-      // 记录是否传入（不记录内容，避免超大）
-      hasSystemPrompt: !!systemPrompt,
-      systemPromptLength: typeof systemPrompt === 'string' ? systemPrompt.length : undefined,
-      hasContext: !!context,
-      hasToolContext: !!toolContext,
-      // 调试字段：记录 context 的 keys
-      _mergedContextKeys: context && typeof context === 'object' ? Object.keys(context) : undefined,
-    };
   }
 }

@@ -149,13 +149,13 @@ export class MessageParser {
 
   /**
    * 为用户消息注入时间上下文
-   * 在消息前添加当前时间标注，使 Agent 能够理解时间相关的对话
+   * 在消息末尾添加时间标注
    * @param content 原始消息内容
    * @param timestamp 消息时间戳（毫秒）
    * @returns 注入时间后的消息内容
    */
   static injectTimeContext(content: string, timestamp?: number): string {
     const timeStr = this.formatCurrentTime(timestamp);
-    return `[当前时间: ${timeStr}]\n${content}`;
+    return `${content}\n[消息发送时间：${timeStr}]`;
   }
 }

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { formatDateTime } from '@/utils/format';
 import type { MessageRecord } from '@/types/monitoring';
+import HistorySection from './HistorySection';
 import ChatSection from './ChatSection';
 import TechnicalStats from './TechnicalStats';
 
@@ -69,6 +70,9 @@ export default function MessageDetailDrawer({ message, onClose }: MessageDetailD
         <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
           {/* Left Column: Raw Data & Conversation (65%) */}
           <div style={{ flex: '1 1 65%', padding: '24px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '24px' }}>
+            {/* History Messages */}
+            <HistorySection message={message} />
+
             <ChatSection
               message={message}
               fullAgentResponse={getFullAgentResponse()}

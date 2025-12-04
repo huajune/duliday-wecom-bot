@@ -213,7 +213,7 @@ export class MonitoringService implements OnModuleInit {
       record.replySegments = metadata?.replySegments ?? record.replySegments;
       record.isFallback = metadata?.isFallback ?? record.isFallback;
       record.fallbackSuccess = metadata?.fallbackSuccess ?? record.fallbackSuccess;
-      record.rawAgentResponse = metadata?.rawAgentResponse ?? record.rawAgentResponse;
+      record.agentInvocation = metadata?.agentInvocation ?? record.agentInvocation;
 
       this.globalCounters.totalSuccess++;
       this.currentProcessing = Math.max(this.currentProcessing - 1, 0);
@@ -1667,7 +1667,7 @@ export class MonitoringService implements OnModuleInit {
       (r) => r.tools && r.tools.includes('duliday_interview_booking'),
     );
 
-    // 从 rawAgentResponse 中检测预约工具是否真正成功
+    // 从 agentInvocation.response 中检测预约工具是否真正成功
     // 工具状态为 'output-available' 才表示成功执行
     let successfulBookings = 0;
     let failedBookings = 0;
@@ -1744,36 +1744,38 @@ export class MonitoringService implements OnModuleInit {
 
   /**
    * 检查预约工具是否成功执行
-   * 从 rawAgentResponse 中查找 duliday_interview_booking 工具的状态
+   * 从 agentInvocation.response 中查找 duliday_interview_booking 工具的状态
    * @returns true=成功, false=失败, null=无法确定
    */
   private checkBookingToolSuccess(record: MessageProcessingRecord): boolean | null {
-    const rawResponse = record.rawAgentResponse;
-    if (!rawResponse?.messages) {
+    const response = record.agentInvocation?.response as {
+      messages?: Array<{
+        role: string;
+        parts?: Array<{
+          type: string;
+          toolName?: string;
+          state?: string;
+          output?: Record<string, unknown>;
+          error?: string;
+        }>;
+      }>;
+    };
+    if (!response?.messages) {
       return null; // 无法确定
     }
 
     // 遍历所有消息查找预约工具
-    for (const message of rawResponse.messages) {
+    for (const message of response.messages) {
       if (message.role !== 'assistant' || !message.parts) continue;
 
       for (const part of message.parts) {
-        if (
-          part.type === 'dynamic-tool' &&
-          (part as { toolName?: string }).toolName === 'duliday_interview_booking'
-        ) {
-          const toolPart = part as {
-            state?: string;
-            output?: Record<string, unknown>;
-            error?: string;
-          };
-
+        if (part.type === 'dynamic-tool' && part.toolName === 'duliday_interview_booking') {
           // 状态为 output-available 表示工具执行成功
-          if (toolPart.state === 'output-available') {
+          if (part.state === 'output-available') {
             return true;
           }
           // 状态为 error 表示工具执行失败
-          if (toolPart.state === 'error') {
+          if (part.state === 'error') {
             return false;
           }
         }

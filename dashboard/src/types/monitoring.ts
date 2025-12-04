@@ -108,94 +108,28 @@ export interface AgentResponseMessage {
 }
 
 /**
- * 简单消息结构（用于历史消息展示）
+ * HTTP 响应元信息
  */
-export interface SimpleMessageItem {
-  role: 'user' | 'assistant';
-  content: string;
+export interface RawHttpResponse {
+  status: number;
+  statusText: string;
+  headers?: Record<string, string | undefined>;
+  responseTime?: number;
 }
 
 /**
- * 模型配置（花卷 API 多模型配置）
+ * Agent 调用记录（用于 Dashboard 排障）
+ * 包含实际发送给 API 的请求体和响应数据
  */
-export interface ModelConfigParams {
-  chatModel?: string; // 主对话模型
-  classifyModel?: string; // 意图分类模型
-  replyModel?: string; // 回复生成模型
-}
-
-/**
- * Agent 调用输入参数（用于调试，去除品牌数据）
- */
-export interface AgentInputParams {
-  conversationId: string;
-  userMessage: string;
-  historyCount: number; // 历史消息数量
-  historyMessages?: SimpleMessageItem[]; // 历史消息详情（用于调试）
-  model?: string;
-  promptType?: string;
-  allowedTools?: string[];
-  contextStrategy?: string;
-  prune?: boolean;
-  // 模型配置（花卷 API 多模型配置）
-  modelConfig?: ModelConfigParams;
-  // Prompt 相关字段（仅记录是否传入和长度，不记录内容）
-  hasSystemPrompt?: boolean;
-  systemPromptLength?: number;
-  hasContext?: boolean;
-  contextLength?: number;
-  hasToolContext?: boolean;
-  toolContextLength?: number;
-  // 品牌配置相关（configData = brandData, replyPrompts 来自 brandConfigService）
-  hasConfigData?: boolean;
-  hasReplyPrompts?: boolean;
-  brandPriorityStrategy?: string;
-  // 调试字段
-  _mergedContextKeys?: string[];
-  // 完整原始入参 JSON（超长字段已截断，用于 Dashboard 展示调试）
-  rawParams?: string;
-  // rawParams 来源：'ChatRequest' 表示使用实际 API 请求体，'agentParams' 表示回退到处理器参数
-  // 当错误发生在 prepareRequest 之前（如参数验证失败），chatRequest 为 undefined，此时回退到 agentParams
-  rawParamsSource?: 'ChatRequest' | 'agentParams';
-}
-
-/**
- * 完整 Agent 响应结构
- */
-export interface RawAgentResponse {
-  // HTTP 响应信息（不包含 headers）
-  http?: {
-    status: number;
-    statusText: string;
-  };
-  // API 响应外层包装
-  apiResponse?: {
-    success: boolean;
-    error?: string;
-    correlationId?: string;
-    // 错误详情（保留原始 API 返回的 details 字段，如 "Payment Required"）
-    details?: string | Record<string, unknown>;
-  };
-  // Agent 调用输入参数（用于调试）
-  input?: AgentInputParams;
-  // 完整消息数组（保留原始结构，包含所有类型的 parts）
-  messages: any[];
-  // Token 使用统计
-  usage: {
-    inputTokens: number;
-    outputTokens: number;
-    totalTokens: number;
-    cachedInputTokens?: number;
-  };
-  // 工具使用情况
-  tools: {
-    used: string[];
-    skipped: string[];
-  };
-  // 是否降级响应
-  isFallback?: boolean;
-  // 降级原因
-  fallbackReason?: string;
+export interface AgentInvocationRecord {
+  /** 实际发送给 /api/v1/chat 的请求体（ChatRequest） */
+  request: Record<string, unknown>;
+  /** Agent API 的原始响应（ChatResponse） */
+  response: Record<string, unknown>;
+  /** 是否为降级响应 */
+  isFallback: boolean;
+  /** HTTP 响应元信息（可选） */
+  http?: RawHttpResponse;
 }
 
 export interface MessageRecord {
@@ -217,8 +151,8 @@ export interface MessageRecord {
   tokenUsage?: number;
   isFallback?: boolean;
   fallbackSuccess?: boolean;
-  // 完整 Agent 响应（用于排障）
-  rawAgentResponse?: RawAgentResponse;
+  /** Agent 调用记录（完整的请求/响应，用于排障） */
+  agentInvocation?: AgentInvocationRecord;
 }
 
 export interface TodayUser {
