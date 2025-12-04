@@ -47,6 +47,7 @@ interface ChatRequestDisplay {
     replyPrompts?: unknown;
     preferredBrand?: string;
     brandPriorityStrategy?: string;
+    modelConfig?: ModelConfigDisplay; // modelConfig 在 context 内部
     [key: string]: unknown;
   };
   toolContext?: Record<string, unknown>;
@@ -57,7 +58,6 @@ interface ChatRequestDisplay {
     preserveRecentMessages?: number;
   };
   contextStrategy?: string;
-  modelConfig?: ModelConfigDisplay;
 }
 
 /**
@@ -270,34 +270,34 @@ export default function TechnicalStats({ message }: TechnicalStatsProps) {
               <span>{request.stream ? '是' : '否'}</span>
             </div>
 
-            {/* modelConfig - 多模型配置 */}
-            {request.modelConfig && (
+            {/* modelConfig - 多模型配置（在 context 内部） */}
+            {request.context?.modelConfig && (
               <>
                 <div className={`${styles.breakdownItem} ${styles.separator}`}>
                   <span>modelConfig</span>
                   <span className={styles.paramYes}>✓ 多模型</span>
                 </div>
-                {request.modelConfig.chatModel && (
+                {request.context.modelConfig.chatModel && (
                   <div className={styles.breakdownItem}>
                     <span className={styles.indentL1}>├ chatModel</span>
-                    <span className={styles.modelText} title={request.modelConfig.chatModel}>
-                      {shortModelName(request.modelConfig.chatModel)}
+                    <span className={styles.modelText} title={request.context.modelConfig.chatModel}>
+                      {shortModelName(request.context.modelConfig.chatModel)}
                     </span>
                   </div>
                 )}
-                {request.modelConfig.classifyModel && (
+                {request.context.modelConfig.classifyModel && (
                   <div className={styles.breakdownItem}>
                     <span className={styles.indentL1}>├ classifyModel</span>
-                    <span className={styles.modelText} title={request.modelConfig.classifyModel}>
-                      {shortModelName(request.modelConfig.classifyModel)}
+                    <span className={styles.modelText} title={request.context.modelConfig.classifyModel}>
+                      {shortModelName(request.context.modelConfig.classifyModel)}
                     </span>
                   </div>
                 )}
-                {request.modelConfig.replyModel && (
+                {request.context.modelConfig.replyModel && (
                   <div className={styles.breakdownItem}>
                     <span className={styles.indentL1}>└ replyModel</span>
-                    <span className={styles.modelText} title={request.modelConfig.replyModel}>
-                      {shortModelName(request.modelConfig.replyModel)}
+                    <span className={styles.modelText} title={request.context.modelConfig.replyModel}>
+                      {shortModelName(request.context.modelConfig.replyModel)}
                     </span>
                   </div>
                 )}

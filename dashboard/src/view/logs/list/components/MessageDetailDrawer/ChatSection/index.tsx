@@ -2,12 +2,10 @@ import { useMemo } from 'react';
 import type { MessageRecord } from '@/types/monitoring';
 import styles from './index.module.scss';
 
-// 需要截断的大字段路径
+// 需要截断的大字段路径（仅截断 request 部分，response 完整展示）
 const TRUNCATE_PATHS = [
   'request.context.configData',
   'request.systemPrompt',
-  'request.messages',
-  'response.messages',
 ];
 
 // 截断阈值（字符数）

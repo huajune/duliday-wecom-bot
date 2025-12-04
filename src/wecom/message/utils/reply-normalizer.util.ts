@@ -18,7 +18,7 @@ export class ReplyNormalizer {
     if (!text || typeof text !== 'string') return text;
 
     // 首先移除时间标记（防御性处理：模型可能模仿历史消息格式）
-    let cleaned = this.removeTimeMarkers(text);
+    const cleaned = this.removeTimeMarkers(text);
 
     if (this.containsListMarkers(cleaned)) return this.normalizeComplexStructure(cleaned);
     return this.cleanWhitespace(cleaned);
