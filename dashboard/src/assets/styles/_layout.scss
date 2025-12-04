@@ -286,9 +286,9 @@
 }
 
 .charts-row {
-  display: grid;
+  display: flex;
   gap: 20px;
-  grid-template-columns: 2fr 1fr;
+  width: 100%;
 }
 
 .insight-grid {
@@ -434,7 +434,7 @@
   }
 
   .charts-row {
-    grid-template-columns: 1fr;
+    flex-direction: column;
     gap: 16px;
   }
 

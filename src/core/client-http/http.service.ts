@@ -22,10 +22,11 @@ export class HttpService {
     this.logger.log(`初始化通用 HTTP 客户端，超时设置: ${timeout}ms`);
 
     // 使用工厂创建 HTTP 客户端实例
+    // 注意：verbose 设为 false，避免打印包含敏感数据的请求体（如 configData、brandData 等）
     this.httpClient = this.httpClientFactory.create({
       timeout,
       logPrefix: '[HTTP Service]',
-      verbose: true, // 通用服务启用详细日志
+      verbose: false,
     });
   }
 
@@ -35,7 +36,8 @@ export class HttpService {
   async get(url: string, params?: any) {
     try {
       const response = await this.httpClient.get(url, { params });
-      this.logger.log('GET 请求成功:', response.data);
+      // 只记录响应成功，不打印完整数据（可能包含敏感/大量内容）
+      this.logger.debug('GET 请求成功');
       return response.data;
     } catch (error) {
       // 不在底层打印日志，避免日志重复
@@ -50,7 +52,8 @@ export class HttpService {
   async post(url: string, data?: any) {
     try {
       const response = await this.httpClient.post(url, data);
-      this.logger.log('POST 请求成功:', response.data);
+      // 只记录响应成功，不打印完整数据（可能包含敏感/大量内容）
+      this.logger.debug('POST 请求成功');
       return response.data;
     } catch (error) {
       // 不在底层打印日志，避免日志重复

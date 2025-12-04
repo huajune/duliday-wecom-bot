@@ -41,6 +41,17 @@ export function formatMinuteLabel(minute: string): string {
   });
 }
 
+// 格式化小时标签（用于24小时趋势图）
+export function formatHourLabel(hour: string): string {
+  if (!hour) return '';
+  // "2025-11-24T09:00:00" -> "09:00"
+  const date = new Date(hour);
+  return date.toLocaleTimeString('zh-CN', {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
 // 格式化日期标签 - 与 monitoring.html 一致
 export function formatDayLabel(value: string): string {
   if (!value) return '-';

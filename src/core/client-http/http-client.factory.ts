@@ -88,11 +88,16 @@ export class HttpClientFactory {
         if (error.response) {
           const status = error.response.status;
           const url = error.config?.url || 'unknown';
-          this.logger.error(`${logPrefix} 响应错误 ${status}: ${url}`, error.response.data);
+          // 只记录状态码和 URL，不打印完整响应体（可能包含大量数据）
+          // 错误详情由调用方根据业务需要决定是否记录
+          const errorMessage = error.response.data?.message || error.response.data?.error || '';
+          this.logger.error(
+            `${logPrefix} 响应错误 ${status}: ${url}${errorMessage ? ` - ${errorMessage}` : ''}`,
+          );
         } else if (error.request) {
-          this.logger.error(`${logPrefix} 无响应:`, error.message);
+          this.logger.error(`${logPrefix} 无响应: ${error.message}`);
         } else {
-          this.logger.error(`${logPrefix} 请求配置错误:`, error.message);
+          this.logger.error(`${logPrefix} 请求配置错误: ${error.message}`);
         }
         return Promise.reject(error);
       },

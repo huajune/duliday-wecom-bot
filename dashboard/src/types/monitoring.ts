@@ -284,6 +284,12 @@ export interface AgentReplyConfig {
   businessAlertEnabled: boolean; // 是否启用业务指标告警
   minSamplesForAlert: number; // 最小样本量（低于此值不检查）
   alertIntervalMinutes: number; // 同类告警最小间隔（分钟）
+
+  // 告警阈值配置
+  successRateCritical: number; // 成功率严重阈值（百分比，低于此值触发告警）
+  avgDurationCritical: number; // 响应时间严重阈值（毫秒，高于此值触发告警）
+  queueDepthCritical: number; // 队列深度严重阈值（条数，高于此值触发告警）
+  errorRateCritical: number; // 错误率严重阈值（每小时次数，高于此值触发告警）
 }
 
 export interface AgentReplyConfigResponse {

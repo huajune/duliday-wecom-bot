@@ -20,26 +20,22 @@ import { SupabaseService, AgentReplyConfig } from '@core/supabase';
 export class MonitoringAlertService implements OnModuleInit {
   private readonly logger = new Logger(MonitoringAlertService.name);
 
-  // ===== 硬编码的告警阈值（无需配置） =====
-  private readonly THRESHOLDS = {
-    // 成功率（百分比）
-    successRateWarning: 90,
-    successRateCritical: 80,
-    // 响应时间（毫秒）
-    avgDurationWarning: 30000, // 30 秒
-    avgDurationCritical: 60000, // 60 秒
-    // 队列深度（条数）
-    queueDepthWarning: 10,
-    queueDepthCritical: 20,
-    // 错误率（每小时）
-    errorRateWarning: 5,
-    errorRateCritical: 10,
-  };
-
   // ===== 可配置项（从 Supabase 读取） =====
   private enabled = true; // 是否启用业务指标告警
   private minSamples = 10; // 最小样本量
   private alertIntervalMinutes = 30; // 同类告警最小间隔（分钟）
+
+  // ===== 告警阈值（可动态配置） =====
+  private thresholds = {
+    // 成功率（百分比）- warning 为 critical + 10
+    successRateCritical: 80,
+    // 响应时间（毫秒）- warning 为 critical / 2
+    avgDurationCritical: 60000, // 60 秒
+    // 队列深度（条数）- warning 为 critical / 2
+    queueDepthCritical: 20,
+    // 错误率（每小时）- warning 为 critical / 2
+    errorRateCritical: 10,
+  };
 
   // 状态追踪（避免重复告警）
   private lastAlertTimestamps = new Map<string, number>();
@@ -77,6 +73,20 @@ export class MonitoringAlertService implements OnModuleInit {
     this.enabled = config.businessAlertEnabled ?? true;
     this.minSamples = config.minSamplesForAlert ?? 10;
     this.alertIntervalMinutes = config.alertIntervalMinutes ?? 30;
+
+    // 应用告警阈值配置
+    if (config.successRateCritical !== undefined) {
+      this.thresholds.successRateCritical = config.successRateCritical;
+    }
+    if (config.avgDurationCritical !== undefined) {
+      this.thresholds.avgDurationCritical = config.avgDurationCritical;
+    }
+    if (config.queueDepthCritical !== undefined) {
+      this.thresholds.queueDepthCritical = config.queueDepthCritical;
+    }
+    if (config.errorRateCritical !== undefined) {
+      this.thresholds.errorRateCritical = config.errorRateCritical;
+    }
   }
 
   /**
@@ -139,7 +149,8 @@ export class MonitoringAlertService implements OnModuleInit {
    * 检查成功率
    */
   private async checkSuccessRate(currentValue: number, totalMessages: number): Promise<void> {
-    const { successRateWarning: warning, successRateCritical: critical } = this.THRESHOLDS;
+    const critical = this.thresholds.successRateCritical;
+    const warning = critical + 10; // warning 比 critical 高 10%
     const key = 'success-rate';
 
     // NaN 或无效值不触发告警
@@ -172,7 +183,8 @@ export class MonitoringAlertService implements OnModuleInit {
    * 检查响应时间
    */
   private async checkAvgDuration(currentValue: number, totalMessages: number): Promise<void> {
-    const { avgDurationWarning: warning, avgDurationCritical: critical } = this.THRESHOLDS;
+    const critical = this.thresholds.avgDurationCritical;
+    const warning = Math.floor(critical / 2); // warning 为 critical 的一半
     const key = 'avg-duration';
 
     // NaN 或无效值不触发告警
@@ -205,7 +217,8 @@ export class MonitoringAlertService implements OnModuleInit {
    * 检查队列深度
    */
   private async checkQueueDepth(currentValue: number): Promise<void> {
-    const { queueDepthWarning: warning, queueDepthCritical: critical } = this.THRESHOLDS;
+    const critical = this.thresholds.queueDepthCritical;
+    const warning = Math.floor(critical / 2); // warning 为 critical 的一半
     const key = 'queue-depth';
 
     if (currentValue > critical) {
@@ -233,7 +246,8 @@ export class MonitoringAlertService implements OnModuleInit {
    * 检查错误率
    */
   private async checkErrorRate(errorCount: number): Promise<void> {
-    const { errorRateWarning: warning, errorRateCritical: critical } = this.THRESHOLDS;
+    const critical = this.thresholds.errorRateCritical;
+    const warning = Math.floor(critical / 2); // warning 为 critical 的一半
     const key = 'error-rate';
 
     // 将 24 小时错误数转换为每小时平均

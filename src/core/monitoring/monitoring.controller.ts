@@ -272,12 +272,114 @@ export class MonitoringController {
       validatedConfig.alertThrottleMaxCount = value;
     }
 
+    // 业务指标告警开关（布尔值）
+    if (body.businessAlertEnabled !== undefined) {
+      validatedConfig.businessAlertEnabled = Boolean(body.businessAlertEnabled);
+    }
+
+    // 最小样本量
+    if (body.minSamplesForAlert !== undefined) {
+      const value = Number(body.minSamplesForAlert);
+      if (isNaN(value) || value < 1 || value > 1000) {
+        throw new Error('minSamplesForAlert 必须在 1-1000 之间');
+      }
+      validatedConfig.minSamplesForAlert = value;
+    }
+
+    // 同类告警最小间隔（分钟）
+    if (body.alertIntervalMinutes !== undefined) {
+      const value = Number(body.alertIntervalMinutes);
+      if (isNaN(value) || value < 1 || value > 1440) {
+        throw new Error('alertIntervalMinutes 必须在 1-1440 之间（1分钟-24小时）');
+      }
+      validatedConfig.alertIntervalMinutes = value;
+    }
+
+    // ===== 告警阈值配置 =====
+
+    // 成功率严重阈值（百分比）
+    if (body.successRateCritical !== undefined) {
+      const value = Number(body.successRateCritical);
+      if (isNaN(value) || value < 0 || value > 100) {
+        throw new Error('successRateCritical 必须在 0-100 之间');
+      }
+      validatedConfig.successRateCritical = value;
+    }
+
+    // 响应时间严重阈值（毫秒）
+    if (body.avgDurationCritical !== undefined) {
+      const value = Number(body.avgDurationCritical);
+      if (isNaN(value) || value < 1000 || value > 300000) {
+        throw new Error('avgDurationCritical 必须在 1000-300000 之间（1秒-5分钟）');
+      }
+      validatedConfig.avgDurationCritical = value;
+    }
+
+    // 队列深度严重阈值（条数）
+    if (body.queueDepthCritical !== undefined) {
+      const value = Number(body.queueDepthCritical);
+      if (isNaN(value) || value < 1 || value > 1000) {
+        throw new Error('queueDepthCritical 必须在 1-1000 之间');
+      }
+      validatedConfig.queueDepthCritical = value;
+    }
+
+    // 错误率严重阈值（每小时次数）
+    if (body.errorRateCritical !== undefined) {
+      const value = Number(body.errorRateCritical);
+      if (isNaN(value) || value < 1 || value > 1000) {
+        throw new Error('errorRateCritical 必须在 1-1000 之间');
+      }
+      validatedConfig.errorRateCritical = value;
+    }
+
     const newConfig = await this.supabaseService.setAgentReplyConfig(validatedConfig);
+
+    // 根据更新内容生成不同的提示信息
+    const message = this.getUpdateMessage(body);
 
     return {
       config: newConfig,
-      message: 'Agent 回复策略配置已更新（已实时生效）',
+      message,
     };
+  }
+
+  /**
+   * 根据更新内容生成对应的提示信息
+   */
+  private getUpdateMessage(body: Partial<AgentReplyConfig>): string {
+    // 告警开关
+    if (body.businessAlertEnabled !== undefined) {
+      return body.businessAlertEnabled
+        ? '业务告警已启用（已实时生效）'
+        : '业务告警已禁用（已实时生效）';
+    }
+
+    // 告警阈值配置
+    const thresholdKeys = [
+      'successRateCritical',
+      'avgDurationCritical',
+      'queueDepthCritical',
+      'errorRateCritical',
+    ];
+    if (thresholdKeys.some((key) => body[key as keyof AgentReplyConfig] !== undefined)) {
+      return '告警阈值配置已更新（已实时生效）';
+    }
+
+    // 告警相关配置
+    const alertKeys = ['minSamplesForAlert', 'alertIntervalMinutes'];
+    if (alertKeys.some((key) => body[key as keyof AgentReplyConfig] !== undefined)) {
+      return '告警配置已更新（已实时生效）';
+    }
+
+    // 消息聚合配置
+    const mergeKeys = ['initialMergeWindowMs', 'maxMergedMessages'];
+    if (mergeKeys.some((key) => body[key as keyof AgentReplyConfig] !== undefined)) {
+      return '消息聚合配置已更新（已实时生效）';
+    }
+
+    // 其他配置
+    return '配置已更新（已实时生效）';
   }
 
   /**

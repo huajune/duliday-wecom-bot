@@ -14,6 +14,11 @@ interface ConsolePanelProps {
     businessAlertEnabled: boolean;
     minSamplesForAlert: number;
     alertIntervalMinutes: number;
+    // 告警阈值
+    successRateCritical: number;
+    avgDurationCritical: number;
+    queueDepthCritical: number;
+    errorRateCritical: number;
   };
   onConfigChange: (key: keyof AgentReplyConfig, value: number | boolean) => void;
   onToggleAlert: () => void;
@@ -64,7 +69,9 @@ export default function ConsolePanel({
                 <div className={styles.toggleHandle}></div>
               </button>
             </div>
-            <p className={styles.controlBoxDesc}>开启后，系统将自动监控异常指标并发送飞书告警。</p>
+            <p className={styles.controlBoxDesc}>
+              每5分钟检查：成功率下降、响应时间过长、队列积压、错误率过高，触发时发送飞书告警。
+            </p>
           </div>
 
           {/* 最小样本量 */}
@@ -109,6 +116,87 @@ export default function ConsolePanel({
             </p>
           </div>
         </div>
+
+        {/* 告警阈值配置 */}
+        <div className={styles.thresholdSection}>
+          <div className={styles.thresholdHeader}>
+            <span className={styles.thresholdIcon}>🎯</span>
+            <h4 className={styles.thresholdTitle}>告警阈值</h4>
+          </div>
+          <div className={styles.thresholdGrid}>
+            {/* 成功率阈值 */}
+            <div className={styles.thresholdBox}>
+              <div className={styles.thresholdBoxHeader}>
+                <span className={styles.thresholdLabel}>成功率阈值</span>
+                <span className={styles.thresholdValue}>{alertConfig.successRateCritical}%</span>
+              </div>
+              <input
+                type="range"
+                min={50}
+                max={99}
+                step={1}
+                value={alertConfig.successRateCritical}
+                onChange={(e) => onConfigChange('successRateCritical', Number(e.target.value))}
+                className={styles.slider}
+              />
+              <p className={styles.thresholdDesc}>低于此值触发严重告警</p>
+            </div>
+
+            {/* 响应时间阈值 */}
+            <div className={styles.thresholdBox}>
+              <div className={styles.thresholdBoxHeader}>
+                <span className={styles.thresholdLabel}>响应时间阈值</span>
+                <span className={styles.thresholdValue}>{alertConfig.avgDurationCritical / 1000}s</span>
+              </div>
+              <input
+                type="range"
+                min={10000}
+                max={180000}
+                step={5000}
+                value={alertConfig.avgDurationCritical}
+                onChange={(e) => onConfigChange('avgDurationCritical', Number(e.target.value))}
+                className={styles.slider}
+              />
+              <p className={styles.thresholdDesc}>高于此值触发严重告警</p>
+            </div>
+
+            {/* 队列深度阈值 */}
+            <div className={styles.thresholdBox}>
+              <div className={styles.thresholdBoxHeader}>
+                <span className={styles.thresholdLabel}>队列深度阈值</span>
+                <span className={styles.thresholdValue}>{alertConfig.queueDepthCritical}条</span>
+              </div>
+              <input
+                type="range"
+                min={5}
+                max={100}
+                step={5}
+                value={alertConfig.queueDepthCritical}
+                onChange={(e) => onConfigChange('queueDepthCritical', Number(e.target.value))}
+                className={styles.slider}
+              />
+              <p className={styles.thresholdDesc}>高于此值触发严重告警</p>
+            </div>
+
+            {/* 错误率阈值 */}
+            <div className={styles.thresholdBox}>
+              <div className={styles.thresholdBoxHeader}>
+                <span className={styles.thresholdLabel}>错误率阈值</span>
+                <span className={styles.thresholdValue}>{alertConfig.errorRateCritical}/h</span>
+              </div>
+              <input
+                type="range"
+                min={1}
+                max={50}
+                step={1}
+                value={alertConfig.errorRateCritical}
+                onChange={(e) => onConfigChange('errorRateCritical', Number(e.target.value))}
+                className={styles.slider}
+              />
+              <p className={styles.thresholdDesc}>每小时错误数高于此值触发告警</p>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* 内容区域 */}
@@ -116,9 +204,9 @@ export default function ConsolePanel({
         {/* 图表区 */}
         <div className={styles.chartArea}>
           <div className={styles.areaHeader}>
-            <h4>告警趋势</h4>
+            <h4>告警趋势（24小时）</h4>
             <div className={styles.kpiBadge}>
-              近5分钟: <strong>{recentAlertCount ?? '-'}</strong>
+              近1小时: <strong>{recentAlertCount ?? '-'}</strong>
             </div>
           </div>
           <div className={styles.chartWrapper}>

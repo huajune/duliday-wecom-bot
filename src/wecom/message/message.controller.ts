@@ -11,6 +11,7 @@ import {
 import { AgentService } from '@agent';
 import { MessageCallbackAdapterService } from './services/message-callback-adapter.service';
 import { MessageFilterService } from './services/message-filter.service';
+import { LogSanitizer } from './utils/log-sanitizer.util';
 
 /**
  * 消息处理控制器
@@ -46,10 +47,12 @@ export class MessageController {
     // 自动检测并转换为统一格式
     const callbackType = this.callbackAdapter.detectCallbackType(body);
 
-    // 打印原始回调数据（使用 log 级别确保生产环境可见）
+    // 打印原始回调数据（使用脱敏处理避免超大日志）
     this.logger.log('=== [消息回调] ===');
     this.logger.log(`类型=${callbackType}, messageId=${body.messageId || body.data?.messageId}`);
-    this.logger.log(`原始数据: ${JSON.stringify(body)}`);
+    // 使用 debug 级别和脱敏处理，避免生产环境产生超大日志
+    const sanitizedBody = LogSanitizer.sanitizeMessageCallback(body.data || body);
+    this.logger.debug(`原始数据(已脱敏): ${JSON.stringify(sanitizedBody)}`);
 
     // 统一转换为企业级格式
     const normalizedCallback = this.callbackAdapter.normalizeCallback(body);
@@ -134,7 +137,7 @@ export class MessageController {
       },
     };
 
-    this.logger.log('构造的模拟消息:', JSON.stringify(mockMessageData, null, 2));
+    this.logger.debug('构造的模拟消息:', JSON.stringify(mockMessageData, null, 2));
 
     // 调用消息处理服务
     const result = await this.messageService.handleMessage(mockMessageData);
@@ -241,7 +244,7 @@ export class MessageController {
       },
     };
 
-    this.logger.log('构造的模拟消息:', JSON.stringify(mockMessageData, null, 2));
+    this.logger.debug('构造的模拟消息:', JSON.stringify(mockMessageData, null, 2));
 
     try {
       // 调用消息处理服务，由于我们会在测试环境中模拟失败，
@@ -314,7 +317,7 @@ export class MessageController {
       },
     };
 
-    this.logger.log('构造的小组级回调数据:', JSON.stringify(mockGroupCallback, null, 2));
+    this.logger.debug('构造的小组级回调数据:', JSON.stringify(mockGroupCallback, null, 2));
 
     // 调用统一的消息接收接口（会经过完整的检测、转换、处理流程）
     const result = await this.receiveMessage(mockGroupCallback);

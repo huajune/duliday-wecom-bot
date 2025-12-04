@@ -5,6 +5,7 @@
   display: flex;
   gap: $spacing-md;
   margin-bottom: $spacing-lg;
+  width: 100%;
 
   @include respond-to(lg) {
     flex-direction: column;
@@ -17,7 +18,6 @@
   flex: 1;
   min-width: 0;
   position: relative;
-  overflow: hidden;
 
   &.fullWidth {
     flex: 1;
@@ -60,6 +60,7 @@
 }
 
 .chartContainer {
-  height: 200px;
+  height: 280px;
   position: relative;
+  width: 100%;
 }

@@ -14,7 +14,7 @@ import {
   useAgentReplyConfig,
   useUpdateAgentReplyConfig,
 } from '@/hooks/useMonitoring';
-import { formatDuration, formatMinuteLabel } from '@/utils/format';
+import { formatDuration, formatHourLabel } from '@/utils/format';
 import type { AgentReplyConfig } from '@/types/monitoring';
 
 // 组件导入
@@ -47,6 +47,11 @@ export default function System() {
     alertIntervalMinutes: 30,
     alertThrottleWindowMs: 300000,
     alertThrottleMaxCount: 3,
+    // 告警阈值
+    successRateCritical: 80,
+    avgDurationCritical: 60000,
+    queueDepthCritical: 20,
+    errorRateCritical: 10,
   });
 
   // 同步配置数据
@@ -58,6 +63,11 @@ export default function System() {
         alertIntervalMinutes: configData.config.alertIntervalMinutes ?? 30,
         alertThrottleWindowMs: configData.config.alertThrottleWindowMs ?? 300000,
         alertThrottleMaxCount: configData.config.alertThrottleMaxCount ?? 3,
+        // 告警阈值
+        successRateCritical: configData.config.successRateCritical ?? 80,
+        avgDurationCritical: configData.config.avgDurationCritical ?? 60000,
+        queueDepthCritical: configData.config.queueDepthCritical ?? 20,
+        errorRateCritical: configData.config.errorRateCritical ?? 10,
       });
     }
   }, [configData]);
@@ -86,9 +96,10 @@ export default function System() {
       ],
     },
     recentAlertCount: 5,
-    alertTrend: Array.from({ length: 60 }, (_, i) => ({
-      minute: new Date(Date.now() - (59 - i) * 60000).toISOString(),
-      count: Math.random() > 0.8 ? Math.floor(Math.random() * 5) : 0,
+    // 24小时趋势：每小时一个点
+    alertTrend: Array.from({ length: 24 }, (_, i) => ({
+      hour: new Date(Date.now() - (23 - i) * 3600000).toISOString(),
+      count: Math.random() > 0.7 ? Math.floor(Math.random() * 8) : 0,
     })),
   };
 
@@ -98,21 +109,24 @@ export default function System() {
   const recentAlertCount = mockData.recentAlertCount;
   const alertTrend = mockData.alertTrend;
 
-  // 更新配置
+  // 更新配置 - 只发送变更的字段
   const handleConfigChange = (key: keyof AgentReplyConfig, value: number | boolean) => {
     const newConfig = { ...alertConfig, [key]: value };
     setAlertConfig(newConfig);
-    updateConfig.mutate(newConfig);
+    // 只发送变更的字段，减少数据传输
+    updateConfig.mutate({ [key]: value });
   };
 
   // 切换告警开关
   const toggleAlert = () => {
-    handleConfigChange('businessAlertEnabled', !alertConfig.businessAlertEnabled);
+    const newValue = !alertConfig.businessAlertEnabled;
+    setAlertConfig((prev) => ({ ...prev, businessAlertEnabled: newValue }));
+    updateConfig.mutate({ businessAlertEnabled: newValue });
   };
 
-  // 告警趋势图表数据
+  // 告警趋势图表数据（24小时）
   const alertChartData = {
-    labels: alertTrend.map((p) => formatMinuteLabel(p.minute)),
+    labels: alertTrend.map((p) => formatHourLabel(p.hour)),
     datasets: [
       {
         label: '告警次数',

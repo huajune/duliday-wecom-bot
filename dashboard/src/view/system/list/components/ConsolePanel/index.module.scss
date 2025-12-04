@@ -269,3 +269,70 @@
   color: $text-muted;
   font-size: $font-size-sm;
 }
+
+// 告警阈值配置区域
+.thresholdSection {
+  margin-top: $spacing-lg;
+  padding-top: $spacing-lg;
+  border-top: 1px solid $border;
+}
+
+.thresholdHeader {
+  display: flex;
+  align-items: center;
+  gap: $spacing-sm;
+  margin-bottom: $spacing-md;
+}
+
+.thresholdIcon {
+  font-size: $font-size-lg;
+}
+
+.thresholdTitle {
+  margin: 0;
+  font-size: $font-size-sm;
+  font-weight: $font-weight-semibold;
+  color: $text-primary;
+}
+
+.thresholdGrid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: $spacing-md;
+
+  @include respond-to(lg) {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  @include respond-to(sm) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.thresholdBox {
+  padding: $spacing-sm $spacing-md;
+  background: $bg-secondary;
+  border-radius: $radius-md;
+}
+
+.thresholdBoxHeader {
+  @include flex-between;
+  margin-bottom: 4px;
+}
+
+.thresholdLabel {
+  font-size: $font-size-xs;
+  color: $text-secondary;
+}
+
+.thresholdValue {
+  font-size: $font-size-sm;
+  font-weight: $font-weight-bold;
+  color: $primary;
+}
+
+.thresholdDesc {
+  margin: 0;
+  font-size: 10px;
+  color: $text-muted;
+}

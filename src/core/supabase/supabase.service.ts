@@ -50,6 +50,12 @@ export interface AgentReplyConfig {
   businessAlertEnabled: boolean; // 是否启用业务指标告警
   minSamplesForAlert: number; // 最小样本量（低于此值不检查）
   alertIntervalMinutes: number; // 同类告警最小间隔（分钟）
+
+  // 告警阈值配置
+  successRateCritical: number; // 成功率严重阈值（百分比，低于此值触发严重告警）
+  avgDurationCritical: number; // 响应时间严重阈值（毫秒，高于此值触发严重告警）
+  queueDepthCritical: number; // 队列深度严重阈值（条数，高于此值触发严重告警）
+  errorRateCritical: number; // 错误率严重阈值（每小时次数，高于此值触发严重告警）
 }
 
 /**
@@ -66,6 +72,11 @@ export const DEFAULT_AGENT_REPLY_CONFIG: AgentReplyConfig = {
   businessAlertEnabled: true, // 默认启用
   minSamplesForAlert: 10, // 至少 10 条消息才检查
   alertIntervalMinutes: 30, // 同类告警间隔 30 分钟
+  // 告警阈值默认值
+  successRateCritical: 80, // 成功率低于 80% 触发告警
+  avgDurationCritical: 60000, // 响应时间高于 60 秒触发告警
+  queueDepthCritical: 20, // 队列深度高于 20 条触发告警
+  errorRateCritical: 10, // 每小时错误超过 10 次触发告警
 };
 
 /**

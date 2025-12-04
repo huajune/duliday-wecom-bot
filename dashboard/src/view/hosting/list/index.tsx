@@ -43,14 +43,6 @@ export default function Hosting() {
 
   return (
     <div className={styles.page}>
-      {/* 页面标题 */}
-      <div className={styles.pageHeader}>
-        <h2 className={styles.pageTitle}>账号托管管理</h2>
-        <p className={styles.pageDesc}>
-          管理 Bot 的账号托管配置，控制 AI 自动回复的全局开关和小组级别过滤
-        </p>
-      </div>
-
       {/* 全局 AI 开关 */}
       <GlobalSwitch
         enabled={aiStatus?.enabled ?? false}
