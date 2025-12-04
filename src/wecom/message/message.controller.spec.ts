@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { MessageController } from './message.controller';
 import { MessageService } from './message.service';
+import { MessageProcessor } from './message.processor';
 import { MessageType, ContactType, MessageSource } from './dto/message-callback.dto';
 import { AgentService } from '@agent';
 import { MessageCallbackAdapterService } from './services/message-callback-adapter.service';
@@ -27,6 +28,32 @@ describe('MessageController', () => {
   const mockFilterService = {
     shouldFilter: jest.fn().mockReturnValue(false),
     getFilterReason: jest.fn().mockReturnValue(null),
+    getGroupBlacklist: jest.fn().mockResolvedValue([]),
+    addGroupToBlacklist: jest.fn().mockResolvedValue(undefined),
+    removeGroupFromBlacklist: jest.fn().mockResolvedValue(true),
+    isGroupBlacklisted: jest.fn().mockResolvedValue(false),
+  };
+
+  const mockMessageProcessor = {
+    getQueueStatus: jest.fn().mockResolvedValue({
+      waiting: 0,
+      active: 0,
+      completed: 0,
+      failed: 0,
+      delayed: 0,
+      paused: 0,
+    }),
+    getWorkerStatus: jest.fn().mockReturnValue({
+      concurrency: 1,
+      activeJobs: 0,
+      minConcurrency: 1,
+      maxConcurrency: 20,
+    }),
+    cleanStuckJobs: jest.fn().mockResolvedValue({
+      success: true,
+      cleaned: { active: 0, failed: 0, completed: 0, delayed: 0 },
+      message: 'Cleaned 0 jobs',
+    }),
   };
 
   beforeEach(async () => {
@@ -48,6 +75,10 @@ describe('MessageController', () => {
         {
           provide: MessageFilterService,
           useValue: mockFilterService,
+        },
+        {
+          provide: MessageProcessor,
+          useValue: mockMessageProcessor,
         },
       ],
     }).compile();

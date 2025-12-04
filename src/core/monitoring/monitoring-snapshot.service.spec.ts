@@ -158,7 +158,7 @@ describe('MonitoringSnapshotService', () => {
       // 验证 meta 写入
       expect(mockRedisService.setex).toHaveBeenCalledWith(
         'monitoring:meta',
-        3600,
+        86400,
         expect.objectContaining({
           version: 1,
           activeUsersCount: 2,
@@ -169,7 +169,7 @@ describe('MonitoringSnapshotService', () => {
       // 验证 records 写入
       expect(mockRedisService.setex).toHaveBeenCalledWith(
         'monitoring:records',
-        3600,
+        86400,
         mockSnapshot.detailRecords,
       );
     });
