@@ -13,7 +13,6 @@ package-lock.json
 yarn.lock
 
 # Logs
-logs
 *.log
 npm-debug.log*
 pnpm-debug.log*
