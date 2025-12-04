@@ -117,8 +117,11 @@ export class FeishuAlertService implements OnModuleInit {
    * 发送告警（兼容旧接口）
    */
   async sendAlert(context: AlertContext): Promise<boolean> {
-    // 节流检查
-    const throttleKey = context.errorType;
+    // 节流检查：使用 errorType:scenario 作为节流键
+    // 这样同一错误类型在不同场景下可以独立节流
+    const throttleKey = context.scenario
+      ? `${context.errorType}:${context.scenario}`
+      : context.errorType;
     if (!this.shouldSend(throttleKey)) {
       this.logger.debug(`告警被节流: ${throttleKey}`);
       return false;

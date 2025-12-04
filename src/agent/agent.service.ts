@@ -14,7 +14,6 @@ import {
   AgentConfigException,
   AgentContextMissingException,
   AgentRateLimitException,
-  AgentAuthException,
 } from './utils/agent-exceptions';
 import { getModelDisplayName } from './utils';
 import { AgentRegistryService } from './services/agent-registry.service';
@@ -23,7 +22,6 @@ import { AgentApiClientService } from './services/agent-api-client.service';
 import { ProfileSanitizer, AgentProfile } from './utils/agent-profile-sanitizer';
 import { AgentLogger } from './utils/agent-logger';
 import { createSuccessResult, createFallbackResult } from './utils/agent-result-helper';
-import { FeishuAlertService } from '@core/feishu';
 
 /**
  * Agent 服务（简化版）
@@ -52,7 +50,6 @@ export class AgentService {
     private readonly apiClient: AgentApiClientService,
     private readonly registryService: AgentRegistryService,
     private readonly fallbackService: AgentFallbackService,
-    private readonly feishuAlertService: FeishuAlertService,
   ) {
     // 初始化日志工具
     this.agentLogger = new AgentLogger(this.logger, this.configService);
@@ -371,22 +368,18 @@ export class AgentService {
   /**
    * 处理聊天错误（统一降级策略）
    * 所有错误都统一降级，确保用户无感知
-   * 飞书告警用于通知开发人员排查问题
+   *
+   * 注意：告警已统一移至 MessagePipelineService，此处仅负责降级处理
+   * 这样可以避免重复告警，确保每个错误只告警一次
    */
   private handleChatError(error: any, conversationId: string): AgentResult {
     this.logger.error(`Agent API 调用失败，会话: ${conversationId}`, error);
 
-    // 提取调试信息
+    // 提取调试信息（用于附加到结果，供上层告警使用）
     const requestParams = (error as any).requestParams;
     const apiKey = (error as any).apiKey;
     const apiResponse = (error as any).apiResponse || (error as any).response;
     const requestHeaders = (error as any).requestHeaders;
-
-    // 确定错误场景（用于告警和日志）
-    const scenario = this.getErrorScenario(error);
-
-    // 发送飞书告警（所有错误都告警，异步不阻塞）
-    this.sendErrorAlert(error, conversationId, requestParams, scenario);
 
     // 统一降级处理：所有错误都返回降级消息，确保用户无感知
     const retryAfter = error instanceof AgentRateLimitException ? error.retryAfter : undefined;
@@ -398,42 +391,6 @@ export class AgentService {
       apiResponse,
       requestHeaders,
     });
-  }
-
-  /**
-   * 获取错误场景标识
-   */
-  private getErrorScenario(error: any): string {
-    if (error instanceof AgentConfigException) return 'CONFIG_ERROR';
-    if (error instanceof AgentAuthException) return 'AUTH_ERROR';
-    if (error instanceof AgentContextMissingException) return 'CONTEXT_MISSING';
-    if (error instanceof AgentRateLimitException) return 'RATE_LIMIT';
-    if (error instanceof AgentApiException) return 'AGENT_API_ERROR';
-    if (error.code === 'ECONNREFUSED' || error.code === 'ETIMEDOUT') return 'NETWORK_ERROR';
-    return 'OTHER_ERROR';
-  }
-
-  /**
-   * 发送飞书告警（异步，不阻塞）
-   */
-  private sendErrorAlert(
-    error: any,
-    conversationId: string,
-    requestParams: any,
-    scenario: string,
-  ): void {
-    this.feishuAlertService
-      .sendAlert({
-        errorType: 'agent',
-        error,
-        conversationId,
-        userMessage: requestParams?.userMessage || '无用户消息',
-        apiEndpoint: '/api/v1/chat',
-        scenario,
-      })
-      .catch((alertError) => {
-        this.logger.error(`飞书告警发送失败: ${alertError.message}`);
-      });
   }
 
   /**

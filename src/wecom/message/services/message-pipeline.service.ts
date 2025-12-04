@@ -1,8 +1,14 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { MonitoringService } from '@/core/monitoring/monitoring.service';
-import { FeishuAlertService } from '@core/feishu';
+import { FeishuAlertService, AlertLevel } from '@core/feishu';
 import { ScenarioType } from '@agent';
-import { AgentException } from '@/agent/utils/agent-exceptions';
+import {
+  AgentException,
+  AgentAuthException,
+  AgentRateLimitException,
+  AgentConfigException,
+  AgentContextMissingException,
+} from '@/agent/utils/agent-exceptions';
 
 // 导入子服务
 import { MessageDeduplicationService } from './message-deduplication.service';
@@ -15,6 +21,7 @@ import { AgentGatewayService } from './message-agent-gateway.service';
 import { MessageParser } from '../utils/message-parser.util';
 import { EnterpriseMessageCallbackDto } from '../dto/message-callback.dto';
 import { DeliveryContext, PipelineResult, AlertErrorType } from '../types';
+import { AgentInputParams } from '@core/monitoring/interfaces/monitoring.interface';
 
 /**
  * 消息处理管线服务
@@ -253,6 +260,7 @@ export class MessagePipelineService {
 
       // 4. 记录成功
       const rawResponse = agentResult.reply.rawResponse;
+      const requestBody = (agentResult.result as any).requestBody;
       this.monitoringService.recordSuccess(messageId, {
         scenario,
         tools: agentResult.reply.tools?.used,
@@ -262,11 +270,12 @@ export class MessagePipelineService {
         isFallback: agentResult.isFallback,
         rawAgentResponse: rawResponse
           ? {
-              input: {
-                conversationId: chatId,
-                userMessage: content,
-                historyCount: historyMessages.length,
-              },
+              input: this.buildAgentInputParams(
+                chatId,
+                content,
+                historyMessages.length,
+                requestBody,
+              ),
               messages: rawResponse.messages,
               usage: rawResponse.usage,
               tools: rawResponse.tools,
@@ -335,6 +344,7 @@ export class MessagePipelineService {
 
       // 5. 标记所有聚合的消息为已处理
       const rawResponse = agentResult.reply.rawResponse;
+      const requestBody = (agentResult.result as any).requestBody;
       const sharedSuccessMetadata = {
         scenario,
         tools: agentResult.reply.tools?.used,
@@ -344,11 +354,12 @@ export class MessagePipelineService {
         isFallback: agentResult.isFallback,
         rawAgentResponse: rawResponse
           ? {
-              input: {
-                conversationId: chatId,
-                userMessage: lastContent,
-                historyCount: historyMessages.length,
-              },
+              input: this.buildAgentInputParams(
+                chatId,
+                lastContent,
+                historyMessages.length,
+                requestBody,
+              ),
               messages: rawResponse.messages,
               usage: rawResponse.usage,
               tools: rawResponse.tools,
@@ -413,6 +424,44 @@ export class MessagePipelineService {
   }
 
   /**
+   * 根据异常类型映射到告警级别
+   *
+   * 级别定义：
+   * - CRITICAL: 用户无响应（消息发送失败）
+   * - ERROR: 需要关注的错误（认证失败、配置错误）
+   * - WARNING: 可自动恢复的错误（频率限制、上下文缺失）
+   */
+  private getAlertLevelFromError(error: unknown): AlertLevel {
+    // 认证失败：需要人工干预修复 API Key
+    if (error instanceof AgentAuthException) {
+      return AlertLevel.ERROR;
+    }
+
+    // 频率限制：通常会自动恢复，但需要关注
+    if (error instanceof AgentRateLimitException) {
+      return AlertLevel.WARNING;
+    }
+
+    // 配置错误：需要人工干预修复配置
+    if (error instanceof AgentConfigException) {
+      return AlertLevel.ERROR;
+    }
+
+    // 上下文缺失：可能是临时问题，需要关注
+    if (error instanceof AgentContextMissingException) {
+      return AlertLevel.WARNING;
+    }
+
+    // 其他 Agent 错误：默认 ERROR
+    if (error instanceof AgentException) {
+      return AlertLevel.ERROR;
+    }
+
+    // 非 Agent 错误：默认 ERROR
+    return AlertLevel.ERROR;
+  }
+
+  /**
    * 处理错误并发送降级回复
    */
   private async handleProcessingError(
@@ -443,8 +492,9 @@ export class MessagePipelineService {
       alertType: errorType,
     });
 
-    // 发送告警
+    // 发送告警（根据异常类型映射告警级别）
     const fallbackMessage = this.agentGateway.getFallbackMessage();
+    const alertLevel = this.getAlertLevelFromError(error);
 
     this.feishuAlertService
       .sendAlert({
@@ -455,6 +505,7 @@ export class MessagePipelineService {
         apiEndpoint: '/api/v1/chat',
         scenario,
         fallbackMessage,
+        level: alertLevel,
       })
       .catch((alertError) => {
         this.logger.error(`告警发送失败: ${alertError.message}`);
@@ -489,6 +540,28 @@ export class MessagePipelineService {
     } catch (sendError) {
       const sendErrorMessage = sendError instanceof Error ? sendError.message : String(sendError);
       this.logger.error(`[${contactName}] 发送降级回复失败: ${sendErrorMessage}`);
+
+      // 🚨 CRITICAL: 用户完全无法收到任何回复，必须立即告警
+      this.feishuAlertService
+        .sendAlert({
+          errorType: 'delivery',
+          error: sendError instanceof Error ? sendError : new Error(sendErrorMessage),
+          conversationId: chatId,
+          userMessage: content,
+          apiEndpoint: 'message-sender',
+          scenario,
+          level: AlertLevel.CRITICAL,
+          title: '🚨 消息发送失败 - 用户无响应',
+          extra: {
+            originalError: errorMessage,
+            fallbackMessage,
+            contactName,
+            messageId,
+          },
+        })
+        .catch((alertError: Error) => {
+          this.logger.error(`CRITICAL 告警发送失败: ${alertError.message}`);
+        });
     }
   }
 
@@ -524,5 +597,57 @@ export class MessagePipelineService {
       this.logger.debug(`获取候选人昵称失败 [${chatId}]: ${errorMessage}`);
       return undefined;
     }
+  }
+
+  /**
+   * 构建 Agent 输入参数（用于监控记录）
+   * 从 requestBody 中提取完整的 API 请求参数
+   */
+  private buildAgentInputParams(
+    conversationId: string,
+    userMessage: string,
+    historyCount: number,
+    requestBody?: Record<string, unknown>,
+  ): AgentInputParams {
+    // 基础参数（始终记录）
+    const baseParams: AgentInputParams = {
+      conversationId,
+      userMessage,
+      historyCount,
+    };
+
+    // 如果没有 requestBody，返回基础参数
+    if (!requestBody) {
+      return baseParams;
+    }
+
+    // 从 requestBody 提取完整参数（排除敏感/超大字段）
+    const {
+      model,
+      promptType,
+      allowedTools,
+      contextStrategy,
+      prune,
+      systemPrompt,
+      context,
+      toolContext,
+    } = requestBody as Record<string, unknown>;
+
+    return {
+      ...baseParams,
+      // 模型和配置
+      model: model as string | undefined,
+      promptType: promptType as string | undefined,
+      allowedTools: allowedTools as string[] | undefined,
+      contextStrategy: contextStrategy as string | undefined,
+      prune: prune as boolean | undefined,
+      // 记录是否传入（不记录内容，避免超大）
+      hasSystemPrompt: !!systemPrompt,
+      systemPromptLength: typeof systemPrompt === 'string' ? systemPrompt.length : undefined,
+      hasContext: !!context,
+      hasToolContext: !!toolContext,
+      // 调试字段：记录 context 的 keys
+      _mergedContextKeys: context && typeof context === 'object' ? Object.keys(context) : undefined,
+    };
   }
 }

@@ -13,7 +13,6 @@ import {
   AgentInvocationException,
 } from '@agent';
 import { MonitoringService } from '@/core/monitoring/monitoring.service';
-import { FeishuAlertService } from '@core/feishu';
 import { AgentInvokeResult, AgentReply, FallbackMessageOptions } from '../types';
 import { BrandContext } from '@agent';
 import { ReplyNormalizer } from '../utils/reply-normalizer.util';
@@ -53,7 +52,6 @@ export class AgentGatewayService {
     private readonly profileLoader: ProfileLoaderService,
     private readonly configValidator: AgentConfigValidator,
     private readonly monitoringService: MonitoringService,
-    private readonly feishuAlertService: FeishuAlertService,
     private readonly brandConfigService: BrandConfigService,
   ) {}
 
@@ -265,7 +263,7 @@ export class AgentGatewayService {
       // 5. 检查是否为降级响应
       const isFallback = AgentResultHelper.isFallback(agentResult);
       if (isFallback && agentResult.fallbackInfo) {
-        await this.handleFallbackResponse(agentResult, conversationId, userMessage, scenario);
+        this.handleFallbackResponse(agentResult, conversationId, userMessage, scenario);
       }
 
       // 6. 提取响应数据
@@ -326,66 +324,18 @@ export class AgentGatewayService {
 
   /**
    * 处理降级响应
+   *
+   * 注意：告警已统一移至 MessagePipelineService.handleProcessingError
+   * 此处仅记录日志，避免重复告警
    */
-  private async handleFallbackResponse(
+  private handleFallbackResponse(
     agentResult: any,
-    conversationId: string,
-    userMessage: string,
-    scenario: ScenarioType,
-  ): Promise<void> {
+    _conversationId: string,
+    _userMessage: string,
+    _scenario: ScenarioType,
+  ): void {
     const fallbackReason = agentResult.fallbackInfo.reason;
-    this.logger.warn(`Agent 降级响应（原因: ${fallbackReason}），触发飞书告警`);
-
-    const apiResponse = (agentResult as any).response;
-    const requestHeaders = (agentResult as any).requestHeaders;
-    const defaultResponseData = {
-      error: fallbackReason,
-      message: agentResult.fallbackInfo.message,
-      suggestion: agentResult.fallbackInfo.suggestion,
-      retryAfter: agentResult.fallbackInfo.retryAfter,
-    };
-    const responseData = apiResponse?.data ?? defaultResponseData;
-    const normalizedMessage =
-      typeof responseData === 'string'
-        ? responseData
-        : responseData?.message || responseData?.error || agentResult.fallbackInfo.message;
-
-    // 构造错误对象用于告警
-    const mockError = {
-      message: normalizedMessage,
-      response: apiResponse || {
-        status: 'N/A',
-        data: responseData,
-      },
-      requestParams: (agentResult as any).requestParams, // 传递请求参数（如果有）
-      requestHeaders,
-    };
-
-    // 提取 API 错误详情（如 "Payment Required"）
-    const apiDetails = responseData?.details;
-
-    // 异步发送告警
-    this.feishuAlertService
-      .sendAlert({
-        errorType: 'agent',
-        error: mockError,
-        conversationId,
-        userMessage,
-        apiEndpoint: '/api/v1/chat',
-        scenario,
-        fallbackMessage: agentResult.fallbackInfo.message,
-        // 传递 API 错误详情
-        ...(apiDetails && {
-          details: {
-            apiDetails: typeof apiDetails === 'string' ? apiDetails : apiDetails,
-            statusCode: responseData?.statusCode,
-            correlationId: responseData?.correlationId,
-          },
-        }),
-      })
-      .catch((alertError) => {
-        this.logger.error(`告警发送失败: ${alertError.message}`);
-      });
+    this.logger.warn(`Agent 降级响应（原因: ${fallbackReason}）`);
   }
 
   /**
