@@ -12,6 +12,7 @@ interface ControlPanelProps {
   activeTab: 'realtime' | 'slowest';
   onTabChange: (tab: 'realtime' | 'slowest') => void;
   realtimeCount: number;
+  slowestCount: number;
 }
 
 export default function ControlPanel({
@@ -19,6 +20,7 @@ export default function ControlPanel({
   activeTab,
   onTabChange,
   realtimeCount,
+  slowestCount,
 }: ControlPanelProps) {
   return (
     <section
@@ -134,7 +136,7 @@ export default function ControlPanel({
               boxShadow: activeTab === 'slowest' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
             }}
           >
-            最慢 Top10
+            最慢 Top{slowestCount}
           </button>
         </div>
       </div>

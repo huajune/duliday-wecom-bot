@@ -33,6 +33,7 @@ export default function Logs() {
         activeTab={activeTab}
         onTabChange={setActiveTab}
         realtimeCount={messages.length}
+        slowestCount={slowestRecords.length}
       />
 
       <LogsTable

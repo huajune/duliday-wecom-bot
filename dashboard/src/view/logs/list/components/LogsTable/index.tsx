@@ -26,7 +26,7 @@ export default function LogsTable({ data, loading, onRowClick, variant }: LogsTa
 
   if (loading) {
     return (
-      <section className="section" style={{ display: variant === 'slowest' ? 'none' : 'block' }}>
+      <section className="section">
         <div className={styles.tableWrapper}>
           <table className={styles.table}>
             <thead>{tableHeaders}</thead>
@@ -45,7 +45,7 @@ export default function LogsTable({ data, loading, onRowClick, variant }: LogsTa
 
   if (data.length === 0) {
     return (
-      <section className="section" style={{ display: variant === 'slowest' ? 'none' : 'block' }}>
+      <section className="section">
         <div className={styles.tableWrapper}>
           <table className={styles.table}>
             <thead>{tableHeaders}</thead>
@@ -63,7 +63,7 @@ export default function LogsTable({ data, loading, onRowClick, variant }: LogsTa
   }
 
   return (
-    <section className="section" style={{ display: variant === 'slowest' ? 'none' : 'block' }}>
+    <section className="section">
       <div className={styles.tableWrapper}>
         <table className={styles.table}>
           <thead>{tableHeaders}</thead>
