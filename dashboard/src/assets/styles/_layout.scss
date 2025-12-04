@@ -318,33 +318,205 @@
   gap: 16px;
 }
 
-// ========== 响应式 ==========
+// ========== 响应式 (PC端) ==========
+
+// 大屏桌面 (1280px 以下)
 @media (max-width: $breakpoint-xl) {
+  .sidebar {
+    width: 240px;
+    padding: 20px;
+  }
+
+  .sidebar-logo {
+    font-size: 18px;
+    gap: 10px;
+
+    span {
+      font-size: 24px;
+    }
+  }
+
+  .nav-item {
+    padding: 12px 14px;
+    font-size: 14px;
+    gap: 12px;
+  }
+
+  .content {
+    margin-left: 272px; // 240 + 16 + 16
+    padding: 32px 32px 60px 0;
+  }
+
+  .container {
+    gap: 20px;
+  }
+
   .metric-grid {
     grid-template-columns: repeat(3, 1fr);
   }
+
   .insight-grid {
     grid-template-columns: repeat(2, 1fr);
   }
+
+  .chat-layout {
+    grid-template-columns: 300px 1fr;
+    gap: 20px;
+  }
+
+  .header {
+    padding: 24px;
+
+    h1 {
+      font-size: 24px;
+    }
+  }
+
+  .section {
+    padding: 20px;
+  }
 }
 
-@media (max-width: 960px) {
+// 中等桌面 (1024px 以下)
+@media (max-width: $breakpoint-lg) {
+  .sidebar {
+    width: 200px;
+    padding: 16px;
+  }
+
+  .sidebar-logo {
+    font-size: 16px;
+    margin-bottom: 4px;
+
+    span {
+      font-size: 20px;
+    }
+  }
+
+  .sidebar-watermark {
+    font-size: 160px;
+  }
+
+  .sidebar-watermark-2 {
+    font-size: 120px;
+  }
+
+  .nav-group-title {
+    font-size: 10px;
+    margin: 16px 0 8px 8px;
+  }
+
+  .nav-item {
+    padding: 10px 12px;
+    font-size: 13px;
+    gap: 10px;
+    border-radius: 12px;
+  }
+
+  .nav-icon {
+    width: 20px;
+    height: 20px;
+    margin-right: 8px;
+  }
+
+  .content {
+    margin-left: 232px; // 200 + 16 + 16
+    padding: 24px 24px 48px 0;
+  }
+
+  .container {
+    gap: 16px;
+  }
+
+  .metric-grid {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+  }
+
   .charts-row {
     grid-template-columns: 1fr;
+    gap: 16px;
   }
+
   .health-grid {
     grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
   }
+
+  .insight-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+  }
+
+  .stat-grid-3 {
+    gap: 16px;
+    margin-bottom: 20px;
+  }
+
+  .chat-layout {
+    grid-template-columns: 260px 1fr;
+    gap: 16px;
+    height: calc(100vh - 160px);
+  }
+
+  .header {
+    padding: 20px;
+    gap: 16px;
+    border-radius: 16px;
+
+    h1 {
+      font-size: 22px;
+    }
+  }
+
+  .header-top {
+    gap: 16px;
+  }
+
+  .section {
+    padding: 16px;
+    border-radius: 16px;
+  }
+
+  .page-section {
+    gap: 16px;
+  }
+
+  .modal-grid {
+    gap: 12px;
+  }
+}
+
+// 小桌面 (960px 以下)
+@media (max-width: 960px) {
   .metric-grid {
     grid-template-columns: repeat(2, 1fr);
   }
+
   .insight-grid {
     grid-template-columns: 1fr;
   }
+
+  .stat-grid-3 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .chat-layout {
+    grid-template-columns: 220px 1fr;
+  }
 }
 
+// 最小支持宽度 (640px 以下) - 保留基础支持
 @media (max-width: $breakpoint-sm) {
   .health-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .stat-grid-3 {
+    grid-template-columns: 1fr;
+  }
+
+  .modal-grid {
     grid-template-columns: 1fr;
   }
 }

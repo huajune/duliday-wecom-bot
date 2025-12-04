@@ -279,3 +279,12 @@ $z-tooltip: 600;
   background: $bg;
   color: $color;
 }
+
+// 玻璃拟态效果
+@mixin glass-panel($opacity: 0.7, $blur: 10px) {
+  background: rgba(255, 255, 255, $opacity);
+  backdrop-filter: blur($blur);
+  -webkit-backdrop-filter: blur($blur);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.07);
+}

@@ -209,3 +209,25 @@
   text-align: center;
   flex-shrink: 0;
 }
+
+// 响应式 (PC端)
+@include respond-to(xl) {
+  .panel {
+    width: 340px;
+    min-width: 280px;
+  }
+
+  .sessionItem {
+    padding: 12px 14px;
+    gap: 10px;
+  }
+
+  .avatar {
+    width: 40px;
+    height: 40px;
+  }
+
+  .candidateName {
+    max-width: 100px;
+  }
+}

@@ -136,3 +136,39 @@
 .messageTypeIcon {
   margin-right: 4px;
 }
+
+// 响应式 (PC端)
+@include respond-to(xl) {
+  .messagesContainer {
+    padding: 20px;
+  }
+
+  .messageContent {
+    max-width: 75%;
+  }
+}
+
+@include respond-to(lg) {
+  .messagesContainer {
+    padding: 16px;
+  }
+
+  .avatar {
+    width: 32px;
+    height: 32px;
+    font-size: $font-size-xs;
+  }
+
+  .messageContent {
+    max-width: 80%;
+  }
+
+  .messageBubble {
+    padding: 10px 14px;
+    font-size: $font-size-xs;
+  }
+
+  .stateIcon {
+    font-size: 48px;
+  }
+}

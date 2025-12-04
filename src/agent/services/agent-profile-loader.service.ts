@@ -1,6 +1,6 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { readFile, readdir } from 'fs/promises';
+import { readFile } from 'fs/promises';
 import { existsSync } from 'fs';
 import { join } from 'path';
 import { AgentProfile } from '../utils/agent-types';
@@ -8,65 +8,36 @@ import { ScenarioType } from '../utils/agent-enums';
 import { AgentRegistryService } from './agent-registry.service';
 
 /**
- * 配置文件结构
- * 对应 profiles/{scenarioName}/profile.json 的结构
- */
-interface ProfileConfig {
-  name: string;
-  description: string;
-  model: string;
-  allowedTools?: string | string[];
-  contextStrategy?: 'skip' | 'error' | 'report';
-  prune?: boolean;
-  pruneOptions?: {
-    maxOutputTokens?: number;
-    targetTokens?: number;
-    preserveRecentMessages?: number;
-  };
-  files?: {
-    systemPrompt?: string;
-    context?: string;
-    toolContext?: string;
-    generalChatPrompt?: string;
-  };
-  metadata?: {
-    version?: string;
-    author?: string;
-    lastUpdated?: string;
-    description?: string;
-  };
-}
-
-/**
  * Profile 加载服务
- * 负责从文件系统加载和管理 Agent Profile
+ * 负责管理 Agent Profile 配置
  *
  * 职责：
- * 1. 从文件系统加载 profile.json、system-prompt.md 等
- * 2. 管理 profile 缓存（内存 Map）
- * 3. 提供 profile 注册、获取、重载接口
- * 4. 验证 profile 有效性
+ * 1. 提供硬编码的 profile 配置
+ * 2. 从文件系统加载 .md prompt 文件
+ * 3. 管理 profile 缓存（内存 Map）
+ * 4. 提供 profile 注册、获取、重载接口
+ * 5. 验证 profile 有效性
  */
 @Injectable()
 export class ProfileLoaderService implements OnModuleInit {
   private readonly logger = new Logger(ProfileLoaderService.name);
   private readonly profiles = new Map<string, AgentProfile>();
-  private readonly contextBasePath: string;
+  private readonly profilesBasePath: string;
   private initialized = false;
 
   constructor(
     private readonly configService: ConfigService,
     private readonly registryService: AgentRegistryService,
   ) {
-    // 配置文件基础路径 - profiles/ 文件夹
+    // Prompt 文件基础路径 - profiles/ 文件夹
     // 开发模式: src/agent/services -> ../profiles
     // 生产模式: dist/agent/services -> ../profiles (需确保 profiles 目录被复制到 dist)
     const devPath = join(__dirname, '..', 'profiles');
     const prodPath = join(__dirname, '..', '..', '..', 'agent', 'profiles');
 
     // 优先使用开发路径，如果不存在则尝试生产路径
-    this.contextBasePath = existsSync(devPath) ? devPath : prodPath;
-    this.logger.log(`Profile 配置文件路径: ${this.contextBasePath}`);
+    this.profilesBasePath = existsSync(devPath) ? devPath : prodPath;
+    this.logger.log(`Profile 配置文件路径: ${this.profilesBasePath}`);
   }
 
   /**
@@ -109,7 +80,7 @@ export class ProfileLoaderService implements OnModuleInit {
    */
   async reloadProfile(profileName: string): Promise<boolean> {
     try {
-      const reloadedProfile = await this.loadProfileFromFile(profileName);
+      const reloadedProfile = await this.buildProfileByName(profileName);
       if (reloadedProfile) {
         this.registerProfile(reloadedProfile);
         this.logger.log(`配置 ${profileName} 已重新加载`);
@@ -128,11 +99,8 @@ export class ProfileLoaderService implements OnModuleInit {
    */
   async reloadAllProfiles(): Promise<void> {
     try {
-      const loadedProfiles = await this.loadAllProfilesFromFiles();
       this.profiles.clear();
-      for (const profile of loadedProfiles) {
-        this.registerProfile(profile);
-      }
+      await this.initializeProfiles();
       this.logger.log(`所有配置已重新加载，共 ${this.profiles.size} 个`);
     } catch (error) {
       this.logger.error('重新加载所有配置失败', error);
@@ -212,13 +180,12 @@ export class ProfileLoaderService implements OnModuleInit {
     }
 
     try {
-      const loadedProfiles = await this.loadAllProfilesFromFiles();
+      // 加载所有已注册的 Profile
+      const profileNames = this.getRegisteredProfileNames();
 
-      if (loadedProfiles.length === 0) {
-        this.logger.warn('未加载到任何配置档案，将使用降级配置');
-        this.initializeFallbackProfiles();
-      } else {
-        for (const profile of loadedProfiles) {
+      for (const name of profileNames) {
+        const profile = await this.buildProfileByName(name);
+        if (profile) {
           this.registerProfile(profile);
         }
       }
@@ -226,318 +193,84 @@ export class ProfileLoaderService implements OnModuleInit {
       this.initialized = true;
       this.logger.log(`配置初始化完成，已加载 ${this.profiles.size} 个配置档案`);
     } catch (error) {
-      this.logger.error('配置初始化失败，使用降级配置', error);
-      this.initializeFallbackProfiles();
+      this.logger.error('配置初始化失败', error);
       this.initialized = true;
     }
   }
 
   /**
-   * 降级处理：使用环境变量创建最小化配置
+   * 获取所有已注册的 Profile 名称
    */
-  private initializeFallbackProfiles(): void {
-    const defaultModel = this.configService.get<string>('AGENT_DEFAULT_MODEL');
+  private getRegisteredProfileNames(): string[] {
+    return [ScenarioType.CANDIDATE_CONSULTATION];
+  }
+
+  /**
+   * 根据名称构建 Profile
+   */
+  private async buildProfileByName(profileName: string): Promise<AgentProfile | null> {
+    switch (profileName) {
+      case ScenarioType.CANDIDATE_CONSULTATION:
+        return this.buildCandidateConsultationProfile();
+      default:
+        this.logger.warn(`未知的 Profile 名称: ${profileName}`);
+        return null;
+    }
+  }
+
+  /**
+   * 构建候选人咨询 Profile
+   * 配置硬编码在此方法中，只有 .md 文件从文件系统加载
+   */
+  private async buildCandidateConsultationProfile(): Promise<AgentProfile> {
+    const scenarioDir = join(this.profilesBasePath, 'candidate-consultation');
+
+    // 从环境变量获取配置
+    const model = this.configService.get<string>('AGENT_DEFAULT_MODEL', '');
     const allowedToolsEnv = this.configService.get<string>('AGENT_ALLOWED_TOOLS', '');
-    const defaultTools = allowedToolsEnv
+    const dulidayToken = this.configService.get<string>('DULIDAY_API_TOKEN', '');
+
+    // 解析工具列表
+    const allowedTools = allowedToolsEnv
       .split(',')
       .map((tool) => tool.trim())
       .filter((tool) => tool.length > 0);
 
-    this.logger.warn('⚠️ 使用环境变量创建最小化降级配置（功能受限）');
+    // 从文件系统加载 .md 文件
+    const systemPrompt = await this.readTextFile(join(scenarioDir, 'system-prompt.md'));
+    const generalChatPrompt = await this.readTextFile(join(scenarioDir, 'general-chat-prompt.md'));
 
-    this.registerProfile({
-      name: ScenarioType.CANDIDATE_CONSULTATION,
-      description: '候选人私聊咨询服务（降级模式）',
-      model: defaultModel,
-      allowedTools: defaultTools,
-      systemPrompt: [
-        '你是一位专业的招聘经理，通过企业微信与候选人进行私聊沟通。',
-        '',
-        '核心职责：',
-        '1. 使用 duliday_job_list 工具查询岗位信息',
-        '2. 使用 duliday_job_details 工具获取岗位详情',
-        '3. 使用 duliday_interview_booking 工具预约面试',
-        '',
-        '注意：请优先使用工具获取真实信息，不要编造数据。',
-      ].join('\n'),
-      context: {
-        dulidayToken: this.configService.get<string>('DULIDAY_API_TOKEN'),
-        brandPriorityStrategy: 'smart', // 降级配置也需要包含此字段
-      },
-      toolContext: {}, // 降级模式下 toolContext 为空对象（不是 undefined）
-      contextStrategy: 'skip',
-      prune: true,
-      pruneOptions: {
-        targetTokens: 32000,
-        preserveRecentMessages: 50,
-        maxOutputTokens: 4000,
-      },
-    });
-
-    this.logger.log('✅ 降级配置创建完成（建议尽快修复配置文件以恢复完整功能）');
-  }
-
-  /**
-   * 从文件系统加载所有配置档案
-   * 动态扫描 profiles/ 目录，自动发现所有包含 profile.json 的场景
-   */
-  private async loadAllProfilesFromFiles(): Promise<AgentProfile[]> {
-    const profiles: AgentProfile[] = [];
-
-    try {
-      // 检查基础路径是否存在
-      if (!existsSync(this.contextBasePath)) {
-        this.logger.warn(`配置目录不存在: ${this.contextBasePath}`);
-        return profiles;
-      }
-
-      // 读取所有子目录
-      const entries = await readdir(this.contextBasePath, { withFileTypes: true });
-
-      // 过滤出目录并检查是否包含 profile.json
-      const profileNames = entries
-        .filter((entry) => entry.isDirectory())
-        .map((entry) => entry.name)
-        .filter((name) => {
-          const profilePath = join(this.contextBasePath, name, 'profile.json');
-          return existsSync(profilePath);
-        });
-
-      this.logger.log(`发现 ${profileNames.length} 个配置场景: ${profileNames.join(', ')}`);
-
-      // 加载每个配置
-      for (const name of profileNames) {
-        const profile = await this.loadProfileFromFile(name);
-        if (profile) {
-          profiles.push(profile);
-        }
-      }
-    } catch (error) {
-      this.logger.error('扫描配置目录失败', error);
+    // 记录配置加载情况
+    if (dulidayToken) {
+      this.logger.debug(`✅ DULIDAY_API_TOKEN 已加载 (长度: ${dulidayToken.length})`);
+    } else {
+      this.logger.warn('⚠️ DULIDAY_API_TOKEN 未设置');
     }
 
-    return profiles;
-  }
-
-  /**
-   * 从文件系统加载单个配置档案
-   */
-  private async loadProfileFromFile(profileName: string): Promise<AgentProfile | null> {
-    try {
-      const scenarioDir = join(this.contextBasePath, profileName);
-      const profilePath = join(scenarioDir, 'profile.json');
-
-      const profileJson = await this.readJsonFile<ProfileConfig>(profilePath);
-
-      if (!profileJson) {
-        this.logger.warn(`未找到配置文件: ${profileName}`);
-        return null;
-      }
-
-      const profile = await this.buildProfile(profileJson, scenarioDir);
-      this.logger.log(`成功加载配置: ${profileName}`);
-      return profile;
-    } catch (error) {
-      this.logger.error(`加载配置失败: ${profileName}`, error);
-      return null;
-    }
-  }
-
-  /**
-   * 构建完整的 AgentProfile
-   */
-  private async buildProfile(config: ProfileConfig, scenarioDir: string): Promise<AgentProfile> {
     const profile: AgentProfile = {
-      name: config.name,
-      description: config.description,
-      model: this.resolveEnvVar(config.model),
-      contextStrategy: config.contextStrategy || 'skip',
-      prune: config.prune ?? false,
-      pruneOptions: config.pruneOptions,
+      name: ScenarioType.CANDIDATE_CONSULTATION,
+      description: '候选人私聊咨询服务',
+      model,
+      allowedTools,
+      contextStrategy: 'skip',
+      systemPrompt,
+      context: {
+        dulidayToken,
+        brandPriorityStrategy: 'smart',
+      },
+      toolContext: generalChatPrompt
+        ? {
+            zhipin_reply_generator: {
+              replyPrompts: {
+                general_chat: generalChatPrompt,
+              },
+            },
+          }
+        : {},
     };
 
-    // 解析 allowedTools
-    if (config.allowedTools) {
-      if (typeof config.allowedTools === 'string') {
-        profile.allowedTools = this.parseAllowedTools(config.allowedTools);
-      } else {
-        profile.allowedTools = config.allowedTools;
-      }
-    }
-
-    // 加载 system prompt
-    if (config.files?.systemPrompt) {
-      const promptPath = join(scenarioDir, config.files.systemPrompt);
-      profile.systemPrompt = await this.readTextFile(promptPath);
-    }
-
-    // 加载 context
-    if (config.files?.context) {
-      const contextPath = join(scenarioDir, config.files.context);
-      const contextData = await this.readJsonFile(contextPath);
-      if (contextData) {
-        profile.context = this.resolveEnvVarsInObject(contextData);
-        // 调试日志：确认 context 中的关键字段
-        if (profile.context && 'dulidayToken' in profile.context) {
-          this.logger.debug(`✅ Profile [${config.name}] context.dulidayToken 已配置`);
-        }
-      }
-    }
-
-    // 加载 toolContext（兼容旧的 JSON 格式）
-    if (config.files?.toolContext) {
-      const toolContextPath = join(scenarioDir, config.files.toolContext);
-      const toolContextData = await this.readConfigFile(toolContextPath);
-      if (toolContextData) {
-        profile.toolContext = this.resolveEnvVarsInObject(toolContextData);
-      }
-    }
-
-    // 加载 generalChatPrompt（新的 Markdown 格式）
-    if (config.files?.generalChatPrompt) {
-      const generalChatPath = join(scenarioDir, config.files.generalChatPrompt);
-      const generalChatContent = await this.readTextFile(generalChatPath);
-      if (generalChatContent) {
-        // 构建与原 tool-context.json 相同的嵌套结构
-        profile.toolContext = {
-          zhipin_reply_generator: {
-            replyPrompts: {
-              general_chat: generalChatContent,
-            },
-          },
-        };
-        this.logger.debug(`✅ Profile [${config.name}] 已加载 generalChatPrompt`);
-      }
-    }
-
+    this.logger.log(`成功加载配置: ${ScenarioType.CANDIDATE_CONSULTATION}`);
     return profile;
-  }
-
-  /**
-   * 解析允许的工具列表
-   */
-  private parseAllowedTools(toolsStr: string): string[] {
-    const resolved = this.resolveEnvVar(toolsStr);
-    return resolved
-      .split(',')
-      .map((tool) => tool.trim())
-      .filter((tool) => tool.length > 0);
-  }
-
-  /**
-   * 解析单个环境变量
-   */
-  private resolveEnvVar(value: string): string {
-    if (!value) return value;
-
-    const envVarPattern = /\$\{([^}]+)\}/g;
-    return value.replace(envVarPattern, (_, varName) => {
-      const envValue = this.configService.get<string>(varName);
-      if (!envValue) {
-        this.logger.warn(`环境变量未设置: ${varName}, 使用空字符串`);
-        return '';
-      }
-
-      // 特别记录 DULIDAY_API_TOKEN 的加载情况
-      if (varName === 'DULIDAY_API_TOKEN') {
-        this.logger.debug(`✅ DULIDAY_API_TOKEN 已加载 (长度: ${envValue.length})`);
-      }
-
-      return envValue;
-    });
-  }
-
-  /**
-   * 递归解析对象中的所有环境变量
-   */
-  private resolveEnvVarsInObject<T>(obj: T): T {
-    if (typeof obj === 'string') {
-      return this.resolveEnvVar(obj) as T;
-    }
-
-    if (Array.isArray(obj)) {
-      return obj.map((item) => this.resolveEnvVarsInObject(item)) as T;
-    }
-
-    if (obj && typeof obj === 'object') {
-      const resolved: any = {};
-      for (const [key, value] of Object.entries(obj)) {
-        resolved[key] = this.resolveEnvVarsInObject(value);
-      }
-      return resolved;
-    }
-
-    return obj;
-  }
-
-  /**
-   * 读取配置文件（支持 JSON 和 TypeScript 模块）
-   *
-   * 对于 .ts 文件：
-   * 1. 首先尝试加载源文件（开发环境）
-   * 2. 如果失败，尝试加载编译后的 .js 文件（生产环境）
-   */
-  private async readConfigFile<T = any>(filePath: string): Promise<T | null> {
-    try {
-      if (filePath.endsWith('.json')) {
-        return await this.readJsonFile<T>(filePath);
-      }
-
-      if (filePath.endsWith('.ts') || filePath.endsWith('.js')) {
-        // 尝试多个可能的路径
-        const pathsToTry: string[] = [];
-
-        if (filePath.endsWith('.ts')) {
-          // 1. 源文件路径（开发环境）
-          const srcPath = filePath.replace(
-            /^.*\/agent\/profiles\//,
-            join(process.cwd(), 'src/agent/profiles/'),
-          );
-          pathsToTry.push(srcPath);
-
-          // 2. 编译后的 .js 路径（生产环境）
-          const distPath = filePath.replace(/\.ts$/, '.js');
-          pathsToTry.push(distPath);
-        } else {
-          pathsToTry.push(filePath);
-        }
-
-        // 尝试每个路径
-        for (const path of pathsToTry) {
-          if (existsSync(path)) {
-            try {
-              const module = await import(path);
-              return module.default || module.toolContext || module;
-            } catch (importError) {
-              this.logger.warn(`导入文件失败: ${path}`, importError);
-              continue;
-            }
-          }
-        }
-
-        this.logger.error(`所有路径尝试失败: ${pathsToTry.join(', ')}`);
-        return null;
-      }
-
-      this.logger.warn(`不支持的配置文件格式: ${filePath}`);
-      return null;
-    } catch (error) {
-      this.logger.error(`读取配置文件失败: ${filePath}`, error);
-      return null;
-    }
-  }
-
-  /**
-   * 读取 JSON 文件
-   */
-  private async readJsonFile<T = any>(filePath: string): Promise<T | null> {
-    try {
-      const content = await readFile(filePath, 'utf-8');
-      return JSON.parse(content);
-    } catch (error) {
-      this.logger.error(`读取 JSON 文件失败: ${filePath}`, error);
-      return null;
-    }
   }
 
   /**
@@ -545,6 +278,10 @@ export class ProfileLoaderService implements OnModuleInit {
    */
   private async readTextFile(filePath: string): Promise<string | undefined> {
     try {
+      if (!existsSync(filePath)) {
+        this.logger.warn(`文件不存在: ${filePath}`);
+        return undefined;
+      }
       return await readFile(filePath, 'utf-8');
     } catch (error) {
       this.logger.error(`读取文本文件失败: ${filePath}`, error);

@@ -2,27 +2,37 @@
 @use '@/assets/styles/variables' as *;
 
 .card {
-  padding: $spacing-md;
-  background: $bg-secondary;
-  border-radius: $radius-lg;
-  border: 1px solid $border;
+  @include glass-panel;
+  padding: $spacing-lg;
+  border-radius: $radius-xl;
+  margin-bottom: $spacing-xl;
 }
 
 .title {
   margin: 0 0 $spacing-md 0;
   color: $text-primary;
-  font-size: $font-size-sm;
+  font-size: $font-size-base;
+  font-weight: $font-weight-semibold;
+  display: flex;
+  align-items: center;
+  gap: $spacing-sm;
+
+  &::before {
+    content: 'ℹ️';
+    font-size: 18px;
+  }
 }
 
 .list {
   margin: 0;
-  padding-left: 20px;
-  font-size: $font-size-xs;
+  padding-left: 24px;
+  font-size: $font-size-sm;
   color: $text-secondary;
   line-height: $line-height-relaxed;
 
   li {
-    margin-bottom: $spacing-xs;
+    margin-bottom: $spacing-sm;
+    position: relative;
 
     &:last-child {
       margin-bottom: 0;
@@ -31,14 +41,20 @@
 
   strong {
     color: $text-primary;
+    font-weight: $font-weight-medium;
   }
 }
 
 .tipBox {
-  margin-top: $spacing-md;
-  padding: 10px $spacing-md;
-  background: rgba($primary, 0.05);
-  border-radius: $radius-md;
-  font-size: $font-size-xs;
-  color: $primary;
+  margin-top: $spacing-lg;
+  padding: $spacing-md;
+  background: linear-gradient(135deg, rgba($primary, 0.05) 0%, rgba($primary, 0.1) 100%);
+  border-radius: $radius-lg;
+  font-size: $font-size-sm;
+  color: $primary-dark;
+  border: 1px solid rgba($primary, 0.1);
+  display: flex;
+  align-items: center;
+  gap: $spacing-sm;
+  font-weight: $font-weight-medium;
 }

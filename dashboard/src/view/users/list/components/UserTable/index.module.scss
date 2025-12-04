@@ -158,3 +158,49 @@
     color: $text-muted;
   }
 }
+
+// 响应式 (PC端)
+@include respond-to(xl) {
+  .section {
+    padding: $spacing-md;
+  }
+
+  .table {
+    th,
+    td {
+      padding: $spacing-sm;
+    }
+  }
+}
+
+@include respond-to(lg) {
+  .section {
+    padding: $spacing-sm;
+    border-radius: $radius-md;
+  }
+
+  .sectionHeader {
+    margin-bottom: $spacing-md;
+  }
+
+  .table {
+    font-size: $font-size-xs;
+
+    th,
+    td {
+      padding: $spacing-sm $spacing-xs;
+    }
+
+    th {
+      font-size: 10px;
+    }
+  }
+
+  .chatIdCell {
+    font-size: 10px;
+    max-width: 100px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}

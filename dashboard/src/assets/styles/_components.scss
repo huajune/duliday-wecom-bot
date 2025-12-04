@@ -507,7 +507,7 @@
   padding: 24px 32px;
   position: relative;
   overflow: hidden;
-  margin-bottom: 0;
+  margin-bottom: 20px;
 
   &::before {
     content: '';
@@ -1648,5 +1648,324 @@ tbody tr:hover {
   &.enterprise { color: #2563eb; background: rgba(37, 99, 235, 0.1); }
   &.official { color: #9333ea; background: rgba(147, 51, 234, 0.1); }
   &.unknown { color: #6b7280; background: rgba(107, 114, 128, 0.1); }
+}
+
+// ========== 响应式 (PC端) ==========
+
+// 大屏桌面 (1280px 以下)
+@media (max-width: $breakpoint-xl) {
+  .metric-card {
+    padding: 20px;
+    border-radius: 16px;
+  }
+
+  .metric-value {
+    font-size: 28px;
+  }
+
+  .chart-card {
+    padding: 20px;
+    border-radius: 16px;
+  }
+
+  .chart-container {
+    height: 240px;
+  }
+
+  .health-panel {
+    padding: 20px 24px;
+    border-radius: 16px;
+  }
+
+  .control-panel {
+    padding: 20px 24px;
+    border-radius: 16px;
+  }
+
+  .modal-content {
+    max-width: 720px;
+    border-radius: 20px;
+  }
+
+  .drawer-content {
+    width: 70%;
+  }
+
+  .insight-card {
+    padding: 20px;
+    border-radius: 16px;
+  }
+
+  .stat-card {
+    padding: 16px;
+    border-radius: 16px;
+  }
+
+  .stat-icon {
+    width: 44px;
+    height: 44px;
+    font-size: 22px;
+  }
+
+  .stat-value {
+    font-size: 20px;
+  }
+
+  .glass-panel {
+    border-radius: 16px;
+  }
+}
+
+// 中等桌面 (1024px 以下)
+@media (max-width: $breakpoint-lg) {
+  .btn {
+    padding: 8px 14px;
+    font-size: 13px;
+  }
+
+  .filters button {
+    padding: 5px 12px;
+    font-size: 12px;
+  }
+
+  .metric-card {
+    padding: 16px;
+    border-radius: 14px;
+  }
+
+  .metric-label {
+    font-size: 11px;
+  }
+
+  .metric-value {
+    font-size: 24px;
+  }
+
+  .metric-subtitle {
+    font-size: 12px;
+  }
+
+  .chart-card {
+    padding: 16px;
+    gap: 12px;
+  }
+
+  .chart-header h3 {
+    font-size: 14px;
+  }
+
+  .chart-container {
+    height: 200px;
+  }
+
+  .insight-card {
+    padding: 16px;
+    gap: 12px;
+  }
+
+  .insight-title {
+    font-size: 14px;
+  }
+
+  .insight-metrics {
+    gap: 8px;
+
+    strong {
+      font-size: 16px;
+    }
+
+    span {
+      font-size: 11px;
+    }
+  }
+
+  .health-panel {
+    padding: 16px 20px;
+  }
+
+  .health-panel-title {
+    font-size: 14px;
+  }
+
+  .health-item {
+    padding: 10px;
+    border-radius: 10px;
+  }
+
+  .health-icon {
+    width: 40px;
+    height: 40px;
+    font-size: 22px;
+    border-radius: 10px;
+  }
+
+  .health-status {
+    font-size: 14px;
+  }
+
+  .control-panel {
+    padding: 16px 20px;
+    margin-bottom: 16px;
+  }
+
+  .control-panel-header {
+    padding-bottom: 16px;
+    margin-bottom: 16px;
+  }
+
+  .control-panel-title {
+    font-size: 14px;
+  }
+
+  .alert-control-panel {
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 12px;
+  }
+
+  .control-card {
+    padding: 16px;
+    border-radius: 10px;
+  }
+
+  .modal-content {
+    max-width: 640px;
+    max-height: 80vh;
+  }
+
+  .modal-header {
+    padding: 16px 20px;
+
+    h3 {
+      font-size: 16px;
+    }
+  }
+
+  .modal-body {
+    padding: 20px;
+  }
+
+  .modal-footer {
+    padding: 14px 20px;
+  }
+
+  .drawer-content {
+    width: 75%;
+    border-radius: 20px;
+    margin: 12px 12px 12px 0;
+  }
+
+  .stat-card {
+    padding: 14px;
+    gap: 12px;
+  }
+
+  .stat-icon {
+    width: 40px;
+    height: 40px;
+    font-size: 20px;
+    border-radius: 12px;
+  }
+
+  .stat-label {
+    font-size: 12px;
+  }
+
+  .stat-value {
+    font-size: 18px;
+  }
+
+  .glass-panel {
+    border-radius: 14px;
+  }
+
+  .panel-header {
+    padding: 14px 16px;
+  }
+
+  .panel-title {
+    font-size: 14px;
+  }
+
+  // 表格响应式
+  .table-wrapper {
+    margin: 0 -16px;
+    padding: 0 16px;
+  }
+
+  thead th {
+    font-size: 11px;
+    padding: 8px 10px;
+  }
+
+  tbody td {
+    padding: 10px;
+    font-size: 12px;
+  }
+
+  .table-cell-truncate {
+    max-width: 150px;
+  }
+
+  // 分页
+  .pagination {
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .pagination-btn {
+    padding: 5px 10px;
+    font-size: 12px;
+  }
+
+  // 日志工具栏
+  .log-toolbar {
+    padding: 16px 20px;
+
+    .toolbar-header {
+      margin-bottom: 12px;
+      padding-bottom: 12px;
+    }
+
+    .toolbar-actions {
+      gap: 10px;
+    }
+
+    .search-box {
+      min-width: 160px;
+      max-width: 260px;
+    }
+
+    .action-btn {
+      padding: 6px 12px;
+      font-size: 12px;
+    }
+  }
+}
+
+// 小桌面 (960px 以下)
+@media (max-width: 960px) {
+  .alert-control-panel {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .insight-metrics {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .drawer-content {
+    width: 85%;
+  }
+
+  .log-toolbar {
+    .toolbar-actions {
+      flex-wrap: wrap;
+    }
+
+    .search-box {
+      order: -1;
+      flex: 1 1 100%;
+      max-width: none;
+    }
+  }
 }
 

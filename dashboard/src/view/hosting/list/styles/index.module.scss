@@ -2,24 +2,33 @@
 @use '@/assets/styles/variables' as *;
 
 .page {
-  padding-bottom: 40px;
+  padding-bottom: 60px;
+  max-width: 1200px;
+  margin: 0 auto;
 }
 
 .pageHeader {
-  margin-bottom: $spacing-lg;
+  margin-bottom: $spacing-xl;
 }
 
 .pageTitle {
   margin: 0;
   color: $text-primary;
+  font-size: $font-size-2xl;
+  font-weight: $font-weight-bold;
+  background: linear-gradient(135deg, $primary-dark 0%, $primary 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
 
 .pageDesc {
   margin: $spacing-xs 0 0 0;
-  font-size: $font-size-sm;
-  color: $text-muted;
+  font-size: $font-size-base;
+  color: $text-secondary;
+  max-width: 600px;
 }
 
 .section {
-  margin-top: $spacing-lg;
+  margin-top: $spacing-xl;
 }

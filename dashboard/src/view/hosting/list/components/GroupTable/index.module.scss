@@ -2,13 +2,23 @@
 @use '@/assets/styles/variables' as *;
 
 .section {
-  @include card;
+  @include glass-panel;
   padding: $spacing-lg;
+  border-radius: $radius-xl;
+  margin-bottom: $spacing-lg;
 }
 
 .sectionHeader {
+  margin-bottom: $spacing-md;
+  
   h3 {
     margin: 0;
+    font-size: $font-size-lg;
+    font-weight: $font-weight-semibold;
+    color: $text-primary;
+    display: flex;
+    align-items: center;
+    gap: $spacing-sm;
   }
 }
 
@@ -16,27 +26,33 @@
   font-size: $font-size-sm;
   color: $text-secondary;
   font-weight: $font-weight-normal;
+  background: rgba($text-secondary, 0.1);
+  padding: 2px 8px;
+  border-radius: $radius-full;
 }
 
 .sectionDesc {
   margin: 4px 0 0 0;
-  font-size: $font-size-xs;
-  color: $text-muted;
+  font-size: $font-size-sm;
+  color: $text-secondary;
 }
 
 .tableWrapper {
-  margin-top: $spacing-md;
+  margin-top: $spacing-lg;
   overflow-x: auto;
+  border-radius: $radius-lg;
+  border: 1px solid rgba($border, 0.5);
 }
 
 .table {
   width: 100%;
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0;
 
   th, td {
-    padding: $spacing-sm $spacing-md;
+    padding: $spacing-md;
     text-align: left;
-    border-bottom: 1px solid $border;
+    border-bottom: 1px solid rgba($border, 0.5);
   }
 
   th {
@@ -45,41 +61,62 @@
     color: $text-secondary;
     text-transform: uppercase;
     letter-spacing: 0.5px;
-    background: $bg-secondary;
+    background: rgba($bg-secondary, 0.5);
+    backdrop-filter: blur(5px);
+    position: sticky;
+    top: 0;
+    z-index: 10;
   }
 
   td {
     font-size: $font-size-sm;
+    background: rgba(255, 255, 255, 0.3);
   }
 
   tbody tr {
-    transition: background 0.15s ease;
+    transition: all $transition-fast;
 
     &:hover {
-      background: $bg-hover;
+      background: rgba($primary, 0.02);
+      
+      td {
+        background: rgba($primary, 0.02);
+      }
+    }
+
+    &:last-child {
+      td {
+        border-bottom: none;
+      }
     }
   }
 }
 
 .groupName {
   font-weight: $font-weight-medium;
+  color: $text-primary;
+  font-size: $font-size-base;
 }
 
 .groupId {
   font-size: 11px;
   color: $text-muted;
-  font-family: monospace;
+  font-family: $font-family-mono;
+  margin-top: 2px;
 }
 
 .groupDesc {
-  font-size: $font-size-xs;
+  font-size: $font-size-sm;
   color: $text-secondary;
+  max-width: 300px;
+  @include text-ellipsis;
 }
 
 .loadingCell {
   text-align: center;
-  padding: $spacing-xl !important;
+  padding: $spacing-2xl !important;
   color: $text-muted;
+  background: transparent !important;
 }
 
 .toggleSwitch {
@@ -87,54 +124,62 @@
   align-items: center;
   gap: $spacing-sm;
   margin: 0;
+  cursor: pointer;
 
   input[type="checkbox"] {
-    width: 36px;
-    height: 20px;
+    width: 40px;
+    height: 22px;
     appearance: none;
     background: $border;
-    border-radius: 10px;
+    border-radius: 11px;
     position: relative;
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition: all 0.3s cubic-bezier(0.4, 0.0, 0.2, 1);
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.05);
 
     &::before {
       content: '';
       position: absolute;
-      width: 16px;
-      height: 16px;
+      width: 18px;
+      height: 18px;
       border-radius: 50%;
       background: #fff;
       top: 2px;
       left: 2px;
-      transition: transform 0.2s ease;
-      box-shadow: $shadow-sm;
+      transition: transform 0.3s cubic-bezier(0.4, 0.0, 0.2, 1);
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
     }
 
     &:checked {
       background: $primary;
 
       &::before {
-        transform: translateX(16px);
+        transform: translateX(18px);
       }
     }
 
     &:disabled {
-      opacity: 0.5;
+      opacity: 0.6;
       cursor: not-allowed;
     }
   }
 }
 
 .statusText {
-  font-size: 11px;
+  font-size: $font-size-xs;
   font-weight: $font-weight-medium;
+  padding: 2px 8px;
+  border-radius: $radius-full;
+  min-width: 50px;
+  text-align: center;
 
   &.enabled {
+    background: rgba($success, 0.1);
     color: $success;
   }
 
   &.disabled {
+    background: rgba($text-muted, 0.1);
     color: $text-muted;
   }
 }
