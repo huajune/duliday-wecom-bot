@@ -20,7 +20,7 @@ function truncateLargeFields(
   depth = 0
 ): unknown {
   // 防止无限递归
-  if (depth > 10) return '[深度限制]';
+  // if (depth > 10) return '[深度限制]';
 
   if (obj === null || obj === undefined) return obj;
 
@@ -143,12 +143,12 @@ export default function ChatSection({
           <div className={styles.fallbackBox}>
             <div className={styles.fallbackHeader}>
               <span>⚡</span> 降级响应
-              <span className={`${styles.fallbackBadge} ${message.fallbackSuccess ? styles.success : styles.failed}`}>
-                {message.fallbackSuccess ? '用户无感知' : '降级失败'}
+              <span className={`${styles.fallbackBadge} ${message.isFallback ? styles.success : styles.failed}`}>
+                {message.isFallback ? '发送降级法术' : '降级失败'}
               </span>
             </div>
             <div className={styles.fallbackContent}>
-              <strong>降级标记：</strong>{message.agentInvocation?.isFallback ? '是' : '否'}
+              <strong>错误信息：</strong>{ }
             </div>
           </div>
         )}
