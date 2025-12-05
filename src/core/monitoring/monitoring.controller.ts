@@ -40,11 +40,12 @@ export class MonitoringController {
   /**
    * 获取仪表盘数据
    * GET /monitoring/dashboard?range=today|week|month
+   * 今日用户数据优先从数据库获取
    */
   @Get('dashboard')
-  getDashboard(@Query('range') range?: TimeRange): DashboardData {
+  async getDashboard(@Query('range') range?: TimeRange): Promise<DashboardData> {
     const timeRange = range || 'today';
-    return this.monitoringService.getDashboardData(timeRange);
+    return this.monitoringService.getDashboardDataAsync(timeRange);
   }
 
   /**
@@ -54,18 +55,6 @@ export class MonitoringController {
   @Get('metrics')
   getMetrics(): MetricsData {
     return this.monitoringService.getMetricsData();
-  }
-
-  /**
-   * 清空所有监控数据
-   * POST /monitoring/clear
-   */
-  @Post('clear')
-  @HttpCode(200)
-  clearData(): { message: string } {
-    this.logger.log('清空监控数据');
-    this.monitoringService.clearAllData();
-    return { message: '监控数据已清空' };
   }
 
   /**
@@ -106,6 +95,35 @@ export class MonitoringController {
     return {
       enabled: newStatus,
       message: `AI 自动回复功能已${newStatus ? '启用' : '禁用'}（已持久化）`,
+    };
+  }
+
+  /**
+   * 获取消息聚合开关状态
+   * GET /monitoring/message-merge-status
+   */
+  @Get('message-merge-status')
+  getMessageMergeStatus(): { enabled: boolean } {
+    this.logger.debug('获取消息聚合开关状态');
+    return {
+      enabled: this.messageService.getMessageMergeStatus(),
+    };
+  }
+
+  /**
+   * 切换消息聚合开关
+   * POST /monitoring/toggle-message-merge
+   */
+  @Post('toggle-message-merge')
+  @HttpCode(200)
+  async toggleMessageMerge(
+    @Body('enabled') enabled: boolean,
+  ): Promise<{ enabled: boolean; message: string }> {
+    this.logger.log(`切换消息聚合开关: ${enabled}`);
+    const newStatus = await this.messageService.toggleMessageMerge(enabled);
+    return {
+      enabled: newStatus,
+      message: `消息聚合功能已${newStatus ? '启用' : '禁用'}（已持久化）`,
     };
   }
 
@@ -175,21 +193,22 @@ export class MonitoringController {
     };
   }
 
-  /**
-   * 生成测试数据（仅用于开发/演示）
-   * POST /monitoring/generate-test-data
-   */
-  @Post('generate-test-data')
-  @HttpCode(200)
-  generateTestData(@Body('days') days?: number): { message: string; recordsGenerated: number } {
-    const targetDays = days || 7;
-    this.logger.log(`生成 ${targetDays} 天的测试数据`);
-    const count = this.monitoringService.generateTestData(targetDays);
-    return {
-      message: `已生成 ${targetDays} 天的测试数据`,
-      recordsGenerated: count,
-    };
-  }
+  // TODO: 测试数据生成功能已移除，待实现后恢复
+  // /**
+  //  * 生成测试数据（仅用于开发/演示）
+  //  * POST /monitoring/generate-test-data
+  //  */
+  // @Post('generate-test-data')
+  // @HttpCode(200)
+  // generateTestData(@Body('days') days?: number): { message: string; recordsGenerated: number } {
+  //   const targetDays = days || 7;
+  //   this.logger.log(`生成 ${targetDays} 天的测试数据`);
+  //   const count = this.monitoringService.generateTestData(targetDays);
+  //   return {
+  //     message: `已生成 ${targetDays} 天的测试数据`,
+  //     recordsGenerated: count,
+  //   };
+  // }
 
   // ==================== Agent 回复策略配置 ====================
 
@@ -528,7 +547,7 @@ export class MonitoringController {
     }[]
   > {
     this.logger.debug('获取用户列表');
-    const users = this.monitoringService.getTodayUsers();
+    const users = await this.monitoringService.getTodayUsers();
     const pausedUsers = await this.filterService.getPausedUsers();
     const pausedSet = new Set(pausedUsers.map((u) => u.userId));
 
@@ -554,9 +573,14 @@ export class MonitoringController {
     activeJobs: number;
     minConcurrency: number;
     maxConcurrency: number;
+    messageMergeEnabled: boolean;
   } {
     this.logger.debug('获取 Worker 状态');
-    return this.messageProcessor.getWorkerStatus();
+    const baseStatus = this.messageProcessor.getWorkerStatus();
+    return {
+      ...baseStatus,
+      messageMergeEnabled: this.messageService.getMessageMergeStatus(),
+    };
   }
 
   /**

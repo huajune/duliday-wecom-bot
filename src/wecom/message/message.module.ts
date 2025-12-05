@@ -35,7 +35,7 @@ import { MessagePipelineService } from './services/message-pipeline.service';
     AgentModule,
     MessageSenderModule,
     SupabaseModule, // Agent 回复策略配置
-    // 配置 Bull 队列（始终启用）
+    // 配置 Bull 队列根模块
     BullModule.forRootAsync({
       imports: [ConfigModule],
       useFactory: async (configService: ConfigService) => {
@@ -71,7 +71,6 @@ import { MessagePipelineService } from './services/message-pipeline.service';
               retryStrategy: (times: number) => Math.min(times * 100, 3000),
             };
 
-            // 创建可复用的客户端连接
             // 创建可复用的客户端连接
             // eslint-disable-next-line @typescript-eslint/no-var-requires
             const Redis = require('ioredis');
@@ -183,7 +182,7 @@ import { MessagePipelineService } from './services/message-pipeline.service';
     // 主服务
     MessageService,
     MessageProcessor,
-    // 子服务（10个核心服务，按职责分类）
+    // 子服务（8个核心服务，按职责分类）
     MessageDeduplicationService, // 消息去重
     MessageHistoryService, // 消息历史
     MessageFilterService, // 消息过滤

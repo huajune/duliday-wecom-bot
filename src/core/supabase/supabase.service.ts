@@ -17,6 +17,7 @@ import {
  */
 export enum SystemConfigKey {
   AI_REPLY_ENABLED = 'ai_reply_enabled',
+  MESSAGE_MERGE_ENABLED = 'message_merge_enabled',
   GROUP_BLACKLIST = 'group_blacklist',
   AGENT_REPLY_CONFIG = 'agent_reply_config',
   SYSTEM_CONFIG = 'system_config',
@@ -168,6 +169,9 @@ export class SupabaseService implements OnModuleInit {
   // 配置变更回调列表
   private readonly configChangeCallbacks: Array<(config: AgentReplyConfig) => void> = [];
 
+  // 消息聚合开关缓存（类似 aiReplyEnabled）
+  private messageMergeEnabled: boolean | null = null;
+
   // 配置
   private supabaseUrl: string;
   private isInitialized = false;
@@ -183,6 +187,8 @@ export class SupabaseService implements OnModuleInit {
   async onModuleInit() {
     // 预加载 AI 回复状态
     await this.loadAiReplyStatus();
+    // 预加载消息聚合开关状态
+    await this.loadMessageMergeStatus();
     // 预加载暂停用户列表
     await this.loadPausedUsers();
     // 预加载小组黑名单
@@ -335,6 +341,123 @@ export class SupabaseService implements OnModuleInit {
         this.logger.log(`AI 回复开关已更新为: ${enabled}`);
       } catch (error) {
         this.logger.error('更新 AI 回复状态到数据库失败', error);
+        // 即使数据库更新失败，内存和 Redis 缓存已更新，服务仍可正常工作
+      }
+    }
+
+    return enabled;
+  }
+
+  // ==================== 消息聚合开关 ====================
+
+  /**
+   * 获取消息聚合开关状态
+   * 优先级：内存缓存 -> Redis缓存 -> 数据库 -> 环境变量默认值
+   */
+  async getMessageMergeEnabled(): Promise<boolean> {
+    // 1. 内存缓存
+    if (this.messageMergeEnabled !== null) {
+      return this.messageMergeEnabled;
+    }
+
+    // 2. Redis 缓存
+    const cacheKey = `${this.CACHE_PREFIX}config:message_merge_enabled`;
+    const cached = await this.redisService.get<boolean>(cacheKey);
+    if (cached !== null) {
+      this.messageMergeEnabled = cached;
+      return cached;
+    }
+
+    // 3. 从数据库加载
+    return this.loadMessageMergeStatus();
+  }
+
+  /**
+   * 从数据库加载消息聚合开关状态
+   */
+  private async loadMessageMergeStatus(): Promise<boolean> {
+    const defaultValue = this.configService.get<string>('ENABLE_MESSAGE_MERGE', 'true') === 'true';
+
+    if (!this.isInitialized) {
+      this.messageMergeEnabled = defaultValue;
+      return defaultValue;
+    }
+
+    try {
+      const response = await this.supabaseHttpClient.get('/system_config', {
+        params: {
+          key: 'eq.message_merge_enabled',
+          select: 'value',
+        },
+      });
+
+      if (response.data && response.data.length > 0) {
+        const value = response.data[0].value;
+        this.messageMergeEnabled = value === true || value === 'true';
+      } else {
+        // 数据库中没有记录，使用默认值并初始化
+        this.messageMergeEnabled = defaultValue;
+        await this.initMessageMergeConfig(defaultValue);
+      }
+
+      // 更新 Redis 缓存
+      const cacheKey = `${this.CACHE_PREFIX}config:message_merge_enabled`;
+      await this.redisService.setex(cacheKey, this.CONFIG_CACHE_TTL, this.messageMergeEnabled);
+
+      this.logger.log(`消息聚合开关状态已加载: ${this.messageMergeEnabled}`);
+      return this.messageMergeEnabled;
+    } catch (error) {
+      this.logger.error('加载消息聚合开关状态失败，使用默认值', error);
+      this.messageMergeEnabled = defaultValue;
+      return defaultValue;
+    }
+  }
+
+  /**
+   * 初始化消息聚合配置（首次运行时）
+   */
+  private async initMessageMergeConfig(value: boolean): Promise<void> {
+    if (!this.isInitialized) return;
+
+    try {
+      await this.supabaseHttpClient.post('/system_config', {
+        key: 'message_merge_enabled',
+        value: value,
+        description: '消息聚合功能开关（多条消息合并发送给 AI）',
+      });
+      this.logger.log('消息聚合配置已初始化到数据库');
+    } catch (error: any) {
+      // 忽略重复键错误
+      if (error.response?.status !== 409) {
+        this.logger.error('初始化消息聚合配置失败', error);
+      }
+    }
+  }
+
+  /**
+   * 设置消息聚合开关状态
+   */
+  async setMessageMergeEnabled(enabled: boolean): Promise<boolean> {
+    // 更新内存缓存
+    this.messageMergeEnabled = enabled;
+
+    // 更新 Redis 缓存
+    const cacheKey = `${this.CACHE_PREFIX}config:message_merge_enabled`;
+    await this.redisService.setex(cacheKey, this.CONFIG_CACHE_TTL, enabled);
+
+    // 更新数据库
+    if (this.isInitialized) {
+      try {
+        await this.supabaseHttpClient.patch(
+          '/system_config',
+          { value: enabled },
+          {
+            params: { key: 'eq.message_merge_enabled' },
+          },
+        );
+        this.logger.log(`消息聚合开关已更新为: ${enabled}`);
+      } catch (error) {
+        this.logger.error('更新消息聚合状态到数据库失败', error);
         // 即使数据库更新失败，内存和 Redis 缓存已更新，服务仍可正常工作
       }
     }
@@ -540,11 +663,13 @@ export class SupabaseService implements OnModuleInit {
    */
   async refreshCache(): Promise<void> {
     this.aiReplyEnabled = null;
+    this.messageMergeEnabled = null;
     this.pausedUsersCacheExpiry = 0;
     this.groupBlacklistCacheExpiry = 0;
     this.agentReplyConfigExpiry = 0;
 
     await this.loadAiReplyStatus();
+    await this.loadMessageMergeStatus();
     await this.loadPausedUsers();
     await this.loadGroupBlacklist();
     await this.loadAgentReplyConfig();
@@ -1785,6 +1910,252 @@ export class SupabaseService implements OnModuleInit {
       }
       this.logger.error('批量保存聊天消息失败:', error);
       return 0;
+    }
+  }
+
+  // ==================== 用户活跃记录 ====================
+
+  /**
+   * 更新用户活跃记录（Upsert）
+   * 每次消息处理完成后调用，自动累加消息数和 Token
+   */
+  async upsertUserActivity(data: {
+    chatId: string;
+    odId?: string;
+    odName?: string;
+    groupId?: string;
+    groupName?: string;
+    messageCount: number;
+    tokenUsage: number;
+    activeAt: number; // 时间戳
+  }): Promise<boolean> {
+    if (!this.isInitialized) {
+      this.logger.warn('Supabase 未初始化，跳过用户活跃记录保存');
+      return false;
+    }
+
+    try {
+      // 调用 RPC 函数进行 upsert
+      await this.supabaseHttpClient.post('/rpc/upsert_user_activity', {
+        p_chat_id: data.chatId,
+        p_od_id: data.odId || null,
+        p_od_name: data.odName || null,
+        p_group_id: data.groupId || null,
+        p_group_name: data.groupName || null,
+        p_message_count: data.messageCount,
+        p_token_usage: data.tokenUsage,
+        p_active_at: new Date(data.activeAt).toISOString(),
+      });
+
+      return true;
+    } catch (error: any) {
+      // 如果 RPC 函数不存在，回退到手动 upsert
+      if (error.response?.status === 404) {
+        this.logger.warn('RPC 函数 upsert_user_activity 不存在，使用回退方案');
+        return this.upsertUserActivityFallback(data);
+      }
+      this.logger.error('更新用户活跃记录失败:', error);
+      return false;
+    }
+  }
+
+  /**
+   * 更新用户活跃记录（回退方案：手动 upsert）
+   */
+  private async upsertUserActivityFallback(data: {
+    chatId: string;
+    odId?: string;
+    odName?: string;
+    groupId?: string;
+    groupName?: string;
+    messageCount: number;
+    tokenUsage: number;
+    activeAt: number;
+  }): Promise<boolean> {
+    try {
+      // 计算中国时区的日期
+      const activeDate = new Date(data.activeAt);
+      const chinaDate = new Date(activeDate.getTime() + 8 * 60 * 60 * 1000);
+      const activityDate = chinaDate.toISOString().split('T')[0];
+
+      const record = {
+        chat_id: data.chatId,
+        od_id: data.odId || null,
+        od_name: data.odName || null,
+        group_id: data.groupId || null,
+        group_name: data.groupName || null,
+        activity_date: activityDate,
+        message_count: data.messageCount,
+        token_usage: data.tokenUsage,
+        first_active_at: new Date(data.activeAt).toISOString(),
+        last_active_at: new Date(data.activeAt).toISOString(),
+      };
+
+      // 尝试插入，如果冲突则更新
+      await this.supabaseHttpClient.post(
+        '/user_activity?on_conflict=chat_id,activity_date',
+        record,
+        {
+          headers: {
+            Prefer: 'resolution=merge-duplicates',
+          },
+        },
+      );
+
+      return true;
+    } catch (error) {
+      this.logger.error('更新用户活跃记录失败（回退）:', error);
+      return false;
+    }
+  }
+
+  /**
+   * 获取今日活跃用户列表
+   */
+  async getTodayActiveUsers(): Promise<
+    Array<{
+      chatId: string;
+      odId?: string;
+      odName?: string;
+      groupId?: string;
+      groupName?: string;
+      messageCount: number;
+      tokenUsage: number;
+      firstActiveAt: number;
+      lastActiveAt: number;
+    }>
+  > {
+    if (!this.isInitialized) {
+      return [];
+    }
+
+    try {
+      // 尝试使用 RPC 函数
+      const response = await this.supabaseHttpClient.post('/rpc/get_today_users');
+
+      return (response.data ?? []).map((row: any) => ({
+        chatId: row.chat_id,
+        odId: row.od_id,
+        odName: row.od_name,
+        groupId: row.group_id,
+        groupName: row.group_name,
+        messageCount: row.message_count,
+        tokenUsage: row.token_usage,
+        firstActiveAt: new Date(row.first_active_at).getTime(),
+        lastActiveAt: new Date(row.last_active_at).getTime(),
+      }));
+    } catch (error: any) {
+      // 如果 RPC 函数不存在，回退到直接查询
+      if (error.response?.status === 404) {
+        this.logger.warn('RPC 函数 get_today_users 不存在，使用回退方案');
+        return this.getTodayActiveUsersFallback();
+      }
+      this.logger.error('获取今日活跃用户失败:', error);
+      return [];
+    }
+  }
+
+  /**
+   * 获取今日活跃用户（回退方案）
+   */
+  private async getTodayActiveUsersFallback(): Promise<
+    Array<{
+      chatId: string;
+      odId?: string;
+      odName?: string;
+      groupId?: string;
+      groupName?: string;
+      messageCount: number;
+      tokenUsage: number;
+      firstActiveAt: number;
+      lastActiveAt: number;
+    }>
+  > {
+    try {
+      // 计算中国时区的今天日期
+      const now = new Date();
+      const chinaDate = new Date(now.getTime() + 8 * 60 * 60 * 1000);
+      const todayDate = chinaDate.toISOString().split('T')[0];
+
+      const response = await this.supabaseHttpClient.get('/user_activity', {
+        params: {
+          activity_date: `eq.${todayDate}`,
+          select: '*',
+          order: 'last_active_at.desc',
+        },
+      });
+
+      return (response.data ?? []).map((row: any) => ({
+        chatId: row.chat_id,
+        odId: row.od_id,
+        odName: row.od_name,
+        groupId: row.group_id,
+        groupName: row.group_name,
+        messageCount: row.message_count,
+        tokenUsage: row.token_usage,
+        firstActiveAt: new Date(row.first_active_at).getTime(),
+        lastActiveAt: new Date(row.last_active_at).getTime(),
+      }));
+    } catch (error) {
+      this.logger.error('获取今日活跃用户失败（回退）:', error);
+      return [];
+    }
+  }
+
+  /**
+   * 获取指定日期范围内的活跃用户
+   */
+  async getActiveUsersByDateRange(
+    startDate: Date,
+    endDate: Date,
+  ): Promise<
+    Array<{
+      chatId: string;
+      odId?: string;
+      odName?: string;
+      groupId?: string;
+      groupName?: string;
+      totalMessageCount: number;
+      totalTokenUsage: number;
+      firstActiveAt: number;
+      lastActiveAt: number;
+      activeDays: number;
+    }>
+  > {
+    if (!this.isInitialized) {
+      return [];
+    }
+
+    try {
+      // 转换为日期字符串
+      const startDateStr = startDate.toISOString().split('T')[0];
+      const endDateStr = endDate.toISOString().split('T')[0];
+
+      // 尝试使用 RPC 函数
+      const response = await this.supabaseHttpClient.post('/rpc/get_users_by_date_range', {
+        p_start_date: startDateStr,
+        p_end_date: endDateStr,
+      });
+
+      return (response.data ?? []).map((row: any) => ({
+        chatId: row.chat_id,
+        odId: row.od_id,
+        odName: row.od_name,
+        groupId: row.group_id,
+        groupName: row.group_name,
+        totalMessageCount: row.total_message_count,
+        totalTokenUsage: row.total_token_usage,
+        firstActiveAt: new Date(row.first_active_at).getTime(),
+        lastActiveAt: new Date(row.last_active_at).getTime(),
+        activeDays: row.active_days,
+      }));
+    } catch (error: any) {
+      // 如果 RPC 函数不存在，回退到直接查询
+      if (error.response?.status === 404) {
+        this.logger.warn('RPC 函数 get_users_by_date_range 不存在');
+      }
+      this.logger.error('获取日期范围内活跃用户失败:', error);
+      return [];
     }
   }
 }

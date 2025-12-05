@@ -305,6 +305,7 @@ export interface WorkerStatus {
   activeJobs: number;
   minConcurrency: number;
   maxConcurrency: number;
+  messageMergeEnabled: boolean;
 }
 
 /**

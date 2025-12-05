@@ -4,6 +4,7 @@ import {
   useUpdateAgentReplyConfig,
   useWorkerStatus,
   useSetWorkerConcurrency,
+  useToggleMessageMerge,
 } from '@/hooks/useMonitoring';
 import type { AgentReplyConfig } from '@/types/monitoring';
 
@@ -92,6 +93,7 @@ export default function Config() {
   // Worker 状态
   const { data: workerStatus, isLoading: isLoadingWorker } = useWorkerStatus();
   const setConcurrency = useSetWorkerConcurrency();
+  const toggleMessageMerge = useToggleMessageMerge();
 
   // 当配置数据加载后，初始化编辑状态
   useEffect(() => {
@@ -199,9 +201,11 @@ export default function Config() {
               workerStatus={workerStatus}
               editingConcurrency={editingConcurrency}
               isPending={setConcurrency.isPending}
+              isTogglingMerge={toggleMessageMerge.isPending}
               onConcurrencyChange={setEditingConcurrency}
               onApply={handleApplyConcurrency}
               onCancel={() => setEditingConcurrency(null)}
+              onToggleMessageMerge={(enabled) => toggleMessageMerge.mutate(enabled)}
             />
           </section>
         </>

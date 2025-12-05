@@ -103,10 +103,9 @@ export class MessageCallbackAdapterService {
 
     switch (callbackType) {
       case 'enterprise':
-        // 已经是企业级格式，直接返回
+        // 已经是企业级格式，但需要补充可能缺失的字段
         // 注意：企业级格式没有 _apiType 字段，默认使用企业级 API
-        this.logger.debug(`企业级回调：未设置 _apiType（将使用企业级 API）`);
-        return body as EnterpriseMessageCallbackDto;
+        return this.normalizeEnterpriseCallback(body);
 
       case 'group':
         // 小组级格式，需要转换
@@ -123,8 +122,56 @@ export class MessageCallbackAdapterService {
           hasType: !!body.type,
         });
         // 降级处理：假设是企业级格式
-        return body as EnterpriseMessageCallbackDto;
+        return this.normalizeEnterpriseCallback(body);
     }
+  }
+
+  /**
+   * 规范化企业级回调数据
+   * 补充可能缺失的字段，确保数据完整性
+   * @param body 原始企业级回调数据
+   * @returns 规范化后的企业级回调数据
+   */
+  private normalizeEnterpriseCallback(body: any): EnterpriseMessageCallbackDto {
+    const normalized = body as EnterpriseMessageCallbackDto;
+
+    // 补充缺失的 source 字段
+    // 企业级回调可能不包含 source 字段，需要根据 isSelf 推断
+    if (normalized.source === undefined || normalized.source === null) {
+      normalized.source = this.inferSourceFromEnterpriseCallback(normalized);
+      this.logger.debug(
+        `企业级回调：补充缺失的 source 字段为 ${normalized.source} (messageId=${normalized.messageId})`,
+      );
+    } else {
+      this.logger.debug(
+        `企业级回调：source=${normalized.source} (messageId=${normalized.messageId})`,
+      );
+    }
+
+    return normalized;
+  }
+
+  /**
+   * 从企业级回调推断消息来源
+   * @param callback 企业级回调数据
+   * @returns 推断的消息来源
+   *
+   * 推断规则：
+   * - isSelf === true → AGGREGATED_CHAT_MANUAL（手动发送，避免循环回复）
+   * - isSelf === false/undefined → MOBILE_PUSH（用户真实发送，触发 AI 回复）
+   */
+  private inferSourceFromEnterpriseCallback(callback: EnterpriseMessageCallbackDto): MessageSource {
+    if (callback.isSelf === true) {
+      this.logger.debug(
+        `推断企业级消息来源: isSelf=true → AGGREGATED_CHAT_MANUAL (messageId=${callback.messageId})`,
+      );
+      return MessageSource.AGGREGATED_CHAT_MANUAL;
+    }
+
+    this.logger.debug(
+      `推断企业级消息来源: isSelf=${callback.isSelf} → MOBILE_PUSH (messageId=${callback.messageId})`,
+    );
+    return MessageSource.MOBILE_PUSH;
   }
 
   /**

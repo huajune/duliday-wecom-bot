@@ -157,7 +157,16 @@
       "Bash(/Users/jiezhu/workSpace/DuLiDay/duliday-wecom-service/dashboard2/src/view/hosting/list/components/InfoCard/index.module.scss )",
       "Bash(/Users/jiezhu/workSpace/DuLiDay/duliday-wecom-service/dashboard2/src/view/hosting/list/styles/index.module.scss )",
       "Bash(/Users/jiezhu/workSpace/DuLiDay/duliday-wecom-service/dashboard2/src/view/users/list/components/UserTable/index.module.scss )",
-      "Bash(/Users/jiezhu/workSpace/DuLiDay/duliday-wecom-service/dashboard2/src/view/users/list/styles/index.module.scss)"
+      "Bash(/Users/jiezhu/workSpace/DuLiDay/duliday-wecom-service/dashboard2/src/view/users/list/styles/index.module.scss)",
+      "Bash(timeout 5 curl:*)",
+      "Bash(timeout 10 curl:*)",
+      "Bash(timeout 60 pnpm run start:dev:*)",
+      "Bash(nc:*)",
+      "Bash(pnpm exec node:*)",
+      "Bash(grep:*)",
+      "Bash(mcp__upstash__redis_database_list_databases)",
+      "Bash(ENABLE_BULL_QUEUE=false timeout 15 pnpm run start:dev:*)",
+      "Bash(ENABLE_BULL_QUEUE=false node -e \"\nconst { execSync } = require(''child_process'');\ntry {\n  const output = execSync(''pnpm run start:dev'', { \n    timeout: 15000,\n    encoding: ''utf-8'',\n    stdio: ''pipe'',\n    env: { ...process.env, ENABLE_BULL_QUEUE: ''false'' }\n  });\n  console.log(output);\n} catch (error) {\n  console.log(error.stdout || '''');\n  console.log(error.stderr || '''');\n  if (error.killed) {\n    console.log(''✅ 服务启动成功（超时为正常现象）'');\n  }\n}\n\")"
     ],
     "deny": [
       "Bash(git restore:*)",

@@ -169,6 +169,45 @@ export function useToggleAiReply() {
   });
 }
 
+// 切换消息聚合开关 - 使用乐观更新让 UI 立即响应
+export function useToggleMessageMerge() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (enabled: boolean) => {
+      const { data } = await api.post('/monitoring/toggle-message-merge', { enabled });
+      return unwrapResponse<{ enabled: boolean; message: string }>(data);
+    },
+    onMutate: async (enabled) => {
+      // 取消正在进行的查询
+      await queryClient.cancelQueries({ queryKey: ['worker-status'] });
+      // 保存之前的状态
+      const previousStatus = queryClient.getQueryData<WorkerStatus>(['worker-status']);
+      // 乐观更新 - 立即更新 UI
+      if (previousStatus) {
+        queryClient.setQueryData<WorkerStatus>(['worker-status'], {
+          ...previousStatus,
+          messageMergeEnabled: enabled,
+        });
+      }
+      return { previousStatus, enabled };
+    },
+    onSuccess: (_data, enabled) => {
+      toast.success(enabled ? '消息聚合已启用' : '消息聚合已禁用');
+    },
+    onError: (_err, _enabled, context) => {
+      // 出错时回滚到之前的状态
+      if (context?.previousStatus) {
+        queryClient.setQueryData(['worker-status'], context.previousStatus);
+      }
+      toast.error('操作失败，请重试');
+    },
+    onSettled: () => {
+      // 无论成功失败，最终都重新获取最新状态
+      queryClient.invalidateQueries({ queryKey: ['worker-status'] });
+    },
+  });
+}
+
 // 黑名单列表
 export function useBlacklist() {
   return useQuery({
@@ -278,9 +317,13 @@ export function useToggleUserHosting() {
     onMutate: async ({ chatId, enabled }) => {
       // 取消正在进行的查询
       await queryClient.cancelQueries({ queryKey: ['users'] });
+      await queryClient.cancelQueries({ queryKey: ['dashboard'] });
+
       // 保存之前的状态
       const previousUsers = queryClient.getQueryData<UserInfo[]>(['users']);
-      // 乐观更新 - 立即更新 UI
+      const previousDashboards: Record<string, DashboardData | undefined> = {};
+
+      // 乐观更新 ['users'] 缓存
       if (previousUsers) {
         queryClient.setQueryData<UserInfo[]>(['users'],
           previousUsers.map(user =>
@@ -288,7 +331,24 @@ export function useToggleUserHosting() {
           )
         );
       }
-      return { previousUsers };
+
+      // 乐观更新 ['dashboard', timeRange] 缓存（页面实际读取的数据源）
+      // 需要更新所有可能的 timeRange 缓存
+      const timeRanges = ['today', 'week', 'month'];
+      for (const range of timeRanges) {
+        const dashboardData = queryClient.getQueryData<DashboardData>(['dashboard', range]);
+        if (dashboardData?.todayUsers) {
+          previousDashboards[range] = dashboardData;
+          queryClient.setQueryData<DashboardData>(['dashboard', range], {
+            ...dashboardData,
+            todayUsers: dashboardData.todayUsers.map(user =>
+              user.chatId === chatId ? { ...user, isPaused: !enabled } : user
+            ),
+          });
+        }
+      }
+
+      return { previousUsers, previousDashboards };
     },
     onSuccess: (_data, { enabled }) => {
       toast.success(enabled ? '已启用托管' : '已暂停托管');
@@ -297,6 +357,14 @@ export function useToggleUserHosting() {
       // 出错时回滚到之前的状态
       if (context?.previousUsers) {
         queryClient.setQueryData(['users'], context.previousUsers);
+      }
+      // 回滚 dashboard 缓存
+      if (context?.previousDashboards) {
+        for (const [range, data] of Object.entries(context.previousDashboards)) {
+          if (data) {
+            queryClient.setQueryData(['dashboard', range], data);
+          }
+        }
       }
       toast.error('操作失败，请重试');
     },

@@ -8,6 +8,103 @@
   border: 1px solid $border;
 }
 
+// 消息聚合开关区域
+.toggleSection {
+  margin-bottom: $spacing-sm;
+}
+
+.toggleHeader {
+  @include flex-between;
+  margin-bottom: $spacing-xs;
+}
+
+.toggleInfo {
+  display: flex;
+  align-items: center;
+  gap: $spacing-sm;
+}
+
+.toggleLabel {
+  font-weight: $font-weight-semibold;
+  color: $text-primary;
+  font-size: $font-size-sm;
+}
+
+.toggleStatus {
+  font-size: 11px;
+  color: $text-muted;
+  padding: 2px 6px;
+  background: $bg-primary;
+  border-radius: $radius-sm;
+}
+
+.toggleDescription {
+  font-size: $font-size-xs;
+  color: $text-muted;
+  margin: 0;
+  line-height: $line-height-relaxed;
+}
+
+// Toggle Switch 样式
+.switch {
+  position: relative;
+  display: inline-block;
+  width: 40px;
+  height: 22px;
+  flex-shrink: 0;
+
+  input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+
+    &:checked + .switchSlider {
+      background-color: $primary;
+    }
+
+    &:checked + .switchSlider::before {
+      transform: translateX(18px);
+    }
+
+    &:disabled + .switchSlider {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+  }
+}
+
+.switchSlider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: $border;
+  transition: $transition-fast;
+  border-radius: 22px;
+
+  &::before {
+    position: absolute;
+    content: '';
+    height: 18px;
+    width: 18px;
+    left: 2px;
+    bottom: 2px;
+    background-color: white;
+    transition: $transition-fast;
+    border-radius: 50%;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  }
+}
+
+// 分隔线
+.divider {
+  height: 1px;
+  background: $border;
+  margin: $spacing-sm 0;
+}
+
 .header {
   @include flex-between;
   margin-bottom: $spacing-xs;

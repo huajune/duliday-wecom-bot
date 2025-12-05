@@ -18,8 +18,8 @@ import {
   TodayUser,
   AlertErrorType,
 } from './interfaces/monitoring.interface';
-import { ScenarioType } from '@agent';
 import { MonitoringSnapshotService } from './monitoring-snapshot.service';
+import { SupabaseService } from '@core/supabase/supabase.service';
 
 /**
  * 监控服务
@@ -52,7 +52,10 @@ export class MonitoringService implements OnModuleInit {
   private currentProcessing = 0;
   private peakProcessing = 0;
 
-  constructor(private readonly snapshotService: MonitoringSnapshotService) {
+  constructor(
+    private readonly snapshotService: MonitoringSnapshotService,
+    private readonly supabaseService: SupabaseService,
+  ) {
     // 定期清理过期数据（每小时执行一次）
     setInterval(
       () => {
@@ -235,6 +238,11 @@ export class MonitoringService implements OnModuleInit {
         }, fallback=${record.isFallback ? 'true' : 'false'}`,
       );
       this.persistSnapshot();
+
+      // 异步保存用户活跃数据到数据库（不阻塞主流程）
+      this.saveUserActivityToDatabase(record).catch((err) => {
+        this.logger.warn(`保存用户活跃数据失败: ${err.message}`);
+      });
     } else {
       // ⚠️ 记录未找到，可能原因：
       // 1. 服务重启后快照恢复不完整（Redis TTL 过期）
@@ -415,7 +423,7 @@ export class MonitoringService implements OnModuleInit {
           ? this.buildBusinessMetricMinuteTrend(currentRecords)
           : this.buildBusinessMetricDayTrend(currentRecords),
       dailyTrend: this.buildDailyTrend(this.detailRecords),
-      todayUsers: this.buildTodayUsers(currentRecords),
+      todayUsers: [], // 用户数据从数据库获取，由 getDashboardDataAsync 填充
       recentMessages,
       recentErrors: this.errorLogs.slice(-20).reverse(),
       realtime: {
@@ -447,48 +455,26 @@ export class MonitoringService implements OnModuleInit {
 
   /**
    * 获取今日用户列表（用于账号托管管理页面）
+   * 从数据库读取，数据已迁移到 user_activity 表
    */
-  getTodayUsers(): TodayUser[] {
-    const currentRecords = this.filterRecordsByTimeRange(this.detailRecords, 'today');
-    return this.buildTodayUsers(currentRecords);
+  async getTodayUsers(): Promise<TodayUser[]> {
+    return this.getTodayUsersFromDatabase();
   }
 
-  private aggregateWindowStats(stats: HourlyStats[]): {
-    messages: number;
-    success: number;
-    failure: number;
-    successRate: number;
-    avgDuration: number;
-    activeUsers: number;
-  } {
-    if (stats.length === 0) {
-      return {
-        messages: 0,
-        success: 0,
-        failure: 0,
-        successRate: 0,
-        avgDuration: 0,
-        activeUsers: this.activeUsersSet.size,
-      };
+  /**
+   * 获取仪表盘数据（含数据库用户数据）
+   * @param timeRange 时间范围：today/week/month
+   */
+  async getDashboardDataAsync(timeRange: TimeRange = 'today'): Promise<DashboardData> {
+    const data = this.getDashboardData(timeRange);
+
+    // 仅在 today 范围时从数据库获取用户数据
+    if (timeRange === 'today') {
+      const dbUsers = await this.getTodayUsersFromDatabase();
+      data.todayUsers = dbUsers;
     }
 
-    const messages = stats.reduce((acc, item) => acc + item.messageCount, 0);
-    const success = stats.reduce((acc, item) => acc + item.successCount, 0);
-    const failure = stats.reduce((acc, item) => acc + item.failureCount, 0);
-    const weightedDuration =
-      messages > 0
-        ? stats.reduce((acc, item) => acc + item.avgDuration * item.messageCount, 0) / messages
-        : 0;
-    const activeUsers = Math.max(...stats.map((item) => item.activeUsers), 0);
-
-    return {
-      messages,
-      success,
-      failure,
-      successRate: messages > 0 ? (success / messages) * 100 : 0,
-      avgDuration: weightedDuration,
-      activeUsers,
-    };
+    return data;
   }
 
   private calculatePercentChange(current: number, previous: number): number {
@@ -921,261 +907,55 @@ export class MonitoringService implements OnModuleInit {
   }
 
   /**
-   * 构建今日咨询用户列表
-   * TODO: isPaused 需要从 MessageService 的黑名单管理中获取实际状态
+   * 保存用户活跃数据到数据库
+   * 每次消息处理成功后异步调用
    */
-  private buildTodayUsers(records: MessageProcessingRecord[]): TodayUser[] {
-    const userMap = new Map<
-      string,
-      {
-        odId: string;
-        odName: string;
-        groupId?: string;
-        groupName?: string;
-        chatId: string;
-        messageCount: number;
-        tokenUsage: number;
-        firstActiveAt: number;
-        lastActiveAt: number;
-      }
-    >();
+  private async saveUserActivityToDatabase(record: MessageProcessingRecord): Promise<void> {
+    if (!record.userId || !record.chatId) {
+      return;
+    }
 
-    for (const record of records) {
-      if (!record.userId) {
-        continue;
-      }
+    await this.supabaseService.upsertUserActivity({
+      chatId: record.chatId,
+      odId: record.userId,
+      odName: record.userName,
+      groupId: undefined, // TODO: 后续支持群聊
+      groupName: undefined,
+      messageCount: 1,
+      tokenUsage: record.tokenUsage || 0,
+      activeAt: record.receivedAt,
+    });
+  }
 
-      const existing = userMap.get(record.userId);
+  /**
+   * 从数据库获取今日活跃用户（带托管状态）
+   */
+  async getTodayUsersFromDatabase(): Promise<TodayUser[]> {
+    const dbUsers = await this.supabaseService.getTodayActiveUsers();
 
-      if (existing) {
-        // 更新现有用户数据
-        existing.messageCount += 1;
-        existing.tokenUsage += record.tokenUsage || 0;
-        existing.firstActiveAt = Math.min(existing.firstActiveAt, record.receivedAt);
-        existing.lastActiveAt = Math.max(existing.lastActiveAt, record.receivedAt);
-      } else {
-        // 新增用户
-        userMap.set(record.userId, {
-          odId: record.userId,
-          odName: record.userName || record.userId,
-          groupId: undefined, // TODO: 需要从消息记录中获取
-          groupName: undefined, // TODO: 需要从消息记录中获取
-          chatId: record.chatId,
-          messageCount: 1,
-          tokenUsage: record.tokenUsage || 0,
-          firstActiveAt: record.receivedAt,
-          lastActiveAt: record.receivedAt,
-        });
+    // 批量获取托管状态
+    const chatIds = dbUsers.map((u) => u.chatId);
+    const pausedSet = new Set<string>();
+
+    // 从 Supabase 获取托管状态
+    for (const chatId of chatIds) {
+      const status = await this.supabaseService.getUserHostingStatus(chatId);
+      if (status.isPaused) {
+        pausedSet.add(chatId);
       }
     }
 
-    // 转换为数组并按最后活跃时间排序（最近的排前面）
-    return Array.from(userMap.values())
-      .sort((a, b) => b.lastActiveAt - a.lastActiveAt)
-      .map((user) => ({
-        ...user,
-        isPaused: false, // TODO: 需要从实际的黑名单状态中获取
-      }));
-  }
-
-  /**
-   * 清空所有数据
-   */
-  clearAllData(): void {
-    this.detailRecords = [];
-    this.hourlyStatsMap.clear();
-    this.errorLogs = [];
-    this.activeUsersSet.clear();
-    this.activeChatsSet.clear();
-    this.currentProcessing = 0;
-    this.peakProcessing = 0;
-    this.globalCounters = this.createDefaultCounters();
-    this.logger.log('所有监控数据已清空');
-    this.persistSnapshot();
-  }
-
-  /**
-   * 生成测试数据（仅用于开发/演示）
-   * @param days 生成多少天的数据
-   * @returns 生成的记录数
-   */
-  generateTestData(days: number = 7): number {
-    this.logger.log(`开始生成 ${days} 天的测试数据`);
-
-    const now = Date.now();
-    const msPerDay = 24 * 60 * 60 * 1000;
-    const startTime = now - (days - 1) * msPerDay;
-
-    // 测试用户列表
-    const testUsers = [
-      { id: 'user_001', name: '张三' },
-      { id: 'user_002', name: '李四' },
-      { id: 'user_003', name: '王五' },
-      { id: 'user_004', name: '赵六' },
-      { id: 'user_005', name: '钱七' },
-      { id: 'user_006', name: '孙八' },
-      { id: 'user_007', name: '周九' },
-      { id: 'user_008', name: '吴十' },
-    ];
-
-    // 测试场景
-    const scenarios: ScenarioType[] = [ScenarioType.CANDIDATE_CONSULTATION];
-
-    // 测试工具
-    const toolSets = [
-      ['duliday_job_list'],
-      ['duliday_job_details'],
-      ['duliday_interview_booking'],
-      ['duliday_job_list', 'duliday_job_details'],
-      [],
-    ];
-
-    let recordCount = 0;
-
-    // 为每一天生成数据
-    for (let dayOffset = 0; dayOffset < days; dayOffset++) {
-      const dayStart = startTime + dayOffset * msPerDay;
-
-      // 每天生成 15-40 条记录（模拟真实场景）
-      const recordsPerDay = Math.floor(Math.random() * 26) + 15;
-
-      for (let i = 0; i < recordsPerDay; i++) {
-        // 随机时间（在当天的工作时间内：8:00-22:00）
-        const hourOffset = Math.floor(Math.random() * 14) + 8;
-        const minuteOffset = Math.floor(Math.random() * 60);
-        const secondOffset = Math.floor(Math.random() * 60);
-        const receivedAt =
-          dayStart + hourOffset * 3600000 + minuteOffset * 60000 + secondOffset * 1000;
-
-        // 如果时间超过当前时间，跳过
-        if (receivedAt > now) continue;
-
-        // 随机选择用户
-        const user = testUsers[Math.floor(Math.random() * testUsers.length)];
-        const chatId = `chat_${user.id}_${Math.floor(Math.random() * 3) + 1}`;
-
-        // 随机选择场景和工具
-        const scenario = scenarios[Math.floor(Math.random() * scenarios.length)];
-        const tools = toolSets[Math.floor(Math.random() * toolSets.length)];
-
-        // 生成消息 ID
-        const messageId = `msg_${dayOffset}_${i}_${Date.now()}`;
-
-        // 模拟处理时间（2-15秒）
-        const aiDuration = Math.floor(Math.random() * 10000) + 2000;
-        const sendDuration = Math.floor(Math.random() * 3000) + 500;
-        const queueDuration = Math.floor(Math.random() * 1000) + 100;
-        const totalDuration = queueDuration + aiDuration + sendDuration;
-
-        // 模拟成功率（90%成功）
-        const isSuccess = Math.random() > 0.1;
-        const isFallback = Math.random() < 0.05;
-        const fallbackSuccess = isFallback && Math.random() > 0.3;
-
-        // Token 使用量（500-3000）
-        const tokenUsage = Math.floor(Math.random() * 2500) + 500;
-
-        // 创建记录
-        const record: MessageProcessingRecord = {
-          messageId,
-          chatId,
-          userId: user.id,
-          userName: user.name,
-          receivedAt,
-          status: isSuccess ? 'success' : 'failure',
-          messagePreview: this.generateRandomMessage(),
-          scenario,
-          tools: tools.length > 0 ? tools : undefined,
-          tokenUsage,
-          aiStartAt: receivedAt + queueDuration,
-          aiEndAt: receivedAt + queueDuration + aiDuration,
-          aiDuration,
-          sendStartAt: receivedAt + queueDuration + aiDuration,
-          sendEndAt: receivedAt + totalDuration,
-          sendDuration,
-          queueDuration,
-          totalDuration,
-          replyPreview: isSuccess ? this.generateRandomReply() : undefined,
-          replySegments: isSuccess ? Math.floor(Math.random() * 3) + 1 : undefined,
-          isFallback,
-          fallbackSuccess,
-          error: isSuccess ? undefined : '模拟错误: Agent 响应超时',
-        };
-
-        // 添加到记录列表
-        this.addRecord(record);
-
-        // 更新计数器
-        this.globalCounters.totalMessages++;
-        if (isSuccess) {
-          this.globalCounters.totalSuccess++;
-        } else {
-          this.globalCounters.totalFailure++;
-          this.addErrorLog(messageId, record.error || '未知错误');
-        }
-
-        if (isFallback) {
-          this.globalCounters.totalFallback++;
-          if (fallbackSuccess) {
-            this.globalCounters.totalFallbackSuccess++;
-          }
-        }
-
-        this.globalCounters.totalAiDuration += aiDuration;
-        this.globalCounters.totalSendDuration += sendDuration;
-
-        // 更新活跃用户
-        this.activeUsersSet.add(user.id);
-        this.activeChatsSet.add(chatId);
-
-        // 更新小时级别统计
-        this.updateHourlyStats(record);
-
-        recordCount++;
-      }
-    }
-
-    // 更新峰值处理数
-    this.peakProcessing = Math.max(this.peakProcessing, Math.floor(Math.random() * 5) + 1);
-
-    // 持久化快照
-    this.persistSnapshot();
-
-    this.logger.log(`测试数据生成完成: ${recordCount} 条记录`);
-    return recordCount;
-  }
-
-  /**
-   * 生成随机用户消息
-   */
-  private generateRandomMessage(): string {
-    const messages = [
-      '你好，我想找一份前端开发的工作',
-      '请问有适合应届生的岗位吗？',
-      '我想预约面试',
-      '帮我查一下这个职位的详情',
-      '有没有远程工作的机会？',
-      '薪资范围是多少？',
-      '需要什么技术栈？',
-      '工作地点在哪里？',
-      '请问面试流程是怎样的？',
-      '我的简历需要更新吗？',
-    ];
-    return messages[Math.floor(Math.random() * messages.length)];
-  }
-
-  /**
-   * 生成随机回复
-   */
-  private generateRandomReply(): string {
-    const replies = [
-      '为您找到了5个匹配的职位...',
-      '已为您预约面试，时间是...',
-      '这个职位的要求是...',
-      '薪资范围在15k-25k之间...',
-      '感谢咨询，还有其他问题吗？',
-    ];
-    return replies[Math.floor(Math.random() * replies.length)];
+    return dbUsers.map((user) => ({
+      chatId: user.chatId,
+      odId: user.odId || user.chatId,
+      odName: user.odName || user.chatId,
+      groupName: user.groupName,
+      messageCount: user.messageCount,
+      tokenUsage: user.tokenUsage,
+      firstActiveAt: user.firstActiveAt, // 已经是 number 类型（时间戳）
+      lastActiveAt: user.lastActiveAt, // 已经是 number 类型（时间戳）
+      isPaused: pausedSet.has(user.chatId),
+    }));
   }
 
   // ========== 私有方法 ==========

@@ -51,7 +51,7 @@ export class MonitoringSnapshotService {
   // 兼容旧版本的 key（用于迁移）
   private readonly KEY_LEGACY = 'monitoring:snapshot';
 
-  private readonly SNAPSHOT_TTL_SECONDS = 86400; // 24 小时
+  private readonly SNAPSHOT_TTL_SECONDS = 86400 * 14; // 14 天
 
   private readonly enabled: boolean;
   private writeQueue: Promise<void> = Promise.resolve();

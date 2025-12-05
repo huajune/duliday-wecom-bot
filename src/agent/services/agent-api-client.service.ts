@@ -31,7 +31,7 @@ export class AgentApiClientService {
     // 从环境变量读取配置
     this.apiKey = this.configService.get<string>('AGENT_API_KEY')!;
     this.baseURL = this.configService.get<string>('AGENT_API_BASE_URL')!;
-    this.timeout = this.configService.get<number>('AGENT_API_TIMEOUT') ?? 600000; // 默认 10 分钟
+    this.timeout = this.configService.get<number>('AGENT_API_TIMEOUT') ?? 180000; // 默认 3 分钟
     // 重试策略：Agent 层仅处理瞬时网络抖动（2次），持久性故障由 Bull Queue 层处理（3次）
     this.maxRetries = this.configService.get<number>('AGENT_API_MAX_RETRIES') ?? 2;
 

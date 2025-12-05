@@ -32,7 +32,7 @@ import {
 export class MessageService implements OnModuleInit {
   private readonly logger = new Logger(MessageService.name);
   private enableAiReply: boolean;
-  private readonly enableMessageMerge: boolean;
+  private enableMessageMerge: boolean;
 
   // 监控统计：跟踪正在处理的消息数
   private processingCount: number = 0;
@@ -57,11 +57,15 @@ export class MessageService implements OnModuleInit {
   }
 
   /**
-   * 模块初始化 - 从 Supabase 加载 AI 回复状态
+   * 模块初始化 - 从 Supabase 加载开关状态
    */
   async onModuleInit() {
     this.enableAiReply = await this.supabaseService.getAiReplyEnabled();
+    this.enableMessageMerge = await this.supabaseService.getMessageMergeEnabled();
     this.logger.log(`AI 自动回复功能: ${this.enableAiReply ? '已启用' : '已禁用'} (来自 Supabase)`);
+    this.logger.log(
+      `消息聚合功能: ${this.enableMessageMerge ? '已启用' : '已禁用'} (来自 Supabase)`,
+    );
   }
 
   /**
@@ -187,6 +191,23 @@ export class MessageService implements OnModuleInit {
     await this.supabaseService.setAiReplyEnabled(enabled);
     this.logger.log(`AI 自动回复功能已${enabled ? '启用' : '禁用'} (已持久化到 Supabase)`);
     return this.enableAiReply;
+  }
+
+  /**
+   * 获取消息聚合开关状态
+   */
+  getMessageMergeStatus(): boolean {
+    return this.enableMessageMerge;
+  }
+
+  /**
+   * 切换消息聚合开关（持久化到 Supabase）
+   */
+  async toggleMessageMerge(enabled: boolean): Promise<boolean> {
+    this.enableMessageMerge = enabled;
+    await this.supabaseService.setMessageMergeEnabled(enabled);
+    this.logger.log(`消息聚合功能已${enabled ? '启用' : '禁用'} (已持久化到 Supabase)`);
+    return this.enableMessageMerge;
   }
 
   // ========================================

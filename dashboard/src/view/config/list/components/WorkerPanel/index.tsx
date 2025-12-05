@@ -5,6 +5,7 @@ interface WorkerStatus {
   minConcurrency: number;
   maxConcurrency: number;
   activeJobs: number;
+  messageMergeEnabled: boolean;
 }
 
 interface WorkerPanelProps {
@@ -12,9 +13,11 @@ interface WorkerPanelProps {
   workerStatus?: WorkerStatus;
   editingConcurrency: number | null;
   isPending: boolean;
+  isTogglingMerge: boolean;
   onConcurrencyChange: (value: number) => void;
   onApply: () => void;
   onCancel: () => void;
+  onToggleMessageMerge: (enabled: boolean) => void;
 }
 
 export default function WorkerPanel({
@@ -22,9 +25,11 @@ export default function WorkerPanel({
   workerStatus,
   editingConcurrency,
   isPending,
+  isTogglingMerge,
   onConcurrencyChange,
   onApply,
   onCancel,
+  onToggleMessageMerge,
 }: WorkerPanelProps) {
   if (isLoading) {
     return <div className={styles.loadingText}>加载 Worker 状态...</div>;
@@ -39,6 +44,32 @@ export default function WorkerPanel({
 
   return (
     <div className={styles.panel}>
+      {/* 消息聚合开关 */}
+      <div className={styles.toggleSection}>
+        <div className={styles.toggleHeader}>
+          <div className={styles.toggleInfo}>
+            <span className={styles.toggleLabel}>消息聚合</span>
+            <span className={styles.toggleStatus}>
+              {workerStatus.messageMergeEnabled ? '已启用' : '已禁用'}
+            </span>
+          </div>
+          <label className={styles.switch}>
+            <input
+              type="checkbox"
+              checked={workerStatus.messageMergeEnabled}
+              onChange={(e) => onToggleMessageMerge(e.target.checked)}
+              disabled={isTogglingMerge}
+            />
+            <span className={styles.switchSlider}></span>
+          </label>
+        </div>
+        <p className={styles.toggleDescription}>
+          启用后，系统会等待一段时间收集连续消息后合并处理，减少 API 调用次数。适合用户快速发送多条消息的场景。
+        </p>
+      </div>
+
+      <div className={styles.divider}></div>
+
       {/* Worker 状态指示 */}
       <div className={styles.header}>
         <div className={styles.titleRow}>
