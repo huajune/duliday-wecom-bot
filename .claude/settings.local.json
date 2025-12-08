@@ -166,7 +166,16 @@
       "Bash(grep:*)",
       "Bash(mcp__upstash__redis_database_list_databases)",
       "Bash(ENABLE_BULL_QUEUE=false timeout 15 pnpm run start:dev:*)",
-      "Bash(ENABLE_BULL_QUEUE=false node -e \"\nconst { execSync } = require(''child_process'');\ntry {\n  const output = execSync(''pnpm run start:dev'', { \n    timeout: 15000,\n    encoding: ''utf-8'',\n    stdio: ''pipe'',\n    env: { ...process.env, ENABLE_BULL_QUEUE: ''false'' }\n  });\n  console.log(output);\n} catch (error) {\n  console.log(error.stdout || '''');\n  console.log(error.stderr || '''');\n  if (error.killed) {\n    console.log(''✅ 服务启动成功（超时为正常现象）'');\n  }\n}\n\")"
+      "Bash(ENABLE_BULL_QUEUE=false node -e \"\nconst { execSync } = require(''child_process'');\ntry {\n  const output = execSync(''pnpm run start:dev'', { \n    timeout: 15000,\n    encoding: ''utf-8'',\n    stdio: ''pipe'',\n    env: { ...process.env, ENABLE_BULL_QUEUE: ''false'' }\n  });\n  console.log(output);\n} catch (error) {\n  console.log(error.stdout || '''');\n  console.log(error.stderr || '''');\n  if (error.killed) {\n    console.log(''✅ 服务启动成功（超时为正常现象）'');\n  }\n}\n\")",
+      "Bash(for:*)",
+      "Bash(do echo \"=== 尝试 $i ===\")",
+      "Bash(break)",
+      "Bash(done)",
+      "Bash(ENABLE_BULL_QUEUE=false node:*)",
+      "Bash(\"$AGENT_API_BASE_URL/tools\")",
+      "Bash(\"$AGENT_API_BASE_URL/models\")",
+      "Bash(__NEW_LINE__ echo -e \"\\n=== 测试 /chat 接口 ===\")",
+      "Bash(\"$AGENT_API_BASE_URL/chat\")"
     ],
     "deny": [
       "Bash(git restore:*)",
