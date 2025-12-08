@@ -3,6 +3,7 @@ import { AppModule } from './app.module';
 import { ConfigService } from '@nestjs/config';
 import { ResponseInterceptor, HttpExceptionFilter } from '@core/server';
 import { NestExpressApplication } from '@nestjs/platform-express';
+import { IoAdapter } from '@nestjs/platform-socket.io';
 import { join } from 'path';
 import { networkInterfaces } from 'os';
 import { execSync } from 'child_process';
@@ -104,6 +105,9 @@ async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     bufferLogs: true, // 缓冲日志直到 Logger 设置完成
   });
+
+  // 启用 WebSocket 支持（用于实时日志推送到 Dashboard）
+  app.useWebSocketAdapter(new IoAdapter(app));
 
   // 设置自定义 Logger（推送到 Dashboard 控制台）
   // 注意：CustomLoggerService 使用 TRANSIENT 作用域，需要用 resolve() 而非 get()

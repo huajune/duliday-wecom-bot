@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>WebSocket 连接测试</title>
+  <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
+  <style>
+    body { font-family: monospace; padding: 20px; background: #1e1e1e; color: #d4d4d4; }
+    .status { padding: 10px; margin: 10px 0; border-radius: 4px; }
+    .success { background: #1e4620; border: 1px solid #4ec94b; }
+    .error { background: #5a1d1d; border: 1px solid #f14c4c; }
+    .log { background: #264f78; padding: 8px; margin: 5px 0; border-radius: 3px; font-size: 12px; }
+    pre { margin: 0; }
+  </style>
+</head>
+<body>
+  <h1>WebSocket 连接测试 - /logs 命名空间</h1>
+
+  <div id="status"></div>
+  <div id="logs"></div>
+
+  <script>
+    const statusEl = document.getElementById('status');
+    const logsEl = document.getElementById('logs');
+
+    function addLog(message, data) {
+      const logDiv = document.createElement('div');
+      logDiv.className = 'log';
+      logDiv.innerHTML = `<strong>${new Date().toLocaleTimeString()}</strong> - ${message}`;
+      if (data) {
+        logDiv.innerHTML += `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+      }
+      logsEl.appendChild(logDiv);
+    }
+
+    addLog('开始连接到 http://localhost:8080/logs ...');
+
+    const socket = io('http://localhost:8080/logs', {
+      transports: ['websocket', 'polling'],
+      reconnection: true,
+      reconnectionAttempts: 3,
+      timeout: 10000,
+    });
+
+    socket.on('connect', () => {
+      statusEl.className = 'status success';
+      statusEl.innerHTML = '✅ WebSocket 连接成功！<br>Socket ID: ' + socket.id + '<br>Transport: ' + socket.io.engine.transport.name;
+      addLog('连接成功', {
+        socketId: socket.id,
+        transport: socket.io.engine.transport.name
+      });
+    });
+
+    socket.on('connect_error', (err) => {
+      statusEl.className = 'status error';
+      statusEl.innerHTML = '❌ 连接错误: ' + err.message;
+      addLog('连接错误', { message: err.message, stack: err.stack });
+    });
+
+    socket.on('disconnect', (reason) => {
+      statusEl.className = 'status error';
+      statusEl.innerHTML = '🔌 连接断开: ' + reason;
+      addLog('连接断开', { reason });
+    });
+
+    socket.on('history', (history) => {
+      addLog('收到历史日志', { count: history.length, sample: history.slice(0, 3) });
+    });
+
+    socket.on('log', (entry) => {
+      addLog('收到新日志', entry);
+    });
+
+    socket.on('error', (err) => {
+      addLog('服务器错误', err);
+    });
+
+    // 10秒后的状态检查
+    setTimeout(() => {
+      if (!socket.connected) {
+        statusEl.className = 'status error';
+        statusEl.innerHTML = '❌ 10秒后仍未连接';
+        addLog('连接超时 - 10秒后仍未连接');
+      }
+    }, 10000);
+  </script>
+</body>
+</html>
