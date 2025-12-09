@@ -175,7 +175,8 @@
       "Bash(\"$AGENT_API_BASE_URL/tools\")",
       "Bash(\"$AGENT_API_BASE_URL/models\")",
       "Bash(__NEW_LINE__ echo -e \"\\n=== 测试 /chat 接口 ===\")",
-      "Bash(\"$AGENT_API_BASE_URL/chat\")"
+      "Bash(\"$AGENT_API_BASE_URL/chat\")",
+      "Bash(open http://localhost:8080/test-ws.html)"
     ],
     "deny": [
       "Bash(git restore:*)",

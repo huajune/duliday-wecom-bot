@@ -74,7 +74,7 @@ export class MessagePipelineService {
     await this.historyService.addMessageToHistory(chatId, 'assistant', content, {
       messageId: messageData.messageId,
       candidateName,
-      managerName: messageData.contactName || messageData.botUserId,
+      managerName: messageData.botUserId, // 统一使用 botUserId，避免与 user 消息的 managerName 不一致
       orgId: messageData.orgId,
       botId: messageData.botId,
       messageType: messageData.messageType,

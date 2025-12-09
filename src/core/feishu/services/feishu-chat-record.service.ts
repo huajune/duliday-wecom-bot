@@ -88,16 +88,36 @@ export class ChatRecordSyncService {
 
       this.logger.log(`[ChatRecordSync] 准备写入 ${feishuRecords.length} 条记录到飞书...`);
 
-      // 批量写入飞书多维表格
-      await this.pushInBatches(
-        feishuRecords,
+      // 查询已存在的 chatId（去重）
+      const existingChatIds = await this.getExistingChatIds(
         tables.chat.appToken,
         tables.chat.tableId,
         appId,
         appSecret,
       );
 
-      this.logger.log(`[ChatRecordSync] ✓ 同步完成，本次写入 ${feishuRecords.length} 条记录`);
+      // 过滤掉已存在的记录
+      const newRecords = feishuRecords.filter((r) => !existingChatIds.has(r.fields.chatId));
+
+      if (newRecords.length === 0) {
+        this.logger.log('[ChatRecordSync] 所有记录均已存在，跳过写入');
+        return;
+      }
+
+      this.logger.log(
+        `[ChatRecordSync] 过滤后剩余 ${newRecords.length} 条新记录（已过滤 ${feishuRecords.length - newRecords.length} 条重复）`,
+      );
+
+      // 批量写入飞书多维表格
+      await this.pushInBatches(
+        newRecords,
+        tables.chat.appToken,
+        tables.chat.tableId,
+        appId,
+        appSecret,
+      );
+
+      this.logger.log(`[ChatRecordSync] ✓ 同步完成，本次写入 ${newRecords.length} 条记录`);
     } catch (error: any) {
       this.logger.error(`[ChatRecordSync] ✗ 同步失败: ${error?.message ?? error}`, error?.stack);
     }
@@ -115,14 +135,15 @@ export class ChatRecordSyncService {
     for (const { chatId: _chatId, messages } of chatRecords) {
       if (messages.length === 0) continue;
 
-      // 提取候选人昵称（只从 user 消息中获取，因为 assistant 消息的 candidateName 可能是招募经理名字）
+      // 提取候选人昵称：从所有 user 消息中查找第一个有效昵称（过滤空值和纯空格）
       const candidateName =
-        messages.find((m) => m.role === 'user' && m.candidateName)?.candidateName || '未知候选人';
-      // 提取招募经理昵称（优先从 assistant 消息获取，因为那里的 candidateName/managerName 实际是招募经理）
+        messages
+          .filter((m) => m.role === 'user' && m.candidateName && m.candidateName.trim())
+          .map((m) => m.candidateName)[0] || '未知候选人';
+
+      // 提取招募经理昵称：统一从 managerName 字段获取（已修复 assistant 消息使用 botUserId）
       const managerName =
-        messages.find((m) => m.role === 'assistant' && m.candidateName)?.candidateName ||
-        messages.find((m) => m.managerName)?.managerName ||
-        '未知招募经理';
+        messages.find((m) => m.managerName && m.managerName.trim())?.managerName || '未知招募经理';
 
       // 咨询时间：第一条消息的时间（飞书 DateTime 字段需要毫秒时间戳）
       const firstMessage = messages[0];
@@ -135,10 +156,12 @@ export class ChatRecordSyncService {
 
       records.push({
         fields: {
+          chatId: _chatId, // 会话唯一标识，用于去重
           候选人微信昵称: candidateName,
           招募经理姓名: managerName,
           咨询时间: consultTimestamp, // 飞书 DateTime 字段需要毫秒时间戳
           聊天记录: this.truncate(chatLog, 5000), // 飞书多维表格富文本字段限制
+          标记为测试集: false, // 默认标记为非测试数据
         },
       });
     }
@@ -207,6 +230,63 @@ export class ChatRecordSyncService {
         // 继续处理下一批次，不中断整个同步流程
       }
     }
+  }
+
+  /**
+   * 查询飞书多维表格中已存在的 chatId（用于去重）
+   */
+  private async getExistingChatIds(
+    appToken: string,
+    tableId: string,
+    appId: string,
+    appSecret: string,
+  ): Promise<Set<string>> {
+    const token = await this.getTenantToken(appId, appSecret);
+    const existingIds = new Set<string>();
+
+    try {
+      // 飞书 API 支持分页查询，每页最多 500 条
+      let hasMore = true;
+      let pageToken: string | undefined;
+
+      while (hasMore) {
+        const params: Record<string, any> = {
+          page_size: 500,
+          field_names: JSON.stringify(['chatId']), // 只查询 chatId 字段
+        };
+
+        if (pageToken) {
+          params.page_token = pageToken;
+        }
+
+        const response = await this.http.get(
+          `${this.apiBase}/bitable/v1/apps/${appToken}/tables/${tableId}/records`,
+          {
+            headers: { Authorization: `Bearer ${token}` },
+            params,
+          },
+        );
+
+        const { items = [], has_more, page_token } = response.data.data || {};
+
+        for (const item of items) {
+          const chatId = item.fields?.chatId;
+          if (chatId) {
+            existingIds.add(chatId);
+          }
+        }
+
+        hasMore = has_more;
+        pageToken = page_token;
+      }
+
+      this.logger.log(`[ChatRecordSync] 查询到 ${existingIds.size} 条已存在的 chatId`);
+    } catch (error: any) {
+      this.logger.warn(`[ChatRecordSync] 查询已存在 chatId 失败: ${error?.message}，将跳过去重`);
+      // 查询失败时返回空集合，不影响同步流程（但可能会产生重复记录）
+    }
+
+    return existingIds;
   }
 
   /**
@@ -351,20 +431,44 @@ export class ChatRecordSyncService {
 
       this.logger.log(`[ChatRecordSync] 准备写入 ${feishuRecords.length} 条记录到飞书...`);
 
-      await this.pushInBatches(
-        feishuRecords,
+      // 查询已存在的 chatId（去重）
+      const existingChatIds = await this.getExistingChatIds(
         tables.chat.appToken,
         tables.chat.tableId,
         appId,
         appSecret,
       );
 
-      this.logger.log(`[ChatRecordSync] ✓ 同步完成，本次写入 ${feishuRecords.length} 条记录`);
+      // 过滤掉已存在的记录
+      const newRecords = feishuRecords.filter((r) => !existingChatIds.has(r.fields.chatId));
+
+      if (newRecords.length === 0) {
+        this.logger.log('[ChatRecordSync] 所有记录均已存在，跳过写入');
+        return {
+          success: true,
+          message: '所有记录均已存在',
+          recordCount: 0,
+        };
+      }
+
+      this.logger.log(
+        `[ChatRecordSync] 过滤后剩余 ${newRecords.length} 条新记录（已过滤 ${feishuRecords.length - newRecords.length} 条重复）`,
+      );
+
+      await this.pushInBatches(
+        newRecords,
+        tables.chat.appToken,
+        tables.chat.tableId,
+        appId,
+        appSecret,
+      );
+
+      this.logger.log(`[ChatRecordSync] ✓ 同步完成，本次写入 ${newRecords.length} 条记录`);
 
       return {
         success: true,
         message: '同步完成',
-        recordCount: feishuRecords.length,
+        recordCount: newRecords.length,
       };
     } catch (error: any) {
       this.logger.error(`[ChatRecordSync] ✗ 同步失败: ${error?.message ?? error}`, error?.stack);
