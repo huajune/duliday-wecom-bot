@@ -9,6 +9,7 @@ describe('DataCleanupService', () => {
   const mockSupabaseService = {
     isAvailable: jest.fn(),
     cleanupChatMessages: jest.fn(),
+    cleanupUserActivity: jest.fn(),
     deleteMonitoringHourlyBefore: jest.fn(),
   };
 
@@ -94,12 +95,14 @@ describe('DataCleanupService', () => {
     it('should return cleanup counts when Supabase is available', async () => {
       mockSupabaseService.isAvailable.mockReturnValue(true);
       mockSupabaseService.cleanupChatMessages.mockResolvedValue(15);
+      mockSupabaseService.cleanupUserActivity.mockResolvedValue(3);
       mockSupabaseService.deleteMonitoringHourlyBefore.mockResolvedValue(8);
 
       const result = await service.triggerCleanup();
 
       expect(result).toEqual({
         chatMessages: 15,
+        userActivity: 3,
         monitoringData: 8,
       });
     });
@@ -111,6 +114,7 @@ describe('DataCleanupService', () => {
 
       expect(result).toEqual({
         chatMessages: 0,
+        userActivity: 0,
         monitoringData: 0,
       });
       expect(supabaseService.cleanupChatMessages).not.toHaveBeenCalled();
@@ -119,12 +123,14 @@ describe('DataCleanupService', () => {
     it('should handle partial failures gracefully', async () => {
       mockSupabaseService.isAvailable.mockReturnValue(true);
       mockSupabaseService.cleanupChatMessages.mockRejectedValue(new Error('Error'));
+      mockSupabaseService.cleanupUserActivity.mockResolvedValue(2);
       mockSupabaseService.deleteMonitoringHourlyBefore.mockResolvedValue(5);
 
       const result = await service.triggerCleanup();
 
       expect(result).toEqual({
         chatMessages: 0,
+        userActivity: 2,
         monitoringData: 5,
       });
     });

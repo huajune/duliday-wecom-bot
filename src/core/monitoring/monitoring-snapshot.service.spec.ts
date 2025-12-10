@@ -155,10 +155,11 @@ describe('MonitoringSnapshotService', () => {
       // 应该调用 4 次 setex（meta, hourly-stats, error-logs, records）
       expect(mockRedisService.setex).toHaveBeenCalledTimes(4);
 
-      // 验证 meta 写入
+      // 验证 meta 写入（TTL = 120 天 = 86400 * 120 = 10368000 秒）
+      const TTL_120_DAYS = 86400 * 120;
       expect(mockRedisService.setex).toHaveBeenCalledWith(
         'monitoring:meta',
-        86400,
+        TTL_120_DAYS,
         expect.objectContaining({
           version: 1,
           activeUsersCount: 2,
@@ -169,7 +170,7 @@ describe('MonitoringSnapshotService', () => {
       // 验证 records 写入
       expect(mockRedisService.setex).toHaveBeenCalledWith(
         'monitoring:records',
-        86400,
+        TTL_120_DAYS,
         mockSnapshot.detailRecords,
       );
     });
