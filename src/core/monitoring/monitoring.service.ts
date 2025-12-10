@@ -35,7 +35,7 @@ export class MonitoringService implements OnModuleInit {
   // 配置
   private readonly MAX_DETAIL_RECORDS = 1000; // 最多保存1000条详细记录
   private readonly MAX_HOURLY_STATS = 72; // 保留72小时的聚合统计
-  private readonly MAX_ERROR_LOGS = 100; // 最多保存100条错误日志
+  private readonly MAX_ERROR_LOGS = 500; // 最多保存500条错误日志
 
   // 内存存储
   private detailRecords: MessageProcessingRecord[] = []; // 环形缓冲区
@@ -408,9 +408,13 @@ export class MonitoringService implements OnModuleInit {
     const hourlyStats = this.getHourlyStatsForRange(timeRange);
     const previousHourlyStats = this.getHourlyStatsForPreviousRange(timeRange);
 
-    const windowMs = this.DEFAULT_WINDOW_HOURS * 60 * 60 * 1000;
+    // 根据时间范围过滤告警日志
+    const filteredErrorLogs = this.filterErrorLogsByTimeRange(timeRange);
     const now = Date.now();
-    const alertsLast24h = this.errorLogs.filter((log) => now - log.timestamp <= windowMs).length;
+    const ONE_HOUR_MS = 60 * 60 * 1000;
+    const alertsLastHour = this.errorLogs.filter(
+      (log) => now - log.timestamp <= ONE_HOUR_MS,
+    ).length;
 
     return {
       timeRange,
@@ -444,9 +448,10 @@ export class MonitoringService implements OnModuleInit {
         avgQueueDuration: this.calculateAverageQueueDuration(currentRecords),
       },
       alertsSummary: {
-        total: this.errorLogs.length,
-        last24Hours: alertsLast24h,
-        byType: this.buildAlertTypeMetrics(),
+        total: filteredErrorLogs.length, // 修复：使用时间范围过滤后的告警数
+        lastHour: alertsLastHour, // 修复：改为真正的近1小时
+        last24Hours: this.errorLogs.filter((log) => now - log.timestamp <= 24 * ONE_HOUR_MS).length, // 近24小时告警数（用于错误率检查）
+        byType: this.buildAlertTypeMetrics(filteredErrorLogs), // 修复：只统计过滤后的日志
       },
       trends: {
         hourly: hourlyStats,
@@ -611,22 +616,15 @@ export class MonitoringService implements OnModuleInit {
 
   /**
    * 构建告警类型统计
+   * @param errorLogs 过滤后的错误日志（按时间范围）
    */
-  private buildAlertTypeMetrics(): AlertTypeMetric[] {
+  private buildAlertTypeMetrics(errorLogs: MonitoringErrorLog[]): AlertTypeMetric[] {
     const typeMap = new Map<AlertErrorType | 'unknown', number>();
 
-    // 统计所有错误日志中的告警类型
-    for (const log of this.errorLogs) {
+    // 只统计传入的错误日志，避免重复计数
+    for (const log of errorLogs) {
       const type = log.alertType || 'unknown';
       typeMap.set(type, (typeMap.get(type) || 0) + 1);
-    }
-
-    // 也统计失败记录中的告警类型
-    for (const record of this.detailRecords) {
-      if (record.status === 'failure' && record.alertType) {
-        const type = record.alertType;
-        typeMap.set(type, (typeMap.get(type) || 0) + 1);
-      }
     }
 
     const total = Array.from(typeMap.values()).reduce((acc, value) => acc + value, 0);
@@ -1324,8 +1322,17 @@ export class MonitoringService implements OnModuleInit {
     p99: number;
     p999: number;
   } {
+    // 过滤异常值：排除超过 10 分钟（600,000ms）的记录，这些通常是异常或超时
+    const MAX_REASONABLE_DURATION = 10 * 60 * 1000; // 10 分钟
+
     const durations = this.detailRecords
-      .filter((r) => r.status !== 'processing' && r.totalDuration !== undefined)
+      .filter(
+        (r) =>
+          r.status !== 'processing' &&
+          r.totalDuration !== undefined &&
+          r.totalDuration > 0 &&
+          r.totalDuration <= MAX_REASONABLE_DURATION,
+      )
       .map((r) => r.totalDuration!)
       .sort((a, b) => a - b);
 

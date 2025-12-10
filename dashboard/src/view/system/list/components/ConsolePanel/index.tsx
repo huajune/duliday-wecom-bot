@@ -1,13 +1,7 @@
 import { Line } from 'react-chartjs-2';
 import type { ChartData, ChartOptions } from 'chart.js';
-import type { AgentReplyConfig } from '@/types/monitoring';
+import type { AgentReplyConfig, AlertTypeItem } from '@/types/monitoring';
 import styles from './index.module.scss';
-
-interface AlertType {
-  type: string;
-  count: number;
-  percentage: number;
-}
 
 interface ConsolePanelProps {
   alertConfig: {
@@ -26,7 +20,7 @@ interface ConsolePanelProps {
   chartData: ChartData<'line'>;
   chartOptions: ChartOptions<'line'>;
   recentAlertCount: number | null;
-  alertTypes: AlertType[] | null;
+  alertTypes?: AlertTypeItem[];
 }
 
 export default function ConsolePanel({

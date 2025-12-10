@@ -2451,14 +2451,14 @@ export class SupabaseService implements OnModuleInit {
     try {
       const params: any = {};
 
-      // 时间范围过滤
-      if (options?.startDate) {
+      // 时间范围过滤（使用 and 组合多个条件）
+      if (options?.startDate && options?.endDate) {
+        // 同时有开始和结束时间，使用 and 条件
+        params.and = `(received_at.gte.${options.startDate.toISOString()},received_at.lte.${options.endDate.toISOString()})`;
+      } else if (options?.startDate) {
         params.received_at = `gte.${options.startDate.toISOString()}`;
-      }
-      if (options?.endDate) {
-        params.received_at = params.received_at
-          ? `${params.received_at},lte.${options.endDate.toISOString()}`
-          : `lte.${options.endDate.toISOString()}`;
+      } else if (options?.endDate) {
+        params.received_at = `lte.${options.endDate.toISOString()}`;
       }
 
       // 状态过滤

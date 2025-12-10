@@ -13,6 +13,8 @@ import {
 import {
   useAgentReplyConfig,
   useUpdateAgentReplyConfig,
+  useDashboard,
+  useMetrics,
 } from '@/hooks/useMonitoring';
 import { formatDuration, formatHourLabel } from '@/utils/format';
 import type { AgentReplyConfig } from '@/types/monitoring';
@@ -39,6 +41,10 @@ ChartJS.register(
 export default function System() {
   const { data: configData } = useAgentReplyConfig();
   const updateConfig = useUpdateAgentReplyConfig();
+
+  // 获取真实数据
+  const { data: dashboard } = useDashboard('today');
+  const { data: metrics } = useMetrics();
 
   // 告警配置本地状态
   const [alertConfig, setAlertConfig] = useState({
@@ -72,42 +78,12 @@ export default function System() {
     }
   }, [configData]);
 
-  // Mock Data for Visualization
-  const mockData = {
-    queue: {
-      currentProcessing: 12,
-      peakProcessing: 45,
-      avgQueueDuration: 1250,
-    },
-    percentiles: {
-      p50: 800,
-      p95: 2500,
-      p99: 4500,
-    },
-    alertsSummary: {
-      total: 128,
-      last24Hours: 24,
-      byType: [
-        { type: 'Agent 调用失败', count: 15, percentage: 42 },
-        { type: '响应时间过长', count: 8, percentage: 22 },
-        { type: '成功率严重下降', count: 6, percentage: 17 },
-        { type: '队列积压', count: 4, percentage: 11 },
-        { type: '消息发送失败', count: 3, percentage: 8 },
-      ],
-    },
-    recentAlertCount: 5,
-    // 24小时趋势：每小时一个点
-    alertTrend: Array.from({ length: 24 }, (_, i) => ({
-      hour: new Date(Date.now() - (23 - i) * 3600000).toISOString(),
-      count: Math.random() > 0.7 ? Math.floor(Math.random() * 8) : 0,
-    })),
-  };
-
-  const queue = mockData.queue;
-  const alerts = mockData.alertsSummary;
-  const percentiles = mockData.percentiles;
-  const recentAlertCount = mockData.recentAlertCount;
-  const alertTrend = mockData.alertTrend;
+  // 从真实数据中提取
+  const queue = dashboard?.queue;
+  const alerts = dashboard?.alertsSummary;
+  const percentiles = metrics?.percentiles;
+  const recentAlertCount = alerts?.lastHour ?? null;
+  const alertTrend = dashboard?.alertTrend ?? [];
 
   // 更新配置 - 只发送变更的字段
   const handleConfigChange = (key: keyof AgentReplyConfig, value: number | boolean) => {
@@ -126,7 +102,7 @@ export default function System() {
 
   // 告警趋势图表数据（24小时）
   const alertChartData = {
-    labels: alertTrend.map((p) => formatHourLabel(p.hour)),
+    labels: alertTrend.map((p) => formatHourLabel(p.minute)),
     datasets: [
       {
         label: '告警次数',
@@ -204,7 +180,7 @@ export default function System() {
           label="实时处理"
           value={queue?.currentProcessing ?? '-'}
           valueVariant="primary"
-          trend={{ direction: 'up', value: '+12%', label: '较上小时' }}
+          trend={{ direction: 'flat', value: '实时', label: '当前队列' }}
           title="当前正在处理的消息数量"
         />
         <KpiCard
@@ -213,7 +189,7 @@ export default function System() {
           label="P95 延迟"
           value={percentiles?.p95 ? formatDuration(percentiles.p95) : '-'}
           valueVariant="warning"
-          trend={{ direction: 'down', value: '-5ms', label: '性能优化' }}
+          trend={{ direction: 'flat', value: '实时', label: '响应时间' }}
           title="95% 的请求在此时间内完成"
         />
         <KpiCard
@@ -222,7 +198,11 @@ export default function System() {
           label="今日告警"
           value={alerts?.total ?? '-'}
           valueVariant="danger"
-          trend={{ direction: 'up', value: '+3', label: '新增异常' }}
+          trend={{
+            direction: (alerts?.lastHour ?? 0) > 0 ? 'up' : 'flat',
+            value: `+${alerts?.lastHour ?? 0}`,
+            label: '近1小时',
+          }}
           title="今日累计触发的告警总数"
         />
         <KpiCard
@@ -230,7 +210,7 @@ export default function System() {
           variant="info"
           label="峰值队列"
           value={queue?.peakProcessing ?? '-'}
-          trend={{ direction: 'flat', value: '平稳', label: '负载正常' }}
+          trend={{ direction: 'flat', value: '今日', label: '最大积压' }}
           title="今日队列积压的最大数量"
         />
       </KpiGrid>

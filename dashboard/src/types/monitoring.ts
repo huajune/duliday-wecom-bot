@@ -23,8 +23,9 @@ export interface QueueInfo {
 }
 
 export interface AlertSummary {
-  total: number;
-  last24Hours: number;
+  total: number; // 当前时间范围内的告警总数（today/week/month）
+  lastHour: number; // 近1小时的告警数
+  last24Hours: number; // 近24小时的告警数（用于错误率告警检查）
   byType: AlertTypeItem[];
 }
 

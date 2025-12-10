@@ -156,7 +156,7 @@ export class BrandConfigService implements OnModuleInit, OnModuleDestroy {
       } else if (responseData.synced !== undefined) {
         brandConfig = responseData;
       } else {
-        this.logger.debug('品牌配置格式不标准，尝试直接使用');
+        this.logger.debug('品牌配置为 Storage 原始格式，正在转换为标准格式');
         // 处理 brandData 可能是字符串的情况
         let brandData = responseData.brandData || responseData;
         if (typeof brandData === 'string') {
