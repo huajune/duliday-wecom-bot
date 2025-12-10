@@ -71,15 +71,6 @@ const ChatRecordsIcon = () => (
   </svg>
 );
 
-const ConsoleIcon = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-    <rect x="2" y="4" width="20" height="16" rx="2" />
-    <path d="M6 12l2 2l2-2" />
-    <line x1="12" y1="14" x2="16" y2="14" />
-    <path d="M18 4v4a2 2 0 0 1-2 2h-1a2 2 0 0 0-2 2v0a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2v-8" />
-  </svg>
-);
-
 export default function Sidebar() {
   return (
     <aside className="sidebar">
@@ -144,12 +135,6 @@ export default function Sidebar() {
           className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
         >
           <span className="nav-icon"><SystemIcon /></span> 系统监控
-        </NavLink>
-        <NavLink
-          to="/console"
-          className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
-        >
-          <span className="nav-icon"><ConsoleIcon /></span> 控制台
         </NavLink>
       </div>
 

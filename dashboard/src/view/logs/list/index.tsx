@@ -1,30 +1,81 @@
-import { useState } from 'react';
-import { useDashboard, useMetrics } from '@/hooks/useMonitoring';
+import { useState, useMemo } from 'react';
+import { useMessageProcessingRecords } from '@/hooks/useMonitoring';
 import ControlPanel from './components/ControlPanel';
 import LogsTable from './components/LogsTable';
 import MessageDetailDrawer from './components/MessageDetailDrawer';
 import type { MessageRecord } from '@/types/monitoring';
 
 export default function Logs() {
-  const [timeRange] = useState<'today' | 'week' | 'month'>('today');
-  const { data: dashboard, isLoading } = useDashboard(timeRange);
-  const { data: metrics } = useMetrics();
+  const [timeRange, setTimeRange] = useState<'today' | 'week' | 'month'>('today');
   const [selectedMessage, setSelectedMessage] = useState<MessageRecord | null>(null);
   const [activeTab, setActiveTab] = useState<'realtime' | 'slowest'>('realtime');
 
-  const messages = dashboard?.recentMessages || [];
-  const slowestRecords = metrics?.slowestRecords || [];
+  // 计算时间范围
+  const dateRange = useMemo(() => {
+    const now = new Date();
+    const endDate = now.toISOString().split('T')[0];
+    let startDate: string;
 
-  // 计算统计数据
-  const stats = {
-    total: messages.length,
-    success: messages.filter((m) => m.status === 'success').length,
-    failed: messages.filter((m) => m.status === 'failure' || m.status === 'failed').length,
-    avgDuration:
-      messages.length > 0
-        ? Math.round(messages.reduce((sum, m) => sum + (m.aiDuration || 0), 0) / messages.length)
-        : 0,
-  };
+    if (timeRange === 'today') {
+      startDate = endDate;
+    } else if (timeRange === 'week') {
+      const weekAgo = new Date(now);
+      weekAgo.setDate(weekAgo.getDate() - 7);
+      startDate = weekAgo.toISOString().split('T')[0];
+    } else {
+      const monthAgo = new Date(now);
+      monthAgo.setDate(monthAgo.getDate() - 30);
+      startDate = monthAgo.toISOString().split('T')[0];
+    }
+
+    return { startDate, endDate };
+  }, [timeRange]);
+
+  // 统一使用持久化数据（数据库）
+  const { data: persistedMessages, isLoading } = useMessageProcessingRecords({
+    startDate: dateRange.startDate,
+    endDate: dateRange.endDate,
+    limit: 1000,
+  });
+
+  const allMessages = persistedMessages || [];
+
+  // 根据 Tab 类型计算不同的视图
+  const messages = useMemo(() => {
+    if (activeTab === 'realtime') {
+      // 实时：按接收时间倒序（最新的在前）
+      return [...allMessages].sort((a, b) => {
+        const timeA = new Date(a.receivedAt || 0).getTime();
+        const timeB = new Date(b.receivedAt || 0).getTime();
+        return timeB - timeA;
+      });
+    } else {
+      // 最慢 Top10：按 AI 处理耗时降序（最慢的在前），取前 10 条
+      return [...allMessages]
+        .filter((m) => m.aiDuration && m.aiDuration > 0)
+        .sort((a, b) => (b.aiDuration || 0) - (a.aiDuration || 0))
+        .slice(0, 10);
+    }
+  }, [allMessages, activeTab]);
+
+  // 计算统计数据（基于所有消息）
+  const stats = useMemo(() => {
+    return {
+      total: allMessages.length,
+      success: allMessages.filter((m) => m.status === 'success').length,
+      failed: allMessages.filter((m) => m.status === 'failure' || m.status === 'failed').length,
+      avgDuration:
+        allMessages.length > 0
+          ? Math.round(allMessages.reduce((sum, m) => sum + (m.aiDuration || 0), 0) / allMessages.length)
+          : 0,
+    };
+  }, [allMessages]);
+
+  // 计算两个 Tab 的数据量
+  const realtimeCount = allMessages.length;
+  const slowestCount = allMessages.filter((m) => m.aiDuration && m.aiDuration > 0).length >= 10
+    ? 10
+    : allMessages.filter((m) => m.aiDuration && m.aiDuration > 0).length;
 
   return (
     <div id="page-logs" className="page-section active">
@@ -32,12 +83,14 @@ export default function Logs() {
         stats={stats}
         activeTab={activeTab}
         onTabChange={setActiveTab}
-        realtimeCount={messages.length}
-        slowestCount={slowestRecords.length}
+        realtimeCount={realtimeCount}
+        slowestCount={slowestCount}
+        timeRange={timeRange}
+        onTimeRangeChange={setTimeRange}
       />
 
       <LogsTable
-        data={activeTab === 'realtime' ? messages : (slowestRecords as MessageRecord[])}
+        data={messages}
         loading={isLoading}
         onRowClick={setSelectedMessage}
         variant={activeTab}

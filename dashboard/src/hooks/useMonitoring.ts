@@ -40,6 +40,43 @@ export function useDashboard(timeRange: string, autoRefresh = true) {
   });
 }
 
+// 获取近1月咨询用户趋势数据
+export function useUserTrend(autoRefresh = true) {
+  return useQuery({
+    queryKey: ['user-trend'],
+    queryFn: async () => {
+      const { data } = await api.get('/monitoring/user-trend');
+      return unwrapResponse<Array<{
+        date: string;
+        userCount: number;
+        messageCount: number;
+      }>>(data);
+    },
+    refetchInterval: autoRefresh ? 60000 : false, // 1分钟刷新一次
+  });
+}
+
+// 获取已禁止托管的用户列表（附带用户资料）
+export function usePausedUsers(autoRefresh = true) {
+  return useQuery({
+    queryKey: ['paused-users'],
+    queryFn: async () => {
+      const { data } = await api.get('/monitoring/users/paused');
+      const response = unwrapResponse<{
+        users: Array<{ userId: string; pausedAt: number; odName?: string; groupName?: string }>;
+      }>(data);
+      // 转换格式：userId -> chatId，保留用户资料
+      return response.users.map((user) => ({
+        chatId: user.userId,
+        pausedAt: user.pausedAt,
+        odName: user.odName,
+        groupName: user.groupName,
+      }));
+    },
+    refetchInterval: autoRefresh ? 10000 : false, // 10秒刷新一次
+  });
+}
+
 // Metrics 数据
 export function useMetrics(autoRefresh = true) {
   return useQuery({
@@ -634,5 +671,33 @@ export function useChatSessionMessages(chatId: string | null) {
       return unwrapResponse<{ chatId: string; messages: ChatMessage[] }>(data);
     },
     enabled: !!chatId,
+  });
+}
+
+// ==================== 消息处理记录（持久化）====================
+
+// 获取消息处理记录（持久化到数据库的完整记录）
+export function useMessageProcessingRecords(options?: {
+  startDate?: string;
+  endDate?: string;
+  status?: 'processing' | 'success' | 'failure';
+  chatId?: string;
+  limit?: number;
+  offset?: number;
+}) {
+  return useQuery({
+    queryKey: ['message-processing-records', options],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (options?.startDate) params.set('startDate', options.startDate);
+      if (options?.endDate) params.set('endDate', options.endDate);
+      if (options?.status) params.set('status', options.status);
+      if (options?.chatId) params.set('chatId', options.chatId);
+      if (options?.limit) params.set('limit', String(options.limit));
+      if (options?.offset) params.set('offset', String(options.offset));
+
+      const { data } = await api.get(`/monitoring/message-processing-records?${params.toString()}`);
+      return unwrapResponse<MessageRecord[]>(data);
+    },
   });
 }

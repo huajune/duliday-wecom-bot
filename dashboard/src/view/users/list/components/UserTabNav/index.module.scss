@@ -1,0 +1,53 @@
+// UserTabNav 组件样式
+.tabNav {
+  display: flex;
+  border-bottom: 2px solid #f1f5f9;
+  padding: 0 32px;
+  gap: 8px;
+}
+
+.tab {
+  position: relative;
+  padding: 16px 24px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  color: #64748b;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+
+  &:hover {
+    color: #334155;
+    background: #f8fafc;
+  }
+
+  &.active {
+    color: #6366f1;
+    border-bottom-color: #6366f1;
+
+    .tabCount {
+      background: rgba(99, 102, 241, 0.1);
+      color: #6366f1;
+    }
+  }
+}
+
+.tabLabel {
+  font-weight: 500;
+}
+
+.tabCount {
+  font-size: 13px;
+  color: #94a3b8;
+  background: #f1f5f9;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-weight: 400;
+  transition: all 0.2s ease;
+}

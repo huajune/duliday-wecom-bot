@@ -70,6 +70,42 @@ export class MonitoringController {
   }
 
   /**
+   * 获取指定日期的活跃用户
+   * GET /monitoring/users?date=2025-12-10
+   */
+  @Get('users')
+  async getUsersByDate(@Query('date') date?: string): Promise<any[]> {
+    if (!date) {
+      // 如果未提供日期,返回今日用户
+      return this.monitoringService.getTodayUsersFromDatabase();
+    }
+
+    // 验证日期格式 (YYYY-MM-DD)
+    const datePattern = /^\d{4}-\d{2}-\d{2}$/;
+    if (!datePattern.test(date)) {
+      this.logger.warn(`无效的日期格式: ${date}`);
+      return [];
+    }
+
+    return this.monitoringService.getUsersByDate(date);
+  }
+
+  /**
+   * 获取近1月咨询用户趋势数据
+   * GET /monitoring/user-trend
+   */
+  @Get('user-trend')
+  async getUserTrend(): Promise<
+    Array<{
+      date: string;
+      userCount: number;
+      messageCount: number;
+    }>
+  > {
+    return this.monitoringService.getUserTrend();
+  }
+
+  /**
    * 获取 AI 回复开关状态
    * GET /monitoring/ai-reply-status
    */
@@ -168,11 +204,13 @@ export class MonitoringController {
   }
 
   /**
-   * 获取暂停托管的用户列表
+   * 获取暂停托管的用户列表（附带用户资料）
    * GET /monitoring/users/paused
    */
   @Get('users/paused')
-  async getPausedUsers(): Promise<{ users: { userId: string; pausedAt: number }[] }> {
+  async getPausedUsers(): Promise<{
+    users: { userId: string; pausedAt: number; odName?: string; groupName?: string }[];
+  }> {
     this.logger.debug('获取暂停托管用户列表');
     return {
       users: await this.filterService.getPausedUsers(),
@@ -740,5 +778,60 @@ export class MonitoringController {
     this.logger.debug(`获取会话消息: chatId=${chatId}`);
     const messages = await this.supabaseService.getChatHistoryDetail(chatId);
     return { chatId, messages };
+  }
+
+  /**
+   * 获取消息处理记录（持久化数据）
+   * GET /monitoring/message-processing-records
+   * 查询参数:
+   *   - startDate: 开始日期 (YYYY-MM-DD)
+   *   - endDate: 结束日期 (YYYY-MM-DD)
+   *   - status: 状态筛选 (processing|success|failure)
+   *   - chatId: 会话ID筛选
+   *   - limit: 返回数量限制 (默认 100)
+   *   - offset: 偏移量 (默认 0)
+   */
+  @Get('message-processing-records')
+  async getMessageProcessingRecords(
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('status') status?: 'processing' | 'success' | 'failure',
+    @Query('chatId') chatId?: string,
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
+  ): Promise<any[]> {
+    const options: any = {};
+
+    if (startDate) {
+      const start = new Date(startDate);
+      start.setHours(0, 0, 0, 0);
+      options.startDate = start;
+    }
+
+    if (endDate) {
+      const end = new Date(endDate);
+      end.setHours(23, 59, 59, 999);
+      options.endDate = end;
+    }
+
+    if (status) {
+      options.status = status;
+    }
+
+    if (chatId) {
+      options.chatId = chatId;
+    }
+
+    if (limit) {
+      options.limit = parseInt(limit, 10);
+    }
+
+    if (offset) {
+      options.offset = parseInt(offset, 10);
+    }
+
+    this.logger.debug(`获取消息处理记录: ${JSON.stringify(options)}`);
+    const records = await this.supabaseService.getMessageProcessingRecords(options);
+    return records;
   }
 }

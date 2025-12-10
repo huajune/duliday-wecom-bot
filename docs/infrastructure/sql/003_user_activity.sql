@@ -44,7 +44,7 @@ CREATE INDEX IF NOT EXISTS idx_user_activity_date_last_active
   ON user_activity(activity_date DESC, last_active_at DESC);
 
 -- 注释
-COMMENT ON TABLE user_activity IS '用户活跃记录（按日聚合），保留 30 天';
+COMMENT ON TABLE user_activity IS '用户活跃记录（按日聚合），永久保留';
 COMMENT ON COLUMN user_activity.chat_id IS '会话ID，用户唯一标识';
 COMMENT ON COLUMN user_activity.od_id IS '用户 OD ID';
 COMMENT ON COLUMN user_activity.od_name IS '用户昵称';
@@ -198,7 +198,7 @@ COMMENT ON FUNCTION get_users_by_date_range IS '获取指定日期范围内的�
 -- 数据清理函数
 -- ============================================
 
-CREATE OR REPLACE FUNCTION cleanup_user_activity(retention_days INTEGER DEFAULT 30)
+CREATE OR REPLACE FUNCTION cleanup_user_activity(retention_days INTEGER DEFAULT 14)
 RETURNS INTEGER
 LANGUAGE plpgsql
 AS $$
@@ -213,7 +213,7 @@ BEGIN
 END;
 $$;
 
-COMMENT ON FUNCTION cleanup_user_activity IS '清理指定天数前的用户活跃记录，默认保留 30 天';
+COMMENT ON FUNCTION cleanup_user_activity IS '清理指定天数前的用户活跃记录，默认保留 14 天';
 
 -- ============================================
 -- 使用说明

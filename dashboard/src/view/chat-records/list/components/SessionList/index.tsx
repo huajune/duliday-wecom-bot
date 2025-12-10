@@ -78,8 +78,17 @@ export default function SessionList({
           </div>
         ) : filteredSessions.length === 0 ? (
           <div className={styles.stateContainer}>
-            <div className={styles.stateIcon}>📭</div>
-            <div>{timeRangeLabel}暂无会话记录</div>
+            <div className={styles.emptyIconWrapper}>
+              <svg width="64" height="64" viewBox="0 0 64 64" fill="none" className={styles.emptyIcon}>
+                <circle cx="32" cy="32" r="31" stroke="#E6EFF5" strokeWidth="2" fill="none" />
+                <path d="M16 26C16 23.7909 17.7909 22 20 22H44C46.2091 22 48 23.7909 48 26V42C48 44.2091 46.2091 46 44 46H20C17.7909 46 16 44.2091 16 42V26Z" fill="white" stroke="#A3AED0" strokeWidth="2" />
+                <path d="M32 36L16 26" stroke="#D8E3F0" strokeWidth="2" strokeLinecap="round" />
+                <path d="M32 36L48 26" stroke="#D8E3F0" strokeWidth="2" strokeLinecap="round" />
+                <path d="M42 22V18C42 16.8954 41.1046 16 40 16H36C34.8954 16 34 16.8954 34 18V22" stroke="#A3AED0" strokeWidth="2" />
+                <circle cx="44" cy="22" r="3" fill="#FF7596" />
+              </svg>
+            </div>
+            <p>{timeRangeLabel}暂无会话记录</p>
           </div>
         ) : (
           filteredSessions.map((session) => {

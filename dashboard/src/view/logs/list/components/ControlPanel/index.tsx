@@ -13,6 +13,8 @@ interface ControlPanelProps {
   onTabChange: (tab: 'realtime' | 'slowest') => void;
   realtimeCount: number;
   slowestCount: number;
+  timeRange: 'today' | 'week' | 'month';
+  onTimeRangeChange: (range: 'today' | 'week' | 'month') => void;
 }
 
 export default function ControlPanel({
@@ -21,6 +23,8 @@ export default function ControlPanel({
   onTabChange,
   realtimeCount,
   slowestCount,
+  timeRange,
+  onTimeRangeChange,
 }: ControlPanelProps) {
   return (
     <section
@@ -54,6 +58,71 @@ export default function ControlPanel({
           <span style={{ fontSize: '16px' }}>💬</span>
           消息记录
         </h3>
+
+        {/* 分隔线 */}
+        <div style={{ width: '1px', height: '24px', background: 'var(--border)' }} />
+
+        {/* 时间筛选 */}
+        <div
+          style={{
+            display: 'flex',
+            background: 'var(--bg-secondary)',
+            borderRadius: '8px',
+            padding: '3px',
+          }}
+        >
+          <button
+            onClick={() => onTimeRangeChange('today')}
+            style={{
+              padding: '6px 12px',
+              background: timeRange === 'today' ? '#fff' : 'transparent',
+              border: 'none',
+              borderRadius: '6px',
+              color: timeRange === 'today' ? 'var(--primary)' : 'var(--text-muted)',
+              fontSize: '13px',
+              fontWeight: 500,
+              cursor: 'pointer',
+              transition: 'all 0.15s ease',
+              boxShadow: timeRange === 'today' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+            }}
+          >
+            今天
+          </button>
+          <button
+            onClick={() => onTimeRangeChange('week')}
+            style={{
+              padding: '6px 12px',
+              background: timeRange === 'week' ? '#fff' : 'transparent',
+              border: 'none',
+              borderRadius: '6px',
+              color: timeRange === 'week' ? 'var(--primary)' : 'var(--text-muted)',
+              fontSize: '13px',
+              fontWeight: 500,
+              cursor: 'pointer',
+              transition: 'all 0.15s ease',
+              boxShadow: timeRange === 'week' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+            }}
+          >
+            近7天
+          </button>
+          <button
+            onClick={() => onTimeRangeChange('month')}
+            style={{
+              padding: '6px 12px',
+              background: timeRange === 'month' ? '#fff' : 'transparent',
+              border: 'none',
+              borderRadius: '6px',
+              color: timeRange === 'month' ? 'var(--primary)' : 'var(--text-muted)',
+              fontSize: '13px',
+              fontWeight: 500,
+              cursor: 'pointer',
+              transition: 'all 0.15s ease',
+              boxShadow: timeRange === 'month' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+            }}
+          >
+            近30天
+          </button>
+        </div>
 
         {/* 分隔线 */}
         <div style={{ width: '1px', height: '24px', background: 'var(--border)' }} />

@@ -8,7 +8,6 @@ import Logs from '@/view/logs/list';
 import ChatRecords from '@/view/chat-records/list';
 import System from '@/view/system/list';
 import Config from '@/view/config/list';
-import ConsoleLogs from '@/view/consoleLogs/list';
 import Hosting from '@/view/hosting/list';
 import Users from '@/view/users/list';
 
@@ -47,7 +46,6 @@ function App() {
           <Route path="system" element={<System />} />
           <Route path="logs" element={<Logs />} />
           <Route path="chat-records" element={<ChatRecords />} />
-          <Route path="console" element={<ConsoleLogs />} />
         </Route>
       </Routes>
     </>

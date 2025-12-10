@@ -91,17 +91,25 @@ export class SimpleMergeService implements OnModuleInit {
     this.logger.debug(`[${chatId}] 消息已加入聚合队列，当前队列长度: ${queueLength}`);
 
     // 3. 添加/更新延迟任务
-    // 关键：相同 jobId 会移除旧任务，创建新任务（延迟重新计时）
     try {
-      // 先尝试移除已存在的任务（如果有的话）
+      // 先检查是否存在任务
       const existingJob = await this.messageQueue.getJob(chatId);
+      let jobId = chatId; // 默认使用 chatId 作为 jobId
+
       if (existingJob) {
         const state = await existingJob.getState();
-        // 只移除等待中或延迟中的任务，不移除正在处理的任务
+
         if (state === 'waiting' || state === 'delayed') {
+          // 等待中或延迟中的任务：移除后重新创建（延迟重新计时）
           await existingJob.remove();
           this.logger.debug(`[${chatId}] 已移除旧的延迟任务 (state=${state})`);
+        } else if (state === 'active') {
+          // 正在处理中的任务：使用唯一 jobId 创建新任务
+          // 这样新消息会在当前任务完成后立即处理
+          jobId = `${chatId}:pending:${Date.now()}`;
+          this.logger.debug(`[${chatId}] 现有任务正在处理中，使用新 jobId: ${jobId}`);
         }
+        // 其他状态（completed/failed）不需要特殊处理，可以直接创建新任务
       }
 
       // 决定是否立即执行还是延迟执行
@@ -120,7 +128,7 @@ export class SimpleMergeService implements OnModuleInit {
         'process',
         { chatId },
         {
-          jobId: chatId,
+          jobId,
           delay,
           removeOnComplete: true,
           removeOnFail: false, // 失败时保留用于调试
@@ -133,7 +141,7 @@ export class SimpleMergeService implements OnModuleInit {
       );
 
       if (delay > 0) {
-        this.logger.debug(`[${chatId}] 延迟任务已创建，${delay}ms 后执行`);
+        this.logger.debug(`[${chatId}] 延迟任务已创建 (jobId=${jobId})，${delay}ms 后执行`);
       }
     } catch (error) {
       this.logger.error(`[${chatId}] 创建延迟任务失败: ${error.message}`);

@@ -19,13 +19,14 @@ export class DataCleanupService implements OnModuleInit {
   private readonly logger = new Logger(DataCleanupService.name);
 
   private readonly CHAT_RETENTION_DAYS = 60; // 聊天记录保留 60 天
+  private readonly USER_ACTIVITY_RETENTION_DAYS = 14; // 用户活跃记录保留 14 天
   private readonly MONITORING_RETENTION_DAYS = 30; // 监控数据保留 30 天（如有历史数据）
 
   constructor(private readonly supabaseService: SupabaseService) {}
 
   async onModuleInit(): Promise<void> {
     if (this.supabaseService.isAvailable()) {
-      this.logger.log('✅ 数据清理服务已启动 (每日凌晨 3 点执行清理)');
+      this.logger.log('✅ 数据清理服务已启动 (每日凌晨 3 点执行清理，用户活跃记录已永久保留)');
     } else {
       this.logger.warn('⚠️ 数据清理服务已禁用 (Supabase 不可用)');
     }
@@ -34,6 +35,7 @@ export class DataCleanupService implements OnModuleInit {
   /**
    * 每天凌晨 3 点清理过期数据
    * - 聊天消息：保留 60 天
+   * - 用户活跃记录：永久保留（已禁用清理）
    * - 监控历史数据：保留 30 天（如有）
    */
   @Cron('0 3 * * *')
@@ -45,7 +47,10 @@ export class DataCleanupService implements OnModuleInit {
     // 1. 清理过期聊天消息
     await this.cleanupChatMessages();
 
-    // 2. 清理过期监控历史数据（兼容旧数据）
+    // 2. 清理过期用户活跃记录（已禁用）
+    // await this.cleanupUserActivity();
+
+    // 3. 清理过期监控历史数据（兼容旧数据）
     await this.cleanupMonitoringHistory();
   }
 
@@ -63,6 +68,25 @@ export class DataCleanupService implements OnModuleInit {
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
       this.logger.error(`[数据清理] 清理聊天消息失败: ${message}`);
+    }
+  }
+
+  /**
+   * 清理过期用户活跃记录
+   */
+  private async cleanupUserActivity(): Promise<void> {
+    try {
+      const deletedCount = await this.supabaseService.cleanupUserActivity(
+        this.USER_ACTIVITY_RETENTION_DAYS,
+      );
+      if (deletedCount > 0) {
+        this.logger.log(
+          `[数据清理] 已清理 ${deletedCount} 条过期用户活跃记录 (${this.USER_ACTIVITY_RETENTION_DAYS} 天前)`,
+        );
+      }
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.error(`[数据清理] 清理用户活跃记录失败: ${message}`);
     }
   }
 
@@ -93,17 +117,30 @@ export class DataCleanupService implements OnModuleInit {
   /**
    * 手动触发清理（用于测试或管理）
    */
-  async triggerCleanup(): Promise<{ chatMessages: number; monitoringData: number }> {
+  async triggerCleanup(): Promise<{
+    chatMessages: number;
+    userActivity: number;
+    monitoringData: number;
+  }> {
     let chatMessages = 0;
+    let userActivity = 0;
     let monitoringData = 0;
 
     if (!this.supabaseService.isAvailable()) {
       this.logger.warn('[数据清理] Supabase 不可用，跳过清理');
-      return { chatMessages, monitoringData };
+      return { chatMessages, userActivity, monitoringData };
     }
 
     try {
       chatMessages = await this.supabaseService.cleanupChatMessages(this.CHAT_RETENTION_DAYS);
+    } catch {
+      // ignore
+    }
+
+    try {
+      userActivity = await this.supabaseService.cleanupUserActivity(
+        this.USER_ACTIVITY_RETENTION_DAYS,
+      );
     } catch {
       // ignore
     }
@@ -117,9 +154,9 @@ export class DataCleanupService implements OnModuleInit {
     }
 
     this.logger.log(
-      `[数据清理] 手动清理完成: 聊天消息 ${chatMessages} 条, 监控数据 ${monitoringData} 条`,
+      `[数据清理] 手动清理完成: 聊天消息 ${chatMessages} 条, 用户活跃记录 ${userActivity} 条, 监控数据 ${monitoringData} 条`,
     );
 
-    return { chatMessages, monitoringData };
+    return { chatMessages, userActivity, monitoringData };
   }
 }

@@ -597,20 +597,66 @@ export class SupabaseService implements OnModuleInit {
   }
 
   /**
-   * 获取所有暂停托管的用户列表
+   * 获取所有暂停托管的用户列表（附带用户资料）
    */
-  async getPausedUsers(): Promise<{ userId: string; pausedAt: number }[]> {
+  async getPausedUsers(): Promise<
+    { userId: string; pausedAt: number; odName?: string; groupName?: string }[]
+  > {
     // 确保缓存是最新的
     if (Date.now() > this.pausedUsersCacheExpiry) {
       await this.loadPausedUsers();
     }
 
-    return Array.from(this.pausedUsersCache.entries())
+    const pausedUserIds = Array.from(this.pausedUsersCache.entries())
       .filter(([, status]) => status.isPaused)
       .map(([userId, status]) => ({
         userId,
         pausedAt: status.pausedAt,
       }));
+
+    if (pausedUserIds.length === 0) {
+      return [];
+    }
+
+    try {
+      // 从 user_activity 表查询用户资料（取最新一条记录）
+      const userIdList = pausedUserIds.map((u) => u.userId).join(',');
+      const response = await this.supabaseHttpClient.get('/user_activity', {
+        params: {
+          chat_id: `in.(${userIdList})`,
+          select: 'chat_id,od_name,group_name',
+          order: 'last_active_at.desc',
+        },
+      });
+
+      const data = response.data;
+      if (!Array.isArray(data)) {
+        this.logger.error('查询暂停用户资料失败: 响应格式错误');
+        return pausedUserIds; // 降级：返回不带资料的数据
+      }
+
+      // 创建 userId -> profile 的映射（每个 userId 只保留最新记录）
+      const profileMap = new Map<string, { odName?: string; groupName?: string }>();
+      data.forEach((record: any) => {
+        if (!profileMap.has(record.chat_id)) {
+          profileMap.set(record.chat_id, {
+            odName: record.od_name,
+            groupName: record.group_name,
+          });
+        }
+      });
+
+      // 合并用户资料
+      return pausedUserIds.map((user) => ({
+        userId: user.userId,
+        pausedAt: user.pausedAt,
+        odName: profileMap.get(user.userId)?.odName,
+        groupName: profileMap.get(user.userId)?.groupName,
+      }));
+    } catch (error) {
+      this.logger.error('查询暂停用户资料异常', error);
+      return pausedUserIds; // 降级：返回不带资料的数据
+    }
   }
 
   /**
@@ -1730,15 +1776,22 @@ export class SupabaseService implements OnModuleInit {
     }
 
     try {
-      // 使用 and 条件筛选时间范围
+      // 直接查询，返回有限数量（Supabase REST API 单次最多 1000 条）
+      // 注意：由于数据量可能超过 1000 条，这里只返回最新的会话
+      // 如需完整数据，应在前端实现分页加载
       const response = await this.supabaseHttpClient.get('/chat_messages', {
         params: {
           select: 'chat_id,candidate_name,manager_name,content,timestamp,avatar,contact_type,role',
           order: 'timestamp.desc',
           and: `(timestamp.gte.${startDate.toISOString()},timestamp.lte.${endDate.toISOString()})`,
-          limit: 10000,
+          limit: 1000, // Supabase 单次最大限制
         },
       });
+
+      const messages = response.data ?? [];
+      this.logger.log(
+        `获取到 ${messages.length} 条消息记录（${startDate.toISOString()} ~ ${endDate.toISOString()}）`,
+      );
 
       // 按 chat_id 分组，取最新消息
       const sessionMap = new Map<
@@ -1755,7 +1808,7 @@ export class SupabaseService implements OnModuleInit {
         }
       >();
 
-      for (const msg of response.data ?? []) {
+      for (const msg of messages) {
         const chatId = msg.chat_id;
         if (!sessionMap.has(chatId)) {
           sessionMap.set(chatId, {
@@ -1819,6 +1872,36 @@ export class SupabaseService implements OnModuleInit {
       return deletedCount;
     } catch (error) {
       this.logger.error('清理聊天消息失败:', error);
+      return 0;
+    }
+  }
+
+  /**
+   * 清理过期的用户活跃记录
+   * 调用数据库函数 cleanup_user_activity()
+   * @param retentionDays 保留天数，默认 14 天
+   * @returns 删除的记录数量
+   */
+  async cleanupUserActivity(retentionDays: number = 14): Promise<number> {
+    if (!this.isInitialized) {
+      this.logger.warn('Supabase 未初始化，跳过用户活跃记录清理');
+      return 0;
+    }
+
+    try {
+      const response = await this.supabaseHttpClient.post('/rpc/cleanup_user_activity', {
+        retention_days: retentionDays,
+      });
+
+      const deletedCount = response.data ?? 0;
+      if (deletedCount > 0) {
+        this.logger.log(
+          `✅ 用户活跃记录清理完成: 删除 ${deletedCount} 条 ${retentionDays} 天前的记录`,
+        );
+      }
+      return deletedCount;
+    } catch (error) {
+      this.logger.error('清理用户活跃记录失败:', error);
       return 0;
     }
   }
@@ -2103,6 +2186,110 @@ export class SupabaseService implements OnModuleInit {
   }
 
   /**
+   * 获取指定日期的活跃用户
+   * @param date 查询日期 (YYYY-MM-DD 格式)
+   */
+  async getActiveUsersByDate(date: string): Promise<
+    Array<{
+      chatId: string;
+      odId?: string;
+      odName?: string;
+      groupId?: string;
+      groupName?: string;
+      messageCount: number;
+      tokenUsage: number;
+      firstActiveAt: number;
+      lastActiveAt: number;
+    }>
+  > {
+    if (!this.isInitialized) {
+      return [];
+    }
+
+    try {
+      const response = await this.supabaseHttpClient.get('/user_activity', {
+        params: {
+          activity_date: `eq.${date}`,
+          select: '*',
+          order: 'last_active_at.desc',
+        },
+      });
+
+      return (response.data ?? []).map((row: any) => ({
+        chatId: row.chat_id,
+        odId: row.od_id,
+        odName: row.od_name,
+        groupId: row.group_id,
+        groupName: row.group_name,
+        messageCount: row.message_count,
+        tokenUsage: row.token_usage,
+        firstActiveAt: new Date(row.first_active_at).getTime(),
+        lastActiveAt: new Date(row.last_active_at).getTime(),
+      }));
+    } catch (error) {
+      this.logger.error(`获取指定日期活跃用户失败 (${date}):`, error);
+      return [];
+    }
+  }
+
+  /**
+   * 获取指定日期范围内每日用户数统计（用于趋势图）
+   */
+  async getDailyUserStats(
+    startDate: Date,
+    endDate: Date,
+  ): Promise<
+    Array<{
+      date: string;
+      userCount: number;
+      messageCount: number;
+    }>
+  > {
+    if (!this.isInitialized) {
+      return [];
+    }
+
+    try {
+      const startDateStr = startDate.toISOString().split('T')[0];
+      const endDateStr = endDate.toISOString().split('T')[0];
+
+      // 使用 URL 查询参数直接拼接（Supabase PostgREST 支持多条件）
+      const response = await this.supabaseHttpClient.get(
+        `/user_activity?activity_date=gte.${startDateStr}&activity_date=lte.${endDateStr}&select=activity_date,chat_id,message_count`,
+      );
+
+      const rows = response.data ?? [];
+
+      // 按日期分组统计
+      const statsMap = new Map<string, { userCount: number; messageCount: number }>();
+
+      rows.forEach((row: any) => {
+        const date = row.activity_date;
+        if (!statsMap.has(date)) {
+          statsMap.set(date, { userCount: 0, messageCount: 0 });
+        }
+        const stats = statsMap.get(date)!;
+        stats.userCount += 1;
+        stats.messageCount += row.message_count || 0;
+      });
+
+      // 转换为数组并排序
+      const result = Array.from(statsMap.entries())
+        .map(([date, stats]) => ({
+          date,
+          userCount: stats.userCount,
+          messageCount: stats.messageCount,
+        }))
+        .sort((a, b) => a.date.localeCompare(b.date));
+
+      return result;
+    } catch (error: any) {
+      this.logger.error('获取每日用户统计失败:', error.message);
+      return [];
+    }
+  }
+
+  /**
    * 获取指定日期范围内的活跃用户
    */
   async getActiveUsersByDateRange(
@@ -2156,6 +2343,208 @@ export class SupabaseService implements OnModuleInit {
       }
       this.logger.error('获取日期范围内活跃用户失败:', error);
       return [];
+    }
+  }
+
+  // ==================== 消息处理记录持久化 ====================
+
+  /**
+   * 保存消息处理记录到数据库
+   * 用于持久化实时消息详情，包括完整的 Agent 调用记录
+   * @param record 消息处理记录
+   */
+  async saveMessageProcessingRecord(record: {
+    messageId: string;
+    chatId: string;
+    userId?: string;
+    userName?: string;
+    managerName?: string;
+    receivedAt: number;
+    messagePreview?: string;
+    replyPreview?: string;
+    replySegments?: number;
+    status: 'processing' | 'success' | 'failure';
+    error?: string;
+    scenario?: string;
+    totalDuration?: number;
+    queueDuration?: number;
+    prepDuration?: number;
+    aiStartAt?: number;
+    aiEndAt?: number;
+    aiDuration?: number;
+    sendDuration?: number;
+    tools?: string[];
+    tokenUsage?: number;
+    isFallback?: boolean;
+    fallbackSuccess?: boolean;
+    agentInvocation?: any;
+  }): Promise<boolean> {
+    if (!this.isInitialized) {
+      this.logger.warn('[消息处理记录] Supabase 未初始化，跳过保存');
+      return false;
+    }
+
+    try {
+      const dbRecord = {
+        message_id: record.messageId,
+        chat_id: record.chatId,
+        user_id: record.userId,
+        user_name: record.userName,
+        manager_name: record.managerName,
+        received_at: new Date(record.receivedAt).toISOString(),
+        message_preview: record.messagePreview,
+        reply_preview: record.replyPreview,
+        reply_segments: record.replySegments,
+        status: record.status,
+        error: record.error,
+        scenario: record.scenario,
+        total_duration: record.totalDuration,
+        queue_duration: record.queueDuration,
+        prep_duration: record.prepDuration,
+        ai_start_at: record.aiStartAt,
+        ai_end_at: record.aiEndAt,
+        ai_duration: record.aiDuration,
+        send_duration: record.sendDuration,
+        tools: record.tools,
+        token_usage: record.tokenUsage,
+        is_fallback: record.isFallback,
+        fallback_success: record.fallbackSuccess,
+        agent_invocation: record.agentInvocation,
+      };
+
+      await this.supabaseHttpClient.post(
+        '/message_processing_records?on_conflict=message_id',
+        dbRecord,
+        {
+          headers: {
+            Prefer: 'resolution=merge-duplicates',
+          },
+        },
+      );
+
+      this.logger.debug(`[消息处理记录] 已保存: ${record.messageId}`);
+      return true;
+    } catch (error) {
+      this.logger.error(`[消息处理记录] 保存失败 [${record.messageId}]:`, error);
+      return false;
+    }
+  }
+
+  /**
+   * 获取消息处理记录列表（支持时间范围过滤）
+   * @param options 查询选项
+   * @returns 消息处理记录列表
+   */
+  async getMessageProcessingRecords(options?: {
+    startDate?: Date;
+    endDate?: Date;
+    status?: 'processing' | 'success' | 'failure';
+    chatId?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<any[]> {
+    if (!this.isInitialized) {
+      this.logger.warn('[消息处理记录] Supabase 未初始化');
+      return [];
+    }
+
+    try {
+      const params: any = {};
+
+      // 时间范围过滤
+      if (options?.startDate) {
+        params.received_at = `gte.${options.startDate.toISOString()}`;
+      }
+      if (options?.endDate) {
+        params.received_at = params.received_at
+          ? `${params.received_at},lte.${options.endDate.toISOString()}`
+          : `lte.${options.endDate.toISOString()}`;
+      }
+
+      // 状态过滤
+      if (options?.status) {
+        params.status = `eq.${options?.status}`;
+      }
+
+      // 会话ID过滤
+      if (options?.chatId) {
+        params.chat_id = `eq.${options.chatId}`;
+      }
+
+      // 排序和分页
+      params.order = 'received_at.desc';
+      if (options?.limit) {
+        params.limit = options.limit;
+      }
+      if (options?.offset) {
+        params.offset = options.offset;
+      }
+
+      const response = await this.supabaseHttpClient.get('/message_processing_records', {
+        params,
+      });
+
+      return (response.data ?? []).map((row: any) => ({
+        messageId: row.message_id,
+        chatId: row.chat_id,
+        userId: row.user_id,
+        userName: row.user_name,
+        managerName: row.manager_name,
+        receivedAt: new Date(row.received_at).getTime(),
+        messagePreview: row.message_preview,
+        replyPreview: row.reply_preview,
+        replySegments: row.reply_segments,
+        status: row.status,
+        error: row.error,
+        scenario: row.scenario,
+        totalDuration: row.total_duration,
+        queueDuration: row.queue_duration,
+        prepDuration: row.prep_duration,
+        aiStartAt: row.ai_start_at,
+        aiEndAt: row.ai_end_at,
+        aiDuration: row.ai_duration,
+        sendDuration: row.send_duration,
+        tools: row.tools,
+        tokenUsage: row.token_usage,
+        isFallback: row.is_fallback,
+        fallbackSuccess: row.fallback_success,
+        agentInvocation: row.agent_invocation,
+      }));
+    } catch (error) {
+      this.logger.error('[消息处理记录] 查询失败:', error);
+      return [];
+    }
+  }
+
+  /**
+   * 清理过期的消息处理记录
+   * @param retentionDays 保留天数，默认 30 天
+   * @returns 删除的记录数量
+   */
+  async cleanupMessageProcessingRecords(retentionDays: number = 30): Promise<number> {
+    if (!this.isInitialized) {
+      this.logger.warn('[消息处理记录] Supabase 未初始化，跳过清理');
+      return 0;
+    }
+
+    try {
+      const response = await this.supabaseHttpClient.post(
+        '/rpc/cleanup_message_processing_records',
+        {
+          days_to_keep: retentionDays,
+        },
+      );
+
+      const deletedCount = response.data ?? 0;
+      if (deletedCount > 0) {
+        this.logger.log(
+          `✅ [消息处理记录] 清理完成: 删除 ${deletedCount} 条 ${retentionDays} 天前的记录`,
+        );
+      }
+      return deletedCount;
+    } catch (error) {
+      this.logger.error('[消息处理记录] 清理失败:', error);
+      return 0;
     }
   }
 }

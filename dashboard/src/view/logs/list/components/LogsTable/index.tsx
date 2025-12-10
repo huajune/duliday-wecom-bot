@@ -26,7 +26,7 @@ export default function LogsTable({ data, loading, onRowClick, variant }: LogsTa
 
   if (loading) {
     return (
-      <section className="section">
+      <section className={styles.section}>
         <div className={styles.tableWrapper}>
           <table className={styles.table}>
             <thead>{tableHeaders}</thead>
@@ -45,14 +45,25 @@ export default function LogsTable({ data, loading, onRowClick, variant }: LogsTa
 
   if (data.length === 0) {
     return (
-      <section className="section">
+      <section className={styles.section}>
         <div className={styles.tableWrapper}>
           <table className={styles.table}>
             <thead>{tableHeaders}</thead>
             <tbody>
               <tr>
                 <td colSpan={9} className={styles.loading}>
-                  暂无数据
+                  <div className={styles.emptyStateContainer}>
+                    <div className={styles.emptyIconWrapper}>
+                      <svg width="64" height="64" viewBox="0 0 64 64" fill="none" className={styles.emptyIcon}>
+                        <circle cx="32" cy="32" r="31" stroke="#E6EFF5" strokeWidth="2" fill="none" />
+                        <path d="M22 20H42C44.2 20 46 21.8 46 24V44H18V24C18 21.8 19.8 20 22 20Z" fill="white" stroke="#A3AED0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                        <path d="M26 28H38" stroke="#D8E3F0" strokeWidth="2" strokeLinecap="round" />
+                        <path d="M26 34H38" stroke="#D8E3F0" strokeWidth="2" strokeLinecap="round" />
+                        <circle cx="42" cy="24" r="2.5" fill="#FF7596" />
+                      </svg>
+                    </div>
+                    <p>暂无数据</p>
+                  </div>
                 </td>
               </tr>
             </tbody>
@@ -63,7 +74,7 @@ export default function LogsTable({ data, loading, onRowClick, variant }: LogsTa
   }
 
   return (
-    <section className="section">
+    <section className={styles.section}>
       <div className={styles.tableWrapper}>
         <table className={styles.table}>
           <thead>{tableHeaders}</thead>
@@ -93,13 +104,12 @@ export default function LogsTable({ data, loading, onRowClick, variant }: LogsTa
                 <td>
                   <div className={styles.statusCell}>
                     <span
-                      className={`status-badge ${
-                        record.status === 'success'
-                          ? 'success'
-                          : record.status === 'failure' || record.status === 'failed'
+                      className={`status-badge ${record.status === 'success'
+                        ? 'success'
+                        : record.status === 'failure' || record.status === 'failed'
                           ? 'danger'
                           : 'warning'
-                      }`}
+                        }`}
                     >
                       {record.status}
                     </span>

@@ -1,30 +1,58 @@
 import { useState } from 'react';
-import { useDashboard, useToggleUserHosting } from '@/hooks/useMonitoring';
+import { useDashboard, useToggleUserHosting, usePausedUsers } from '@/hooks/useMonitoring';
+
+// 类型导入
+import type { TabType } from './types';
+
+// 工具函数导入
+import { transformPausedUsers } from './utils/transformers';
 
 // 组件导入
 import UserTable from './components/UserTable';
+import UserTrendChart from './components/UserTrendChart';
+import UserTabNav from './components/UserTabNav';
 
 // 样式导入
 import styles from './styles/index.module.scss';
 
 export default function Users() {
-  const [timeRange] = useState<'today' | 'week' | 'month'>('today');
-  const { data: dashboard, isLoading } = useDashboard(timeRange);
+  const [activeTab, setActiveTab] = useState<TabType>('today');
+  const { data: dashboard, isLoading: isTodayLoading } = useDashboard('24h');
+  const { data: pausedUsers = [], isLoading: isPausedLoading } = usePausedUsers();
   const toggleHosting = useToggleUserHosting();
-
-  const users = dashboard?.todayUsers || [];
 
   const handleToggleHosting = (chatId: string, enabled: boolean) => {
     toggleHosting.mutate({ chatId, enabled });
   };
 
+  const todayUsers = dashboard?.todayUsers || [];
+  const pausedUsersData = transformPausedUsers(pausedUsers);
+
+  const displayUsers = activeTab === 'today' ? todayUsers : pausedUsersData;
+  const isLoading = activeTab === 'today' ? isTodayLoading : isPausedLoading;
+
   return (
     <div className={styles.page}>
-      <UserTable
-        users={users}
-        isLoading={isLoading}
-        onToggleHosting={handleToggleHosting}
-      />
+      {/* 近1月咨询用户趋势图 */}
+      <UserTrendChart />
+
+      {/* Tab 切换 + 用户列表 */}
+      <section className={styles.section}>
+        <UserTabNav
+          activeTab={activeTab}
+          todayCount={todayUsers.length}
+          pausedCount={pausedUsers.length}
+          onTabChange={setActiveTab}
+        />
+
+        {/* 用户表格 */}
+        <UserTable
+          users={displayUsers}
+          isLoading={isLoading}
+          onToggleHosting={handleToggleHosting}
+          isPausedTab={activeTab === 'paused'}
+        />
+      </section>
     </div>
   );
 }

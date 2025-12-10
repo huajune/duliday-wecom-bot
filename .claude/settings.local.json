@@ -176,7 +176,13 @@
       "Bash(\"$AGENT_API_BASE_URL/models\")",
       "Bash(__NEW_LINE__ echo -e \"\\n=== 测试 /chat 接口 ===\")",
       "Bash(\"$AGENT_API_BASE_URL/chat\")",
-      "Bash(open http://localhost:8080/test-ws.html)"
+      "Bash(open http://localhost:8080/test-ws.html)",
+      "Bash(/tmp/test-bot-stability.sh)",
+      "Bash(TOKEN=\"$SUPABASE_SERVICE_ROLE_KEY\" curl:*)",
+      "Bash(API_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV2bWJ4Y2lscHRlYWlpenBsY3lwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2MjkwODI2MiwiZXhwIjoyMDc4NDg0MjYyfQ.IU2po4_YttuvOyHwJSR8yU9739tjV5T6zmMyjPcGaTc')",
+      "Bash(API_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV2bWJ4Y2lscHRlYWlpenBsY3lwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2MjkwODI2MiwiZXhwIjoyMDc4NDg0MjYyfQ.IU2po4_YttuvOyHwJSR8yU9739tjV5T6zmMyjPcGaTc' echo \"=== 今天的消息统计 ===\" curl -s \"https://uvmbxcilpteaiizplcyp.supabase.co/rest/v1/chat_messages?select=*&timestamp=gte.2025-12-09T00:00:00Z\" -H \"apikey: $API_KEY\" -H \"Authorization: Bearer $API_KEY\" -H \"Prefer: count=exact\" -I)",
+      "Bash(API_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV2bWJ4Y2lscHRlYWlpenBsY3lwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2MjkwODI2MiwiZXhwIjoyMDc4NDg0MjYyfQ.IU2po4_YttuvOyHwJSR8yU9739tjV5T6zmMyjPcGaTc' curl -s \"https://uvmbxcilpteaiizplcyp.supabase.co/rest/v1/message_processing_records?select=*&limit=1\" -H \"apikey: $API_KEY\" -H \"Authorization: Bearer $API_KEY\")",
+      "Bash(API_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV2bWJ4Y2lscHRlYWlpenBsY3lwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2MjkwODI2MiwiZXhwIjoyMDc4NDg0MjYyfQ.IU2po4_YttuvOyHwJSR8yU9739tjV5T6zmMyjPcGaTc' curl -s \"https://uvmbxcilpteaiizplcyp.supabase.co/rest/v1/message_processing_records?select=*&order=created_at.desc&limit=5\" -H \"apikey: $API_KEY\" -H \"Authorization: Bearer $API_KEY\")"
     ],
     "deny": [
       "Bash(git restore:*)",

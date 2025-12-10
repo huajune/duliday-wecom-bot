@@ -4,3 +4,12 @@
 .page {
   padding-bottom: 40px;
 }
+
+.section {
+  background: #ffffff;
+  border-radius: 16px;
+  border: 1px solid #e2e8f0;
+  padding: 0;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.01), 0 1px 2px -1px rgba(0, 0, 0, 0.01);
+  overflow: hidden;
+}

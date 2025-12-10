@@ -61,9 +61,11 @@ export class MessageFilterService implements OnModuleInit {
   }
 
   /**
-   * 获取所有暂停托管的用户列表
+   * 获取所有暂停托管的用户列表（附带用户资料）
    */
-  async getPausedUsers(): Promise<{ userId: string; pausedAt: number }[]> {
+  async getPausedUsers(): Promise<
+    { userId: string; pausedAt: number; odName?: string; groupName?: string }[]
+  > {
     return this.supabaseService.getPausedUsers();
   }
 

@@ -49,31 +49,33 @@
 
 .searchIcon {
   position: absolute;
-  left: 12px;
+  left: 14px;
   top: 50%;
   transform: translateY(-50%);
-  font-size: $font-size-sm;
+  font-size: 16px;
   pointer-events: none;
+  opacity: 0.5;
 }
 
 .searchInput {
   width: 100%;
-  padding: 10px 12px 10px 36px;
-  font-size: $font-size-sm;
-  border: 1px solid $border;
-  border-radius: $radius-md;
-  background: $bg-secondary;
+  padding: 10px 12px 10px 40px;
+  font-size: 14px;
+  border: 1px solid transparent;
+  border-radius: 20px;
+  background: #f1f5f9;
   transition: all 0.2s ease;
+  color: $text-primary;
 
   &:focus {
     outline: none;
-    border-color: $primary;
     background: #fff;
+    border-color: rgba($primary, 0.3);
     box-shadow: 0 0 0 3px rgba($primary, 0.1);
   }
 
   &::placeholder {
-    color: $text-muted;
+    color: #94a3b8;
   }
 }
 
@@ -87,15 +89,34 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 48px 24px;
+  padding: 60px 24px;
   color: $text-muted;
   text-align: center;
+  margin-top: 40px;
+
+  p {
+    margin: 0;
+    font-size: 14px;
+    color: #64748b;
+    font-weight: 500;
+  }
 }
 
-.stateIcon {
-  font-size: 48px;
-  opacity: 0.3;
-  margin-bottom: 12px;
+.emptyIconWrapper {
+  width: 72px;
+  height: 72px;
+  margin-bottom: 24px;
+  animation: float 3s ease-in-out infinite;
+  
+  .emptyIcon {
+    width: 100%;
+    height: 100%;
+  }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
 }
 
 .sessionItem {

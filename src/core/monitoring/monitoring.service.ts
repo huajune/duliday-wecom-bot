@@ -20,6 +20,7 @@ import {
 } from './interfaces/monitoring.interface';
 import { MonitoringSnapshotService } from './monitoring-snapshot.service';
 import { SupabaseService } from '@core/supabase/supabase.service';
+import { RedisService } from '@core/redis';
 
 /**
  * 监控服务
@@ -55,6 +56,7 @@ export class MonitoringService implements OnModuleInit {
   constructor(
     private readonly snapshotService: MonitoringSnapshotService,
     private readonly supabaseService: SupabaseService,
+    private readonly redisService: RedisService,
   ) {
     // 定期清理过期数据（每小时执行一次）
     setInterval(
@@ -205,43 +207,64 @@ export class MonitoringService implements OnModuleInit {
       `[recordSuccess] 开始处理 [${messageId}], 当前记录数: ${this.detailRecords.length}`,
     );
 
-    const record = this.findRecord(messageId);
-    if (record) {
-      record.status = 'success';
-      record.totalDuration = Date.now() - record.receivedAt;
-      record.scenario = metadata?.scenario || record.scenario;
-      record.tools = metadata?.tools || record.tools;
-      record.tokenUsage = metadata?.tokenUsage ?? record.tokenUsage;
-      record.replyPreview = metadata?.replyPreview ?? record.replyPreview;
-      record.replySegments = metadata?.replySegments ?? record.replySegments;
-      record.isFallback = metadata?.isFallback ?? record.isFallback;
-      record.fallbackSuccess = metadata?.fallbackSuccess ?? record.fallbackSuccess;
-      record.agentInvocation = metadata?.agentInvocation ?? record.agentInvocation;
+    // 查找所有匹配的记录（处理重复记录的情况）
+    const records = this.findAllRecords(messageId);
 
+    if (records.length > 0) {
+      // 更新所有匹配的记录
+      records.forEach((record, index) => {
+        if (index > 0) {
+          this.logger.warn(
+            `[recordSuccess] 更新重复记录 ${index + 1}/${records.length} [${messageId}]`,
+          );
+        }
+
+        record.status = 'success';
+        record.totalDuration = Date.now() - record.receivedAt;
+        record.scenario = metadata?.scenario || record.scenario;
+        record.tools = metadata?.tools || record.tools;
+        record.tokenUsage = metadata?.tokenUsage ?? record.tokenUsage;
+        record.replyPreview = metadata?.replyPreview ?? record.replyPreview;
+        record.replySegments = metadata?.replySegments ?? record.replySegments;
+        record.isFallback = metadata?.isFallback ?? record.isFallback;
+        record.fallbackSuccess = metadata?.fallbackSuccess ?? record.fallbackSuccess;
+        record.agentInvocation = metadata?.agentInvocation ?? record.agentInvocation;
+
+        // 更新降级统计（只在第一条记录时更新全局计数器）
+        if (index === 0 && record.isFallback) {
+          this.globalCounters.totalFallback++;
+          if (record.fallbackSuccess) {
+            this.globalCounters.totalFallbackSuccess++;
+          }
+        }
+
+        // 更新小时级别统计（只在第一条记录时更新）
+        if (index === 0) {
+          this.updateHourlyStats(record);
+        }
+      });
+
+      // 全局计数器只增加一次
       this.globalCounters.totalSuccess++;
       this.currentProcessing = Math.max(this.currentProcessing - 1, 0);
 
-      // 更新降级统计
-      if (record.isFallback) {
-        this.globalCounters.totalFallback++;
-        if (record.fallbackSuccess) {
-          this.globalCounters.totalFallbackSuccess++;
-        }
-      }
-
-      // 更新小时级别统计
-      this.updateHourlyStats(record);
-
+      const firstRecord = records[0];
       this.logger.log(
-        `消息处理成功 [${messageId}], 总耗时: ${record.totalDuration}ms, scenario=${
-          record.scenario || 'unknown'
-        }, fallback=${record.isFallback ? 'true' : 'false'}`,
+        `消息处理成功 [${messageId}], 总耗时: ${firstRecord.totalDuration}ms, scenario=${
+          firstRecord.scenario || 'unknown'
+        }, fallback=${firstRecord.isFallback ? 'true' : 'false'}` +
+          (records.length > 1 ? `, 已更新 ${records.length} 条重复记录` : ''),
       );
       this.persistSnapshot();
 
       // 异步保存用户活跃数据到数据库（不阻塞主流程）
-      this.saveUserActivityToDatabase(record).catch((err) => {
+      this.saveUserActivityToDatabase(firstRecord).catch((err) => {
         this.logger.warn(`保存用户活跃数据失败: ${err.message}`);
+      });
+
+      // 异步保存消息处理记录到数据库（不阻塞主流程）
+      this.saveMessageProcessingRecordToDatabase(firstRecord).catch((err) => {
+        this.logger.warn(`保存消息处理记录失败: ${err.message}`);
       });
     } else {
       // ⚠️ 记录未找到，可能原因：
@@ -272,25 +295,41 @@ export class MonitoringService implements OnModuleInit {
       `[recordFailure] 开始处理 [${messageId}], 当前记录数: ${this.detailRecords.length}`,
     );
 
-    const record = this.findRecord(messageId);
-    if (record) {
-      record.status = 'failure';
-      record.error = error;
-      record.totalDuration = Date.now() - record.receivedAt;
-      record.scenario = metadata?.scenario || record.scenario;
-      record.tools = metadata?.tools || record.tools;
-      record.tokenUsage = metadata?.tokenUsage ?? record.tokenUsage;
-      record.replySegments = metadata?.replySegments ?? record.replySegments;
-      record.isFallback = metadata?.isFallback ?? record.isFallback;
-      record.fallbackSuccess = metadata?.fallbackSuccess ?? record.fallbackSuccess;
+    // 🔧 修复：获取所有匹配的记录（可能存在重复）
+    const records = this.findAllRecords(messageId);
 
+    if (records.length > 0) {
+      // 🔧 修复：更新所有匹配的记录
+      records.forEach((record, index) => {
+        if (index > 0) {
+          this.logger.warn(
+            `[recordFailure] 更新重复记录 ${index + 1}/${records.length} [${messageId}]`,
+          );
+        }
+
+        record.status = 'failure';
+        record.error = error;
+        record.totalDuration = Date.now() - record.receivedAt;
+        record.scenario = metadata?.scenario || record.scenario;
+        record.tools = metadata?.tools || record.tools;
+        record.tokenUsage = metadata?.tokenUsage ?? record.tokenUsage;
+        record.replySegments = metadata?.replySegments ?? record.replySegments;
+        record.isFallback = metadata?.isFallback ?? record.isFallback;
+        record.fallbackSuccess = metadata?.fallbackSuccess ?? record.fallbackSuccess;
+
+        // 更新小时级别统计（每条记录都需要更新）
+        this.updateHourlyStats(record);
+      });
+
+      // 🔧 修复：全局计数器只增加一次（即使有重复记录）
       this.globalCounters.totalFailure++;
       this.currentProcessing = Math.max(this.currentProcessing - 1, 0);
 
-      // 更新降级统计
-      if (record.isFallback) {
+      // 更新降级统计（使用第一条记录的数据）
+      const firstRecord = records[0];
+      if (firstRecord.isFallback) {
         this.globalCounters.totalFallback++;
-        if (record.fallbackSuccess) {
+        if (firstRecord.fallbackSuccess) {
           this.globalCounters.totalFallbackSuccess++;
         }
       }
@@ -298,13 +337,16 @@ export class MonitoringService implements OnModuleInit {
       // 添加到错误日志
       this.addErrorLog(messageId, error);
 
-      // 更新小时级别统计
-      this.updateHourlyStats(record);
-
       this.logger.error(
-        `消息处理失败 [${messageId}]: ${error}, scenario=${record.scenario || 'unknown'}, fallback=${record.isFallback ? 'true' : 'false'}`,
+        `消息处理失败 [${messageId}]: ${error}, scenario=${firstRecord.scenario || 'unknown'}, fallback=${firstRecord.isFallback ? 'true' : 'false'}` +
+          (records.length > 1 ? ` (已更新 ${records.length} 条重复记录)` : ''),
       );
       this.persistSnapshot();
+
+      // 异步保存消息处理记录到数据库（失败也要保存）
+      this.saveMessageProcessingRecordToDatabase(firstRecord).catch((err) => {
+        this.logger.warn(`保存失败消息处理记录失败: ${err.message}`);
+      });
     } else {
       // ⚠️ 记录未找到，可能原因同 recordSuccess
       // 【重要】使用 error 级别确保日志可见
@@ -456,9 +498,40 @@ export class MonitoringService implements OnModuleInit {
   /**
    * 获取今日用户列表（用于账号托管管理页面）
    * 从数据库读取，数据已迁移到 user_activity 表
+   * 使用 Redis 缓存减少 Supabase 请求量（30秒 TTL）
    */
   async getTodayUsers(): Promise<TodayUser[]> {
-    return this.getTodayUsersFromDatabase();
+    const CACHE_KEY = 'monitoring:today_users';
+    const CACHE_TTL_SEC = 30; // 30秒缓存
+
+    // 1. 尝试从 Redis 获取缓存
+    try {
+      const cached = await this.redisService.get<string>(CACHE_KEY);
+      if (cached) {
+        const parsedData = JSON.parse(cached) as TodayUser[];
+        this.logger.debug(`[Redis] 命中今日用户缓存 (${parsedData.length} 条记录)`);
+        return parsedData;
+      }
+    } catch (error) {
+      this.logger.warn('[Redis] 获取今日用户缓存失败，降级到数据库查询', error);
+    }
+
+    // 2. 从数据库查询
+    const users = await this.getTodayUsersFromDatabase();
+
+    // 3. 写入 Redis 缓存
+    if (users.length > 0) {
+      try {
+        await this.redisService.setex(CACHE_KEY, CACHE_TTL_SEC, JSON.stringify(users));
+        this.logger.debug(
+          `[Redis] 已缓存今日用户数据 (${users.length} 条记录, TTL: ${CACHE_TTL_SEC}s)`,
+        );
+      } catch (error) {
+        this.logger.warn('[Redis] 写入今日用户缓存失败', error);
+      }
+    }
+
+    return users;
   }
 
   /**
@@ -716,11 +789,15 @@ export class MonitoringService implements OnModuleInit {
       const isBookingAttempt = record.tools && record.tools.includes('duliday_interview_booking');
       if (isBookingAttempt) {
         bucket.bookingAttempts += 1;
-        // 注意：这里使用 status 作为预约成功的判断是不准确的
-        // status='success' 只表示消息处理成功，不代表预约成功
-        // TODO: 需要从工具执行结果或 AI 响应中提取真实的预约结果
-        if (record.status === 'success') {
+        // ✅ 使用工具执行状态判断预约成功（与 calculateBusinessMetrics 保持一致）
+        const bookingSuccess = this.checkBookingToolSuccess(record);
+        if (bookingSuccess === true) {
           bucket.successfulBookings += 1;
+        } else if (bookingSuccess === null) {
+          // 无法确定状态时，按消息整体状态判断（兼容旧数据）
+          if (record.status === 'success') {
+            bucket.successfulBookings += 1;
+          }
         }
       }
 
@@ -783,11 +860,15 @@ export class MonitoringService implements OnModuleInit {
       const isBookingAttempt = record.tools && record.tools.includes('duliday_interview_booking');
       if (isBookingAttempt) {
         bucket.bookingAttempts += 1;
-        // 注意：这里使用 status 作为预约成功的判断是不准确的
-        // status='success' 只表示消息处理成功，不代表预约成功
-        // TODO: 需要从工具执行结果或 AI 响应中提取真实的预约结果
-        if (record.status === 'success') {
+        // ✅ 使用工具执行状态判断预约成功（与 calculateBusinessMetrics 保持一致）
+        const bookingSuccess = this.checkBookingToolSuccess(record);
+        if (bookingSuccess === true) {
           bucket.successfulBookings += 1;
+        } else if (bookingSuccess === null) {
+          // 无法确定状态时，按消息整体状态判断（兼容旧数据）
+          if (record.status === 'success') {
+            bucket.successfulBookings += 1;
+          }
         }
       }
 
@@ -928,6 +1009,45 @@ export class MonitoringService implements OnModuleInit {
   }
 
   /**
+   * 保存消息处理记录到数据库
+   * 用于持久化实时消息详情，支持历史查询
+   */
+  private async saveMessageProcessingRecordToDatabase(
+    record: MessageProcessingRecord,
+  ): Promise<void> {
+    if (!record.messageId) {
+      return;
+    }
+
+    await this.supabaseService.saveMessageProcessingRecord({
+      messageId: record.messageId,
+      chatId: record.chatId,
+      userId: record.userId,
+      userName: record.userName,
+      managerName: record.managerName,
+      receivedAt: record.receivedAt,
+      messagePreview: record.messagePreview,
+      replyPreview: record.replyPreview,
+      replySegments: record.replySegments,
+      status: record.status,
+      error: record.error,
+      scenario: record.scenario,
+      totalDuration: record.totalDuration,
+      queueDuration: record.queueDuration,
+      prepDuration: record.prepDuration,
+      aiStartAt: record.aiStartAt,
+      aiEndAt: record.aiEndAt,
+      aiDuration: record.aiDuration,
+      sendDuration: record.sendDuration,
+      tools: record.tools,
+      tokenUsage: record.tokenUsage,
+      isFallback: record.isFallback,
+      fallbackSuccess: record.fallbackSuccess,
+      agentInvocation: record.agentInvocation,
+    });
+  }
+
+  /**
    * 从数据库获取今日活跃用户（带托管状态）
    */
   async getTodayUsersFromDatabase(): Promise<TodayUser[]> {
@@ -958,12 +1078,72 @@ export class MonitoringService implements OnModuleInit {
     }));
   }
 
+  /**
+   * 获取指定日期的活跃用户（带托管状态）
+   * @param date 日期字符串 (YYYY-MM-DD)
+   */
+  async getUsersByDate(date: string): Promise<TodayUser[]> {
+    const dbUsers = await this.supabaseService.getActiveUsersByDate(date);
+
+    // 批量获取托管状态
+    const chatIds = dbUsers.map((u) => u.chatId);
+    const pausedSet = new Set<string>();
+
+    // 从 Supabase 获取托管状态
+    for (const chatId of chatIds) {
+      const status = await this.supabaseService.getUserHostingStatus(chatId);
+      if (status.isPaused) {
+        pausedSet.add(chatId);
+      }
+    }
+
+    return dbUsers.map((user) => ({
+      chatId: user.chatId,
+      odId: user.odId || user.chatId,
+      odName: user.odName || user.chatId,
+      groupName: user.groupName,
+      messageCount: user.messageCount,
+      tokenUsage: user.tokenUsage,
+      firstActiveAt: user.firstActiveAt,
+      lastActiveAt: user.lastActiveAt,
+      isPaused: pausedSet.has(user.chatId),
+    }));
+  }
+
+  /**
+   * 获取近1月咨询用户趋势数据
+   */
+  async getUserTrend(): Promise<
+    Array<{
+      date: string;
+      userCount: number;
+      messageCount: number;
+    }>
+  > {
+    const endDate = new Date();
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - 30); // 过去30天
+
+    return this.supabaseService.getDailyUserStats(startDate, endDate);
+  }
+
   // ========== 私有方法 ==========
 
   /**
    * 添加记录（环形缓冲区）
+   * 防止重复插入相同 messageId 的记录
    */
   private addRecord(record: MessageProcessingRecord): void {
+    // 检查是否已存在相同 messageId 的记录
+    const existingIndex = this.detailRecords.findIndex((r) => r.messageId === record.messageId);
+    if (existingIndex !== -1) {
+      this.logger.warn(
+        `[addRecord] 检测到重复的 messageId [${record.messageId}]，跳过添加。` +
+          `已存在记录状态: ${this.detailRecords[existingIndex].status}`,
+      );
+      return;
+    }
+
     if (this.detailRecords.length >= this.MAX_DETAIL_RECORDS) {
       this.detailRecords.shift(); // 移除最旧的记录
     }
@@ -971,10 +1151,27 @@ export class MonitoringService implements OnModuleInit {
   }
 
   /**
-   * 查找记录
+   * 查找记录（返回所有匹配的记录）
+   * 注意：正常情况下应该只有一条，但为了处理异常情况，返回数组
    */
   private findRecord(messageId: string): MessageProcessingRecord | undefined {
-    return this.detailRecords.find((r) => r.messageId === messageId);
+    const records = this.detailRecords.filter((r) => r.messageId === messageId);
+
+    if (records.length > 1) {
+      this.logger.warn(
+        `[findRecord] 发现 ${records.length} 条重复的 messageId [${messageId}]，` +
+          `将返回第一条（receivedAt=${records[0].receivedAt}）`,
+      );
+    }
+
+    return records[0];
+  }
+
+  /**
+   * 查找所有匹配的记录（用于批量更新）
+   */
+  private findAllRecords(messageId: string): MessageProcessingRecord[] {
+    return this.detailRecords.filter((r) => r.messageId === messageId);
   }
 
   /**
@@ -1358,8 +1555,13 @@ export class MonitoringService implements OnModuleInit {
     const successRecords = records.filter((r) => r.status === 'success');
     const failureRecords = records.filter((r) => r.status === 'failure');
 
+    // 🔧 修复: 排除异常记录 - "服务重启导致处理中断"会产生极端长的耗时
+    // 这些记录的 totalDuration 是从接收到服务重启的时间,不代表真实处理时长
     const completedRecords = records.filter(
-      (r) => r.status !== 'processing' && r.totalDuration !== undefined,
+      (r) =>
+        r.status !== 'processing' &&
+        r.totalDuration !== undefined &&
+        r.error !== '服务重启导致处理中断', // 排除服务重启导致的异常记录
     );
 
     const avgDuration =
@@ -1371,11 +1573,16 @@ export class MonitoringService implements OnModuleInit {
     const activeUsers = new Set(records.filter((r) => r.userId).map((r) => r.userId!)).size;
     const activeChats = new Set(records.map((r) => r.chatId)).size;
 
+    // 🔧 修复: 成功率只统计已完成的记录 (不包含 processing 状态)
+    // processing 状态的消息还在处理中,不应计入成功率分母
+    const completedCount = successRecords.length + failureRecords.length;
+    const successRate = completedCount > 0 ? (successRecords.length / completedCount) * 100 : 0;
+
     return {
       totalMessages: records.length,
       successCount: successRecords.length,
       failureCount: failureRecords.length,
-      successRate: records.length > 0 ? (successRecords.length / records.length) * 100 : 0,
+      successRate,
       avgDuration,
       activeUsers,
       activeChats,
@@ -1468,6 +1675,17 @@ export class MonitoringService implements OnModuleInit {
       }
     }
 
+    // 🔧 修复: 预约转化率应统计唯一用户数,而非预约尝试次数
+    // 原逻辑: 转化率 = 预约尝试次数 / 咨询人数 (可能>100%)
+    // 新逻辑: 转化率 = 预约用户数 / 咨询人数 (≤100%)
+    const bookingUsers = new Set(
+      bookingRecords
+        .filter(
+          (r) => r.userId && r.status === 'success' && this.checkBookingToolSuccess(r) !== false, // 排除明确失败的预约
+        )
+        .map((r) => r.userId!),
+    );
+
     return {
       consultations: {
         total: uniqueUsers, // 临时：使用活跃用户数作为咨询人数
@@ -1484,9 +1702,7 @@ export class MonitoringService implements OnModuleInit {
       },
       conversion: {
         consultationToBooking:
-          uniqueUsers > 0
-            ? parseFloat(((bookingRecords.length / uniqueUsers) * 100).toFixed(2))
-            : 0,
+          uniqueUsers > 0 ? parseFloat(((bookingUsers.size / uniqueUsers) * 100).toFixed(2)) : 0,
       },
     };
   }
@@ -1679,10 +1895,24 @@ export class MonitoringService implements OnModuleInit {
 
   private applySnapshot(snapshot: MonitoringSnapshot): void {
     const detailRecords = snapshot.detailRecords || [];
-    this.detailRecords = detailRecords.slice(-this.MAX_DETAIL_RECORDS).map((record) => ({
-      ...record,
-      tools: record.tools ? [...record.tools] : undefined,
-    }));
+
+    // 🔧 修复: 快照恢复时去重,防止重复记录
+    // 按 messageId 去重,保留最新的记录 (receivedAt 最大)
+    const uniqueRecordsMap = new Map<string, MessageProcessingRecord>();
+    for (const record of detailRecords) {
+      const existing = uniqueRecordsMap.get(record.messageId);
+      if (!existing || record.receivedAt > existing.receivedAt) {
+        uniqueRecordsMap.set(record.messageId, record);
+      }
+    }
+
+    this.detailRecords = Array.from(uniqueRecordsMap.values())
+      .sort((a, b) => a.receivedAt - b.receivedAt) // 按时间排序
+      .slice(-this.MAX_DETAIL_RECORDS) // 保留最新的记录
+      .map((record) => ({
+        ...record,
+        tools: record.tools ? [...record.tools] : undefined,
+      }));
 
     const hourlyStats = snapshot.hourlyStats || [];
     this.hourlyStatsMap = new Map(
