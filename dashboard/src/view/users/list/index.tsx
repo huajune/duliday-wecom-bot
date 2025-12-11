@@ -17,7 +17,7 @@ import styles from './styles/index.module.scss';
 
 export default function Users() {
   const [activeTab, setActiveTab] = useState<TabType>('today');
-  const { data: dashboard, isLoading: isTodayLoading } = useDashboard('24h');
+  const { data: dashboard, isLoading: isTodayLoading } = useDashboard('today');
   const { data: pausedUsers = [], isLoading: isPausedLoading } = usePausedUsers();
   const toggleHosting = useToggleUserHosting();
 
