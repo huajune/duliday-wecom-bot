@@ -215,7 +215,7 @@ export class SupabaseService implements OnModuleInit {
     this.supabaseHttpClient = this.httpClientFactory.createWithBearerAuth(
       {
         baseURL: `${this.supabaseUrl}/rest/v1`,
-        timeout: 30000, // Increased from 10s to 30s to handle complex queries
+        timeout: 120000, // Increased to 120s to handle slow PostgREST queries
         logPrefix: '[Supabase DB]',
         verbose: false,
         headers: {

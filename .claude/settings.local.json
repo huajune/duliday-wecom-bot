@@ -200,7 +200,15 @@
       "Bash(sort:*)",
       "Bash(wc:*)",
       "Bash(/tmp/test-processing-status.sh)",
-      "Bash(API_KEY=\"$SUPABASE_SERVICE_ROLE_KEY\" curl -s \"https://uvmbxcilpteaiizplcyp.supabase.co/rest/v1/message_processing_records?select=message_id,status,received_at,user_name&order=received_at.desc&limit=10\" -H \"apikey: $API_KEY\" -H \"Authorization: Bearer $API_KEY\")"
+      "Bash(API_KEY=\"$SUPABASE_SERVICE_ROLE_KEY\" curl -s \"https://uvmbxcilpteaiizplcyp.supabase.co/rest/v1/message_processing_records?select=message_id,status,received_at,user_name&order=received_at.desc&limit=10\" -H \"apikey: $API_KEY\" -H \"Authorization: Bearer $API_KEY\")",
+      "Bash(API_KEY=\"$SUPABASE_SERVICE_ROLE_KEY\" echo \"=== 检查 message_processing_records 表基本信息 ===\" echo \"\" echo \"1. 总记录数（全部）：\" curl -s \"https://uvmbxcilpteaiizplcyp.supabase.co/rest/v1/message_processing_records?select=count\" -H \"apikey: $API_KEY\" -H \"Authorization: Bearer $API_KEY\" -H \"Prefer: count=exact\" -I)",
+      "Bash(BASE_URL=\"https://uvmbxcilpteaiizplcyp.supabase.co/rest/v1\")",
+      "Bash(__NEW_LINE__ echo \"=== 测试不同的查询参数格式 ===\")",
+      "Bash(__NEW_LINE__ echo \"1. 使用 and 参数（当前方式）：\")",
+      "Bash(__NEW_LINE__ echo \"\")",
+      "Bash(API_KEY=\"$SUPABASE_SERVICE_ROLE_KEY\" BASE_URL=\"https://uvmbxcilpteaiizplcyp.supabase.co/rest/v1\")",
+      "Bash(API_KEY=\"$SUPABASE_SERVICE_ROLE_KEY\" echo \"=== 测试其他表的查询速度 ===\" echo \"\" echo \"1. chat_messages 表：\" time curl -m 5 -s \"https://uvmbxcilpteaiizplcyp.supabase.co/rest/v1/chat_messages?limit=5\" -H \"apikey: $API_KEY\" -H \"Authorization: Bearer $API_KEY\")",
+      "Bash(__NEW_LINE__ curl -m 5 -s \"https://uvmbxcilpteaiizplcyp.supabase.co/rest/v1/chat_messages?limit=3\" )"
     ],
     "deny": [
       "Bash(git restore:*)",
