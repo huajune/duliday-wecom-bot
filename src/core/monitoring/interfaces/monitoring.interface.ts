@@ -401,15 +401,11 @@ export interface DashboardData {
   // 趋势数据
   trends: {
     hourly: HourlyStats[];
-    previous?: HourlyStats[];
   };
 
   responseTrend: ResponseMinuteTrendPoint[];
   alertTrend: AlertTrendPoint[];
   businessTrend: BusinessMetricTrendPoint[];
-
-  // 每日统计趋势
-  dailyTrend: DailyStats[];
 
   // 今日用户列表
   todayUsers: TodayUser[];

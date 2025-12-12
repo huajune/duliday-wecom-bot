@@ -96,8 +96,13 @@ export class MonitoringService implements OnModuleInit {
       scenario: metadata?.scenario,
     };
 
-    // 存入临时记录（等待完成后写入数据库）
+    // 存入临时记录
     this.pendingRecords.set(messageId, record);
+
+    // 💾 立即保存 processing 状态到数据库（用户可见处理中的消息）
+    this.saveRecordToDatabase(record).catch((err) => {
+      this.logger.warn(`保存 processing 状态到数据库失败 (messageId: ${messageId}):`, err);
+    });
 
     // 更新 Redis 缓存
     this.cacheService.incrementCounter('totalMessages', 1).catch((err) => {
@@ -350,81 +355,6 @@ export class MonitoringService implements OnModuleInit {
       });
   }
 
-  /**
-   * 获取仪表盘数据（同步版本 - 已弃用）
-   * @deprecated 使用 getDashboardDataAsync 代替
-   * @param timeRange 时间范围：today/week/month
-   */
-  getDashboardData(timeRange: TimeRange = 'today'): DashboardData {
-    // 返回空数据结构,实际数据需要通过 getDashboardDataAsync 获取
-    this.logger.warn('getDashboardData 已弃用,请使用 getDashboardDataAsync');
-    return {
-      timeRange,
-      lastWindowHours: this.DEFAULT_WINDOW_HOURS,
-      overview: {
-        totalMessages: 0,
-        successCount: 0,
-        failureCount: 0,
-        successRate: 0,
-        avgDuration: 0,
-        activeChats: 0,
-      },
-      overviewDelta: {
-        totalMessages: 0,
-        successRate: 0,
-        avgDuration: 0,
-      },
-      fallback: {
-        totalCount: 0,
-        successCount: 0,
-        successRate: 0,
-        affectedUsers: 0,
-      },
-      fallbackDelta: {
-        totalCount: 0,
-        successRate: 0,
-      },
-      business: {
-        consultations: { total: 0, new: 0 },
-        bookings: { attempts: 0, successful: 0, failed: 0, successRate: 0 },
-        conversion: { consultationToBooking: 0 },
-      },
-      businessDelta: {
-        consultations: 0,
-        bookingAttempts: 0,
-        bookingSuccessRate: 0,
-      },
-      usage: {
-        tools: [],
-        scenarios: [],
-      },
-      queue: {
-        currentProcessing: 0,
-        peakProcessing: 0,
-        avgQueueDuration: 0,
-      },
-      alertsSummary: {
-        total: 0,
-        lastHour: 0,
-        last24Hours: 0,
-        byType: [],
-      },
-      trends: {
-        hourly: [],
-      },
-      responseTrend: [],
-      alertTrend: [],
-      businessTrend: [],
-      dailyTrend: [],
-      todayUsers: [],
-      recentMessages: [],
-      recentErrors: [],
-      realtime: {
-        processingCount: 0,
-      },
-    };
-  }
-
   async getTodayUsers(): Promise<TodayUser[]> {
     const CACHE_KEY = 'monitoring:today_users';
     const CACHE_TTL_SEC = 30; // 30秒缓存
@@ -547,7 +477,6 @@ export class MonitoringService implements OnModuleInit {
         responseTrend,
         alertTrend,
         businessTrend,
-        dailyTrend: [], // TODO: 从 Supabase 读取每日统计
         todayUsers,
         recentMessages,
         recentErrors: errorLogs,
@@ -556,7 +485,70 @@ export class MonitoringService implements OnModuleInit {
     } catch (error) {
       this.logger.error('获取Dashboard数据失败:', error);
       // 返回空数据结构,避免前端崩溃
-      return this.getDashboardData(timeRange);
+      return {
+        timeRange,
+        lastWindowHours: this.DEFAULT_WINDOW_HOURS,
+        overview: {
+          totalMessages: 0,
+          successCount: 0,
+          failureCount: 0,
+          successRate: 0,
+          avgDuration: 0,
+          activeChats: 0,
+        },
+        overviewDelta: {
+          totalMessages: 0,
+          successRate: 0,
+          avgDuration: 0,
+        },
+        fallback: {
+          totalCount: 0,
+          successCount: 0,
+          successRate: 0,
+          affectedUsers: 0,
+        },
+        fallbackDelta: {
+          totalCount: 0,
+          successRate: 0,
+        },
+        business: {
+          consultations: { total: 0, new: 0 },
+          bookings: { attempts: 0, successful: 0, failed: 0, successRate: 0 },
+          conversion: { consultationToBooking: 0 },
+        },
+        businessDelta: {
+          consultations: 0,
+          bookingAttempts: 0,
+          bookingSuccessRate: 0,
+        },
+        usage: {
+          tools: [],
+          scenarios: [],
+        },
+        queue: {
+          currentProcessing: 0,
+          peakProcessing: 0,
+          avgQueueDuration: 0,
+        },
+        alertsSummary: {
+          total: 0,
+          lastHour: 0,
+          last24Hours: 0,
+          byType: [],
+        },
+        trends: {
+          hourly: [],
+        },
+        responseTrend: [],
+        alertTrend: [],
+        businessTrend: [],
+        todayUsers: [],
+        recentMessages: [],
+        recentErrors: [],
+        realtime: {
+          processingCount: 0,
+        },
+      };
     }
   }
 
@@ -827,7 +819,6 @@ export class MonitoringService implements OnModuleInit {
 
     return {
       hourly: hourlyStats,
-      previous: [], // TODO: 实现上一周期对比
     };
   }
 
@@ -1301,27 +1292,6 @@ export class MonitoringService implements OnModuleInit {
   }
 
   /**
-   * 保存用户活跃数据到数据库
-   * 每次消息处理成功后异步调用
-   */
-  private async saveUserActivityToDatabase(record: MessageProcessingRecord): Promise<void> {
-    if (!record.userId || !record.chatId) {
-      return;
-    }
-
-    await this.databaseService.upsertUserActivity({
-      chatId: record.chatId,
-      odId: record.userId,
-      odName: record.userName,
-      groupId: undefined, // TODO: 后续支持群聊
-      groupName: undefined,
-      messageCount: 1,
-      tokenUsage: record.tokenUsage || 0,
-      activeAt: record.receivedAt,
-    });
-  }
-
-  /**
    * 保存消息处理记录到数据库
    * 用于持久化实时消息详情，支持历史查询
    */
@@ -1595,38 +1565,6 @@ export class MonitoringService implements OnModuleInit {
 
   /**
    * 获取详细指标数据（用于 /monitoring/metrics 接口）
-   *
-   * @deprecated 建议使用 getMetricsDataAsync() 异步版本
-   */
-  getMetricsData(): MetricsData {
-    // 同步方法,返回空数据
-    this.logger.warn('getMetricsData 已废弃,请使用 getMetricsDataAsync()');
-
-    return {
-      detailRecords: [],
-      hourlyStats: [],
-      globalCounters: {
-        totalMessages: 0,
-        totalSuccess: 0,
-        totalFailure: 0,
-        totalAiDuration: 0,
-        totalSendDuration: 0,
-        totalFallback: 0,
-        totalFallbackSuccess: 0,
-      },
-      percentiles: {
-        p50: 0,
-        p95: 0,
-        p99: 0,
-        p999: 0,
-      },
-      slowestRecords: [],
-      recentAlertCount: 0,
-    };
-  }
-
-  /**
-   * 获取详细指标数据（异步版本）
    */
   async getMetricsDataAsync(): Promise<MetricsData> {
     try {

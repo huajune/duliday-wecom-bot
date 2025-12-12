@@ -231,23 +231,6 @@ export class MonitoringController {
     };
   }
 
-  // TODO: 测试数据生成功能已移除，待实现后恢复
-  // /**
-  //  * 生成测试数据（仅用于开发/演示）
-  //  * POST /monitoring/generate-test-data
-  //  */
-  // @Post('generate-test-data')
-  // @HttpCode(200)
-  // generateTestData(@Body('days') days?: number): { message: string; recordsGenerated: number } {
-  //   const targetDays = days || 7;
-  //   this.logger.log(`生成 ${targetDays} 天的测试数据`);
-  //   const count = this.monitoringService.generateTestData(targetDays);
-  //   return {
-  //     message: `已生成 ${targetDays} 天的测试数据`,
-  //     recordsGenerated: count,
-  //   };
-  // }
-
   // ==================== Agent 回复策略配置 ====================
 
   /**

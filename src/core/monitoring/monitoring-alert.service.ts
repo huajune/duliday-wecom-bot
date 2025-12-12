@@ -122,7 +122,7 @@ export class MonitoringAlertService implements OnModuleInit {
     }
 
     try {
-      const dashboard = this.monitoringService.getDashboardData();
+      const dashboard = await this.monitoringService.getDashboardDataAsync('today');
       const totalMessages = dashboard.overview.totalMessages;
 
       // 1. 成功率告警（需要足够样本量）

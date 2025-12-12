@@ -464,15 +464,8 @@ export class MonitoringDatabaseService implements OnModuleInit {
     }
   }
 
-  /**
-   * TODO: 删除过期错误日志
-   */
-  async deleteExpiredErrors(_daysToKeep: number = 30): Promise<void> {
-    this.logger.warn('deleteExpiredErrors 未实现，跳过删除');
-  }
-
   // ========================================
-  // 每日统计（DailyStats）- TODO: 需要实现
+  // 每日统计（DailyStats）
   // ========================================
 
   /**
@@ -501,36 +494,12 @@ export class MonitoringDatabaseService implements OnModuleInit {
     }
   }
 
-  /**
-   * TODO: 查询最近 N 天的统计
-   */
-  async getDailyStats(_days: number = 30): Promise<DailyStats[]> {
-    this.logger.warn('getDailyStats 未实现，返回空数组');
-    return [];
-  }
-
   // ========================================
-  // 用户活跃数据（TODO: 需要实现）
+  // 用户活跃数据
   // ========================================
 
   /**
-   * TODO: 保存/更新用户活跃记录
-   */
-  async upsertUserActivity(_data: {
-    chatId: string;
-    odId: string;
-    odName: string;
-    groupId?: string;
-    groupName?: string;
-    messageCount?: number;
-    tokenUsage?: number;
-    activeAt?: number;
-  }): Promise<void> {
-    this.logger.warn('upsertUserActivity 未实现，跳过保存');
-  }
-
-  /**
-   * TODO: 保存消息处理记录（已通过 SupabaseService 实现，这里是兼容层）
+   * 保存消息处理记录（委托给 SupabaseService）
    */
   async saveMessageProcessingRecord(record: any): Promise<void> {
     // 委托给 SupabaseService
@@ -683,13 +652,11 @@ export class MonitoringDatabaseService implements OnModuleInit {
   }
 
   /**
-   * 获取用户托管状态（占位实现）
-   * TODO: 需要对接托管平台 API
+   * 获取用户托管状态（委托给 SupabaseService）
    */
-  async getUserHostingStatus(_chatId: string): Promise<{ isPaused: boolean }> {
-    // 占位实现，返回默认未暂停
-    // 实际应该调用托管平台 API 查询
-    return { isPaused: false };
+  async getUserHostingStatus(chatId: string): Promise<{ isPaused: boolean }> {
+    const status = await this.supabaseService.getUserHostingStatus(chatId);
+    return { isPaused: status.isPaused };
   }
 
   /**

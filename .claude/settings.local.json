@@ -196,7 +196,11 @@
       "Bash(__NEW_LINE__ echo -e \"\\n\\n=== 检查 monitoring_daily_stats 表 ===\")",
       "Bash(export STRIDE_API_BASE_URL=https://stride-bg.dpclouds.com)",
       "Bash(API_KEY=\"$SUPABASE_SERVICE_ROLE_KEY\" curl -s \"https://uvmbxcilpteaiizplcyp.supabase.co/rest/v1/message_processing_records?select=message_id,received_at,status&order=received_at.desc&limit=5\" )",
-      "Bash(API_KEY=\"$SUPABASE_SERVICE_ROLE_KEY\" curl:*)"
+      "Bash(API_KEY=\"$SUPABASE_SERVICE_ROLE_KEY\" curl:*)",
+      "Bash(sort:*)",
+      "Bash(wc:*)",
+      "Bash(/tmp/test-processing-status.sh)",
+      "Bash(API_KEY=\"$SUPABASE_SERVICE_ROLE_KEY\" curl -s \"https://uvmbxcilpteaiizplcyp.supabase.co/rest/v1/message_processing_records?select=message_id,status,received_at,user_name&order=received_at.desc&limit=10\" -H \"apikey: $API_KEY\" -H \"Authorization: Bearer $API_KEY\")"
     ],
     "deny": [
       "Bash(git restore:*)",
