@@ -64,7 +64,14 @@ export class AgentApiClientService {
       this.logger.warn('⚠️  未检测到环境变量 AGENT_API_BASE_URL，使用硬编码 fallback 配置');
     }
 
+    // 脱敏显示 API Key（只显示前6位和后6位）
+    const maskedApiKey =
+      this.apiKey.length > 12
+        ? `${this.apiKey.substring(0, 6)}...${this.apiKey.substring(this.apiKey.length - 6)}`
+        : '***';
+
     this.logger.log(`初始化 Agent API 客户端: ${this.baseURL}`);
+    this.logger.log(`API Key (脱敏): ${maskedApiKey}`);
     this.logger.log(`API 超时设置: ${this.timeout}ms`);
     this.logger.log(`最大重试次数: ${this.maxRetries}`);
 
