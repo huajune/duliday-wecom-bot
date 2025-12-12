@@ -9,7 +9,7 @@
   display: flex;
   gap: $spacing-md;
   height: calc(100vh - 280px);
-  min-height: 500px;
+  min-height: 650px;
 
   @include respond-to(lg) {
     flex-direction: column;
