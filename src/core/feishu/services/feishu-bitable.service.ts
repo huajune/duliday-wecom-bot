@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import axios, { AxiosInstance } from 'axios';
-import { MonitoringSnapshotService } from '@core/monitoring/monitoring-snapshot.service';
+import { MonitoringDatabaseService } from '@core/monitoring/monitoring-database.service';
 import { MessageProcessingRecord } from '@core/monitoring/interfaces/monitoring.interface';
 import { feishuBitableConfig } from '../constants/feishu-bitable.config';
 import { ConfigService } from '@nestjs/config';
@@ -26,7 +26,7 @@ export class FeishuBitableSyncService {
   private tokenCache?: FeishuTokenCache;
 
   constructor(
-    private readonly snapshotService: MonitoringSnapshotService,
+    private readonly databaseService: MonitoringDatabaseService,
     private readonly configService: ConfigService,
   ) {
     this.http = axios.create({ timeout: 5000 });
@@ -45,14 +45,15 @@ export class FeishuBitableSyncService {
       return;
     }
 
-    const snapshot = await this.snapshotService.readSnapshot();
-    if (!snapshot) {
-      this.logger.warn('[FeishuSync] 未找到监控快照，跳过同步');
+    // 从数据库读取昨天的记录
+    const allRecords = await this.databaseService.getRecentDetailRecords(1000); // 获取最近1000条
+    if (!allRecords || allRecords.length === 0) {
+      this.logger.warn('[FeishuSync] 未找到记录，跳过同步');
       return;
     }
 
     const window = this.getYesterdayWindow();
-    const rows = (snapshot.detailRecords || [])
+    const rows = (allRecords || [])
       .filter((r) => r.receivedAt >= window.start && r.receivedAt < window.end)
       .map((r) => this.buildFeishuRecord(r))
       .filter((item): item is FeishuRecordPayload => !!item);

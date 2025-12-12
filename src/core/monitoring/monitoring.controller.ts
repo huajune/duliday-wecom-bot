@@ -53,8 +53,8 @@ export class MonitoringController {
    * GET /monitoring/metrics
    */
   @Get('metrics')
-  getMetrics(): MetricsData {
-    return this.monitoringService.getMetricsData();
+  async getMetrics(): Promise<MetricsData> {
+    return this.monitoringService.getMetricsDataAsync();
   }
 
   /**

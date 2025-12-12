@@ -335,7 +335,6 @@ export interface DashboardData {
     failureCount: number;
     successRate: number;
     avgDuration: number;
-    activeUsers: number;
     activeChats: number;
   };
 
@@ -343,7 +342,6 @@ export interface DashboardData {
     totalMessages: number;
     successRate: number;
     avgDuration: number;
-    activeUsers: number;
   };
 
   // 降级统计（NEW）
