@@ -285,6 +285,20 @@ export class MonitoringService implements OnModuleInit {
         // 从临时记录中删除
         this.pendingRecords.delete(messageId);
       });
+
+    // 同时更新 user_activity 聚合表（异步，不阻塞）
+    this.databaseService
+      .saveUserActivity({
+        chatId: record.chatId,
+        userId: record.userId,
+        userName: record.userName,
+        messageCount: 1,
+        tokenUsage: record.tokenUsage || 0,
+        activeAt: record.receivedAt,
+      })
+      .catch((err) => {
+        this.logger.warn(`更新用户活跃记录失败 [${messageId}]:`, err);
+      });
   }
 
   /**

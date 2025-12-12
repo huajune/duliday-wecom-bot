@@ -566,7 +566,8 @@ export class MonitoringDatabaseService implements OnModuleInit {
         }
       }
 
-      return Array.from(userMap.values());
+      // 按最后活跃时间倒序排列（最近活跃的在前）
+      return Array.from(userMap.values()).sort((a, b) => b.lastActiveAt - a.lastActiveAt);
     } catch (error) {
       this.logger.error('获取今日活跃用户失败:', error);
       return [];
@@ -644,7 +645,8 @@ export class MonitoringDatabaseService implements OnModuleInit {
         }
       }
 
-      return Array.from(userMap.values());
+      // 按最后活跃时间倒序排列（最近活跃的在前）
+      return Array.from(userMap.values()).sort((a, b) => b.lastActiveAt - a.lastActiveAt);
     } catch (error) {
       this.logger.error(`获取指定日期活跃用户失败 [${date}]:`, error);
       return [];
@@ -657,6 +659,37 @@ export class MonitoringDatabaseService implements OnModuleInit {
   async getUserHostingStatus(chatId: string): Promise<{ isPaused: boolean }> {
     const status = await this.supabaseService.getUserHostingStatus(chatId);
     return { isPaused: status.isPaused };
+  }
+
+  /**
+   * 保存用户活跃记录到 user_activity 表（聚合表）
+   */
+  async saveUserActivity(data: {
+    chatId: string;
+    userId?: string;
+    userName?: string;
+    groupId?: string;
+    groupName?: string;
+    messageCount: number;
+    tokenUsage: number;
+    activeAt: number;
+  }): Promise<void> {
+    try {
+      await this.supabaseService.upsertUserActivity({
+        chatId: data.chatId,
+        odId: data.userId,
+        odName: data.userName,
+        groupId: data.groupId,
+        groupName: data.groupName,
+        messageCount: data.messageCount,
+        tokenUsage: data.tokenUsage,
+        activeAt: data.activeAt,
+      });
+      this.logger.debug(`[user_activity] 已更新用户活跃记录: ${data.chatId}`);
+    } catch (error) {
+      this.logger.error(`[user_activity] 保存用户活跃记录失败 [${data.chatId}]:`, error);
+      // 不抛出异常，避免影响主流程
+    }
   }
 
   /**
