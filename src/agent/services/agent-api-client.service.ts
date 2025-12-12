@@ -4,6 +4,10 @@ import { AxiosInstance, AxiosResponse } from 'axios';
 import { HttpClientFactory } from '@core/client-http';
 import { AgentRateLimitException, AgentAuthException } from '../utils/agent-exceptions';
 import { ApiResponse, ChatRequest, ChatResponse } from '../utils/agent-types';
+import {
+  AGENT_API_KEY_FALLBACK,
+  AGENT_API_BASE_URL_FALLBACK,
+} from '@core/config/constants/agent.constants';
 
 /**
  * Agent API 客户端服务
@@ -28,25 +32,36 @@ export class AgentApiClientService {
     private readonly configService: ConfigService,
     private readonly httpClientFactory: HttpClientFactory,
   ) {
-    // 从环境变量读取配置
-    this.apiKey = this.configService.get<string>('AGENT_API_KEY')!;
-    this.baseURL = this.configService.get<string>('AGENT_API_BASE_URL')!;
+    // 从环境变量读取配置，如果未配置则使用 fallback
+    const envApiKey = this.configService.get<string>('AGENT_API_KEY');
+    const envBaseURL = this.configService.get<string>('AGENT_API_BASE_URL');
+
+    this.apiKey = envApiKey || AGENT_API_KEY_FALLBACK;
+    this.baseURL = envBaseURL || AGENT_API_BASE_URL_FALLBACK;
     this.timeout = this.configService.get<number>('AGENT_API_TIMEOUT') ?? 180000; // 默认 3 分钟
     // 重试策略：Agent 层仅处理瞬时网络抖动（2次），持久性故障由 Bull Queue 层处理（3次）
     this.maxRetries = this.configService.get<number>('AGENT_API_MAX_RETRIES') ?? 2;
 
-    // 【修复】验证关键配置是否已加载，防止环境变量加载时序问题
+    // 验证最终配置
     if (!this.apiKey) {
       throw new Error(
-        '❌ AGENT_API_KEY 未配置或为空，请检查环境变量是否正确加载。' +
+        '❌ AGENT_API_KEY 未配置或为空，请检查环境变量或 fallback 配置。' +
           '\n提示：请确保 .env 文件存在且包含 AGENT_API_KEY 配置',
       );
     }
     if (!this.baseURL) {
       throw new Error(
-        '❌ AGENT_API_BASE_URL 未配置或为空，请检查环境变量是否正确加载。' +
+        '❌ AGENT_API_BASE_URL 未配置或为空，请检查环境变量或 fallback 配置。' +
           '\n提示：请确保 .env 文件存在且包含 AGENT_API_BASE_URL 配置',
       );
+    }
+
+    // 记录配置来源
+    if (!envApiKey) {
+      this.logger.warn('⚠️  未检测到环境变量 AGENT_API_KEY，使用硬编码 fallback 配置');
+    }
+    if (!envBaseURL) {
+      this.logger.warn('⚠️  未检测到环境变量 AGENT_API_BASE_URL，使用硬编码 fallback 配置');
     }
 
     this.logger.log(`初始化 Agent API 客户端: ${this.baseURL}`);
