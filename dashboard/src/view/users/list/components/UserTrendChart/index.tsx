@@ -27,7 +27,7 @@ export default function UserTrendChart() {
   // 计算统计数据
   const totalUsers = chartData.reduce((sum, item) => sum + item.用户数, 0);
   const avgUsers = chartData.length > 0 ? Math.round(totalUsers / chartData.length) : 0;
-  const maxUsers = Math.max(...chartData.map(item => item.用户数), 0);
+  const maxUsers = chartData.length > 0 ? Math.max(...chartData.map(item => item.用户数)) : 0;
   const totalMessages = chartData.reduce((sum, item) => sum + item.消息数, 0);
 
   return (

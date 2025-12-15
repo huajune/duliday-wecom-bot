@@ -49,10 +49,11 @@ export class MonitoringDatabaseService implements OnModuleInit {
       return;
     }
 
-    // 创建 Supabase REST API 客户端
+    // 创建 Supabase REST API 客户端（超时 120 秒，与 SupabaseService 保持一致）
     this.supabaseHttpClient = this.httpClientFactory.createWithBearerAuth(
       {
         baseURL: `${supabaseUrl}/rest/v1`,
+        timeout: 120000, // 120 秒超时，处理慢查询
         headers: {
           'Content-Type': 'application/json',
           apikey: supabaseKey,
