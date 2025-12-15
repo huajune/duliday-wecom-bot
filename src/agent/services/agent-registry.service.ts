@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { parseToolsFromEnv } from '../utils';
 import { AgentApiClientService } from './agent-api-client.service';
 import { FeishuAlertService } from '@core/feishu';
+import { maskApiKey } from '@core/utils';
 
 /**
  * 工具信息接口
@@ -83,7 +84,7 @@ export class AgentRegistryService implements OnModuleInit, OnModuleDestroy {
 
       // 从 error 对象中提取 API Key（由 AgentApiClientService 附加）
       const apiKey = (error as any)?.apiKey;
-      const maskedApiKey = this.maskApiKey(apiKey);
+      const maskedApiKey = maskApiKey(apiKey);
 
       // 发送飞书告警（异步，不阻塞服务启动）
       this.feishuAlertService
@@ -221,7 +222,7 @@ export class AgentRegistryService implements OnModuleInit, OnModuleDestroy {
 
         // 从 error 对象中提取 API Key（由 AgentApiClientService 附加）
         const apiKey = (error as any)?.apiKey;
-        const maskedApiKey = this.maskApiKey(apiKey);
+        const maskedApiKey = maskApiKey(apiKey);
 
         // 发送飞书告警（异步，不阻塞定时任务）
         this.feishuAlertService
@@ -465,18 +466,5 @@ export class AgentRegistryService implements OnModuleInit, OnModuleDestroy {
    */
   isInitialized(): boolean {
     return this.availableModels.length > 0 || this.availableTools.size > 0;
-  }
-
-  /**
-   * 脱敏 API Key（只显示前6位和后6位）
-   */
-  private maskApiKey(apiKey: string | undefined): string | undefined {
-    if (!apiKey || typeof apiKey !== 'string') {
-      return undefined;
-    }
-    if (apiKey.length <= 12) {
-      return '***';
-    }
-    return `${apiKey.substring(0, 6)}...${apiKey.substring(apiKey.length - 6)}`;
   }
 }

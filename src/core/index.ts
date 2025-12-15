@@ -23,3 +23,6 @@ export * from './server';
 // 基础设施
 export * from './redis';
 export * from './config';
+
+// 工具函数
+export * from './utils';

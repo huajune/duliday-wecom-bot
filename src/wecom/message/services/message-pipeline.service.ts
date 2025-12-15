@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { MonitoringService } from '@/core/monitoring/monitoring.service';
 import { FeishuAlertService, AlertLevel, ALERT_RECEIVERS } from '@core/feishu';
+import { maskApiKey } from '@core/utils';
 import { ScenarioType } from '@agent';
 import {
   AgentException,
@@ -523,7 +524,7 @@ export class MessagePipelineService {
 
     // 从 error 对象中提取调试信息（由 AgentApiClientService 附加）
     const apiKey = (error as any)?.apiKey;
-    const maskedApiKey = this.maskApiKey(apiKey);
+    const maskedApiKey = maskApiKey(apiKey);
 
     this.feishuAlertService
       .sendAlert({
@@ -631,19 +632,6 @@ export class MessagePipelineService {
       this.logger.debug(`获取候选人昵称失败 [${chatId}]: ${errorMessage}`);
       return undefined;
     }
-  }
-
-  /**
-   * 脱敏 API Key（只显示前6位和后6位）
-   */
-  private maskApiKey(apiKey: string | undefined): string | undefined {
-    if (!apiKey || typeof apiKey !== 'string') {
-      return undefined;
-    }
-    if (apiKey.length <= 12) {
-      return '***';
-    }
-    return `${apiKey.substring(0, 6)}...${apiKey.substring(apiKey.length - 6)}`;
   }
 
   /**
