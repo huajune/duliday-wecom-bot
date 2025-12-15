@@ -51,10 +51,10 @@ export default function ConsolePanel({
         </div>
 
         <div className={styles.controlGrid}>
-          {/* 告警开关 */}
+          {/* 业务告警开关 */}
           <div className={`${styles.controlBox} ${alertConfig.businessAlertEnabled ? styles.active : ''}`}>
             <div className={styles.controlBoxHeader}>
-              <span className={styles.controlBoxTitle}>告警总开关</span>
+              <span className={styles.controlBoxTitle}>业务告警开关</span>
               <button
                 onClick={onToggleAlert}
                 disabled={isUpdating}
@@ -64,7 +64,7 @@ export default function ConsolePanel({
               </button>
             </div>
             <p className={styles.controlBoxDesc}>
-              每5分钟检查：成功率下降、响应时间过长、队列积压、错误率过高，触发时发送飞书告警。
+              每5分钟检查业务指标，超过阈值时发送飞书告警（与下方错误统计无关）。
             </p>
           </div>
 
@@ -111,11 +111,11 @@ export default function ConsolePanel({
           </div>
         </div>
 
-        {/* 告警阈值配置 */}
+        {/* 业务告警阈值配置 */}
         <div className={styles.thresholdSection}>
           <div className={styles.thresholdHeader}>
             <span className={styles.thresholdIcon}>🎯</span>
-            <h4 className={styles.thresholdTitle}>告警阈值</h4>
+            <h4 className={styles.thresholdTitle}>业务告警阈值</h4>
           </div>
           <div className={styles.thresholdGrid}>
             {/* 成功率阈值 */}
@@ -198,7 +198,7 @@ export default function ConsolePanel({
         {/* 图表区 */}
         <div className={styles.chartArea}>
           <div className={styles.areaHeader}>
-            <h4>告警趋势（24小时）</h4>
+            <h4>错误趋势（24小时）</h4>
             <div className={styles.kpiBadge}>
               近1小时: <strong>{recentAlertCount ?? '-'}</strong>
             </div>
@@ -211,7 +211,7 @@ export default function ConsolePanel({
         {/* 列表区 */}
         <div className={styles.listArea}>
           <div className={styles.areaHeader}>
-            <h4>告警分布</h4>
+            <h4>错误分布</h4>
           </div>
           <div className={styles.alertList}>
             {!alertTypes || alertTypes.length === 0 ? (

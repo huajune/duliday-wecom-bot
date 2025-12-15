@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { MonitoringService } from '@/core/monitoring/monitoring.service';
-import { FeishuAlertService, AlertLevel } from '@core/feishu';
+import { FeishuAlertService, AlertLevel, ALERT_RECEIVERS } from '@core/feishu';
 import { ScenarioType } from '@agent';
 import {
   AgentException,
@@ -249,6 +249,18 @@ export class MessagePipelineService {
           `tokens=${agentResult.reply.usage?.totalTokens || 'N/A'}`,
       );
 
+      // 2.5. 如果是降级响应，发送告警（需要人工介入）
+      if (agentResult.isFallback) {
+        this.sendFallbackAlert({
+          contactName,
+          userMessage: content,
+          fallbackMessage: agentResult.reply.content,
+          fallbackReason: agentResult.result?.fallbackInfo?.reason || 'Agent API 调用失败',
+          scenario,
+          chatId,
+        });
+      }
+
       // 3. 发送回复
       const deliveryContext = this.buildDeliveryContext(parsed);
       const deliveryResult = await this.deliveryService.deliverReply(
@@ -333,6 +345,18 @@ export class MessagePipelineService {
       this.logger.log(
         `[聚合处理][${contactName}] Agent 处理完成，耗时 ${agentResult.processingTime}ms`,
       );
+
+      // 3.5. 如果是降级响应，发送告警（需要人工介入）
+      if (agentResult.isFallback) {
+        this.sendFallbackAlert({
+          contactName,
+          userMessage: lastContent,
+          fallbackMessage: agentResult.reply.content,
+          fallbackReason: agentResult.result?.fallbackInfo?.reason || 'Agent API 调用失败',
+          scenario,
+          chatId,
+        });
+      }
 
       // 4. 发送回复
       const deliveryContext = this.buildDeliveryContext(MessageParser.parse(lastMessage));
@@ -497,16 +521,25 @@ export class MessagePipelineService {
     const fallbackMessage = this.agentGateway.getFallbackMessage();
     const alertLevel = this.getAlertLevelFromError(error);
 
+    // 从 error 对象中提取调试信息（由 AgentApiClientService 附加）
+    const apiKey = (error as any)?.apiKey;
+    const maskedApiKey = this.maskApiKey(apiKey);
+
     this.feishuAlertService
       .sendAlert({
         errorType,
         error: error instanceof Error ? error : new Error(errorMessage),
         conversationId: chatId,
         userMessage: content,
+        contactName,
         apiEndpoint: '/api/v1/chat',
         scenario,
         fallbackMessage,
         level: alertLevel,
+        // 添加 API Key 脱敏信息，便于排查 401 问题
+        extra: maskedApiKey ? { apiKey: maskedApiKey } : undefined,
+        // 注意：此处是异常处理告警，不需要 @ 琪琪
+        // 只有 sendFallbackAlert（Agent 降级响应）才需要 @ 琪琪人工介入
       })
       .catch((alertError) => {
         this.logger.error(`告警发送失败: ${alertError.message}`);
@@ -549,6 +582,7 @@ export class MessagePipelineService {
           error: sendError instanceof Error ? sendError : new Error(sendErrorMessage),
           conversationId: chatId,
           userMessage: content,
+          contactName, // 用户昵称，便于人工查找用户回复
           apiEndpoint: 'message-sender',
           scenario,
           level: AlertLevel.CRITICAL,
@@ -556,7 +590,6 @@ export class MessagePipelineService {
           extra: {
             originalError: errorMessage,
             fallbackMessage,
-            contactName,
             messageId,
           },
         })
@@ -598,5 +631,54 @@ export class MessagePipelineService {
       this.logger.debug(`获取候选人昵称失败 [${chatId}]: ${errorMessage}`);
       return undefined;
     }
+  }
+
+  /**
+   * 脱敏 API Key（只显示前6位和后6位）
+   */
+  private maskApiKey(apiKey: string | undefined): string | undefined {
+    if (!apiKey || typeof apiKey !== 'string') {
+      return undefined;
+    }
+    if (apiKey.length <= 12) {
+      return '***';
+    }
+    return `${apiKey.substring(0, 6)}...${apiKey.substring(apiKey.length - 6)}`;
+  }
+
+  /**
+   * 发送降级响应告警
+   * 当 Agent 返回降级响应时调用，通知相关人员人工介入
+   */
+  private sendFallbackAlert(params: {
+    contactName: string;
+    userMessage: string;
+    fallbackMessage: string;
+    fallbackReason: string;
+    scenario: ScenarioType;
+    chatId: string;
+  }): void {
+    const { contactName, userMessage, fallbackMessage, fallbackReason, scenario, chatId } = params;
+
+    this.logger.warn(`[${contactName}] Agent 降级响应，原因: ${fallbackReason}，需要人工介入`);
+
+    this.feishuAlertService
+      .sendAlert({
+        errorType: 'agent',
+        message: fallbackReason,
+        conversationId: chatId,
+        userMessage,
+        contactName,
+        apiEndpoint: '/api/v1/chat',
+        scenario,
+        fallbackMessage,
+        level: AlertLevel.ERROR,
+        title: '🆘 小蛋糕出错了，需人工介入',
+        // 消息降级场景 @ 琪琪，需要人工介入回复用户
+        atUsers: [...ALERT_RECEIVERS.FALLBACK],
+      })
+      .catch((alertError) => {
+        this.logger.error(`降级告警发送失败: ${alertError.message}`);
+      });
   }
 }

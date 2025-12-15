@@ -134,13 +134,10 @@ export interface PipelineResult<T = any> {
 
 /**
  * 消息过滤结果
+ * 注意：完整版定义在 message-filter.service.ts 中
+ * 此处为简化版，仅用于管线结果返回
  */
-export interface FilterResult {
-  /** 是否通过过滤 */
-  pass: boolean;
-  /** 未通过的原因 */
-  reason?: string;
-}
+export { FilterReason, FilterResult } from '../services/message-filter.service';
 
 // ========================================
 // 会话上下文相关类型

@@ -16,6 +16,8 @@ export interface AlertContext {
   conversationId?: string;
   /** 用户消息 */
   userMessage?: string;
+  /** 用户昵称（微信昵称，用于人工回复时查找用户） */
+  contactName?: string;
   /** API 端点 */
   apiEndpoint?: string;
   /** 降级消息 */
@@ -34,6 +36,10 @@ export interface AlertContext {
   details?: Record<string, unknown>;
   /** 时间戳（可选） */
   timestamp?: string;
+  /** 是否 @所有人（用于需要人工介入的紧急场景，如消息降级） */
+  atAll?: boolean;
+  /** @ 特定用户列表（优先级高于 atAll） */
+  atUsers?: Array<{ openId: string; name: string }>;
 }
 
 /**
@@ -123,11 +129,12 @@ export class FeishuAlertService implements OnModuleInit {
       ? `${context.errorType}:${context.scenario}`
       : context.errorType;
     if (!this.shouldSend(throttleKey)) {
-      this.logger.debug(`告警被节流: ${throttleKey}`);
+      this.logger.warn(`告警被节流: ${throttleKey}，5分钟内最多发送 ${this.throttleMaxCount} 次`);
       return false;
     }
 
     try {
+      this.logger.log(`准备发送告警: ${throttleKey}`);
       const level = context.level || AlertLevel.ERROR;
       const title = context.title || this.getDefaultTitle(context.errorType);
       const color = this.getLevelColor(level);
@@ -139,44 +146,85 @@ export class FeishuAlertService implements OnModuleInit {
       const fields: string[] = [];
       const time =
         context.timestamp || new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
-      fields.push(`**时间**: ${time}`);
-      fields.push(`**级别**: ${level.toUpperCase()}`);
-      fields.push(`**类型**: ${context.errorType}`);
 
-      if (errorMessage) {
-        fields.push(`**消息**: ${errorMessage}`);
-      }
+      // 判断是否为话术降级场景（需要人工介入）
+      const isFallbackAlert = context.atUsers && context.atUsers.length > 0;
 
-      if (context.conversationId) {
-        fields.push(`**会话 ID**: ${context.conversationId}`);
-      }
+      if (isFallbackAlert) {
+        // 话术降级场景：优先显示用户信息，便于快速定位和人工回复
+        if (context.contactName) {
+          fields.push(`**用户昵称**\n${context.contactName}`);
+        }
+        if (context.userMessage) {
+          fields.push(`**用户消息**\n${this.truncate(context.userMessage, 200)}`);
+        }
+        if (context.fallbackMessage) {
+          fields.push(`**小蛋糕已回复**\n${context.fallbackMessage}`);
+        }
+        // 次要信息用分隔线隔开
+        fields.push('---');
+        if (errorMessage) {
+          fields.push(`**花卷报错**: ${errorMessage}`);
+        }
+        fields.push(`**时间**: ${time}`);
+      } else {
+        // 普通告警场景：保持原有顺序
+        fields.push(`**时间**: ${time}`);
+        fields.push(`**级别**: ${level.toUpperCase()}`);
+        fields.push(`**类型**: ${context.errorType}`);
 
-      if (context.userMessage) {
-        fields.push(`**用户消息**: ${this.truncate(context.userMessage, 100)}`);
-      }
+        if (errorMessage) {
+          fields.push(`**消息**: ${errorMessage}`);
+        }
 
-      if (context.apiEndpoint) {
-        fields.push(`**API 端点**: ${context.apiEndpoint}`);
-      }
+        if (context.conversationId) {
+          fields.push(`**会话 ID**: ${context.conversationId}`);
+        }
 
-      if (context.scenario) {
-        fields.push(`**场景**: ${context.scenario}`);
-      }
+        if (context.userMessage) {
+          fields.push(`**用户消息**: ${this.truncate(context.userMessage, 100)}`);
+        }
 
-      if (context.fallbackMessage) {
-        fields.push(`**降级消息**: ${context.fallbackMessage}`);
-      }
+        if (context.contactName) {
+          fields.push(`**用户昵称**: ${context.contactName}`);
+        }
 
-      if (context.details) {
-        fields.push(`**详情**: \`\`\`json\n${JSON.stringify(context.details, null, 2)}\n\`\`\``);
-      }
+        if (context.apiEndpoint) {
+          fields.push(`**API 端点**: ${context.apiEndpoint}`);
+        }
 
-      if (context.extra) {
-        fields.push(`**额外信息**: \`\`\`json\n${JSON.stringify(context.extra, null, 2)}\n\`\`\``);
+        if (context.scenario) {
+          fields.push(`**场景**: ${context.scenario}`);
+        }
+
+        if (context.fallbackMessage) {
+          fields.push(`**降级消息**: ${context.fallbackMessage}`);
+        }
+
+        if (context.details) {
+          fields.push(`**详情**: \`\`\`json\n${JSON.stringify(context.details, null, 2)}\n\`\`\``);
+        }
+
+        if (context.extra) {
+          fields.push(
+            `**额外信息**: \`\`\`json\n${JSON.stringify(context.extra, null, 2)}\n\`\`\``,
+          );
+        }
       }
 
       // 构建卡片
-      const card = this.webhookService.buildCard(title, fields.join('\n'), color);
+      // 优先级：atUsers > atAll > 无 @
+      let card: Record<string, unknown>;
+      if (context.atUsers && context.atUsers.length > 0) {
+        // @ 特定用户
+        card = this.webhookService.buildCard(title, fields.join('\n'), color, context.atUsers);
+      } else if (context.atAll) {
+        // @ 所有人
+        card = this.webhookService.buildCardWithAtAll(title, fields.join('\n'), color);
+      } else {
+        // 不 @ 任何人
+        card = this.webhookService.buildCard(title, fields.join('\n'), color);
+      }
 
       // 发送
       const success = await this.webhookService.sendMessage('ALERT', card);
@@ -312,16 +360,16 @@ export class FeishuAlertService implements OnModuleInit {
    */
   private getDefaultTitle(errorType: string): string {
     const titles: Record<string, string> = {
-      agent_timeout: '⏰ Agent API 超时',
-      agent_auth_error: '🔒 Agent API 认证失败',
-      agent_rate_limit: '⚡ Agent API 限流',
-      message_delivery_error: '📤 消息发送失败',
-      system_error: '🔥 系统错误',
-      agent: '🤖 Agent 错误',
-      message: '💬 消息处理错误',
-      delivery: '📤 消息发送错误',
-      system: '⚙️ 系统错误',
-      merge: '🔄 消息聚合错误',
+      agent_timeout: '⏰ 花卷响应超时了',
+      agent_auth_error: '🔒 花卷认证失败',
+      agent_rate_limit: '⚡ 花卷被限流了',
+      message_delivery_error: '🧁 消息投递失败',
+      system_error: '🔥 系统出问题了',
+      agent: '🤖 花卷出错了',
+      message: '💬 消息处理出错了',
+      delivery: '🚨 用户收不到回复',
+      system: '⚙️ 系统出问题了',
+      merge: '🔄 消息聚合出错了',
     };
 
     return titles[errorType] || '⚠️ 系统告警';

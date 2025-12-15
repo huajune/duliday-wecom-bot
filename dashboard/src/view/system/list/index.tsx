@@ -100,12 +100,12 @@ export default function System() {
     updateConfig.mutate({ businessAlertEnabled: newValue });
   };
 
-  // 告警趋势图表数据（24小时）
+  // 错误趋势图表数据（24小时）
   const alertChartData = {
     labels: alertTrend.map((p) => formatHourLabel(p.minute)),
     datasets: [
       {
-        label: '告警次数',
+        label: '错误次数',
         data: alertTrend.map((p) => p.count || 0),
         borderColor: '#ef4444',
         backgroundColor: (context: { chart: { ctx: CanvasRenderingContext2D } }) => {
@@ -141,7 +141,7 @@ export default function System() {
         usePointStyle: true,
         displayColors: false,
         callbacks: {
-          label: (context: { parsed: { y: number | null } }) => `${context.parsed.y ?? 0} 次告警`,
+          label: (context: { parsed: { y: number | null } }) => `${context.parsed.y ?? 0} 次错误`,
         },
       },
     },
@@ -195,7 +195,7 @@ export default function System() {
         <KpiCard
           icon="🚨"
           variant="danger"
-          label="今日告警"
+          label="今日错误"
           value={alerts?.total ?? '-'}
           valueVariant="danger"
           trend={{
@@ -203,7 +203,7 @@ export default function System() {
             value: `+${alerts?.lastHour ?? 0}`,
             label: '近1小时',
           }}
-          title="今日累计触发的告警总数"
+          title="今日消息处理错误总数（非飞书告警数）"
         />
         <KpiCard
           icon="🌊"

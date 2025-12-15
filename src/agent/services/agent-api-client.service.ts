@@ -135,6 +135,8 @@ export class AgentApiClientService {
       return response.data;
     } catch (error) {
       this.logger.error('获取模型列表失败:', error);
+      // 附加 API Key 供告警使用（与 chat 方法保持一致）
+      (error as any).apiKey = this.apiKey;
       throw error;
     }
   }
@@ -149,6 +151,8 @@ export class AgentApiClientService {
       return response.data;
     } catch (error) {
       this.logger.error('获取工具列表失败:', error);
+      // 附加 API Key 供告警使用（与 chat 方法保持一致）
+      (error as any).apiKey = this.apiKey;
       throw error;
     }
   }

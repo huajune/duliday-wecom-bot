@@ -317,8 +317,8 @@ export class MonitoringService implements OnModuleInit {
       this.logger.error(
         `[recordFailure] ❌ 临时记录未找到 [${messageId}]，无法更新状态为 failure。`,
       );
-      // 即使记录不存在，也要记录错误日志
-      this.saveErrorLog(messageId, error);
+      // 即使记录不存在，也要记录错误日志（使用 metadata 中的错误类型）
+      this.saveErrorLog(messageId, error, metadata?.alertType);
       return;
     }
 
@@ -332,6 +332,7 @@ export class MonitoringService implements OnModuleInit {
     record.replySegments = metadata?.replySegments ?? record.replySegments;
     record.isFallback = metadata?.isFallback ?? record.isFallback;
     record.fallbackSuccess = metadata?.fallbackSuccess ?? record.fallbackSuccess;
+    record.alertType = metadata?.alertType ?? record.alertType;
 
     // 更新 Redis 计数器
     const counterUpdates: Partial<MonitoringGlobalCounters> = { totalFailure: 1 };
@@ -351,11 +352,11 @@ export class MonitoringService implements OnModuleInit {
       this.logger.warn('减少当前处理数失败:', err);
     });
 
-    // 添加到错误日志
-    this.saveErrorLog(messageId, error);
+    // 添加到错误日志（包含错误类型）
+    this.saveErrorLog(messageId, error, record.alertType);
 
     this.logger.error(
-      `消息处理失败 [${messageId}]: ${error}, scenario=${record.scenario || 'unknown'}, fallback=${record.isFallback ? 'true' : 'false'}`,
+      `消息处理失败 [${messageId}]: ${error}, scenario=${record.scenario || 'unknown'}, alertType=${record.alertType || 'unknown'}, fallback=${record.isFallback ? 'true' : 'false'}`,
     );
 
     // 异步写入数据库（不阻塞主流程）
@@ -1438,12 +1439,16 @@ export class MonitoringService implements OnModuleInit {
 
   /**
    * 保存错误日志
+   * @param messageId 消息ID
+   * @param error 错误信息
+   * @param alertType 错误类型（用于错误分布统计）
    */
-  private saveErrorLog(messageId: string, error: string): void {
+  private saveErrorLog(messageId: string, error: string, alertType?: AlertErrorType): void {
     const errorLog: MonitoringErrorLog = {
       messageId,
       timestamp: Date.now(),
       error,
+      alertType: alertType || 'unknown',
     };
 
     // 异步保存到数据库

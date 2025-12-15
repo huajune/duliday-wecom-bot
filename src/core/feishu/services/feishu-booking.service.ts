@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { FeishuWebhookService } from './feishu-webhook.service';
 import { InterviewBookingInfo } from '../interfaces/feishu.interface';
+import { ALERT_RECEIVERS } from '../constants/feishu.constants';
 
 /**
  * 飞书面试预约通知服务
@@ -54,8 +55,10 @@ export class FeishuBookingService {
         }
       }
 
-      // 构建卡片
-      const card = this.webhookService.buildCard('🎉 面试预约成功', fields.join('\n'), 'green');
+      // 构建卡片（@ 琪琪）
+      const card = this.webhookService.buildCard('🎉 面试预约成功', fields.join('\n'), 'green', [
+        ...ALERT_RECEIVERS.INTERVIEW_BOOKING,
+      ]);
 
       // 发送
       const success = await this.webhookService.sendMessage('INTERVIEW_BOOKING', card);

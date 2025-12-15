@@ -10,11 +10,36 @@ import { MessageParser } from '../utils/message-parser.util';
 import { SupabaseService } from '@core/supabase';
 
 /**
+ * 消息过滤原因枚举
+ * 用于标识消息被过滤的具体原因
+ */
+export enum FilterReason {
+  /** 机器人自己发送的消息 */
+  SELF_MESSAGE = 'self-message',
+  /** 非手机推送来源（非真实用户发送） */
+  INVALID_SOURCE = 'invalid-source',
+  /** 非个微用户（企微、公众号等） */
+  NON_PERSONAL_WECHAT = 'non-personal-wechat',
+  /** 用户已暂停托管 */
+  USER_PAUSED = 'user-paused',
+  /** 小组在黑名单中（仅记录历史） */
+  GROUP_BLACKLISTED = 'group-blacklisted',
+  /** 企业级特定分组被屏蔽 */
+  BLOCKED_ENTERPRISE_GROUP = 'blocked-enterprise-group',
+  /** 群聊消息（暂不处理） */
+  ROOM_MESSAGE = 'room-message',
+  /** 不支持的消息类型 */
+  UNSUPPORTED_MESSAGE_TYPE = 'unsupported-message-type',
+  /** 消息内容为空 */
+  EMPTY_CONTENT = 'empty-content',
+}
+
+/**
  * 消息过滤结果
  */
 export interface FilterResult {
   pass: boolean; // 是否通过过滤
-  reason?: string; // 过滤原因（未通过时）
+  reason?: FilterReason; // 过滤原因（未通过时）
   content?: string; // 提取的消息内容（通过时）
   details?: any; // 额外的详细信息
   historyOnly?: boolean; // 是否仅记录历史（不触发AI回复）
@@ -109,7 +134,7 @@ export class MessageFilterService implements OnModuleInit {
       this.logger.log(`[过滤-自己发送] 跳过机器人自己发送的消息 [${messageData.messageId}]`);
       return {
         pass: false,
-        reason: 'self-message',
+        reason: FilterReason.SELF_MESSAGE,
       };
     }
 
@@ -121,7 +146,7 @@ export class MessageFilterService implements OnModuleInit {
       );
       return {
         pass: false,
-        reason: 'invalid-source',
+        reason: FilterReason.INVALID_SOURCE,
         details: {
           actual: messageData.source,
           actualDescription: sourceDescription,
@@ -138,7 +163,7 @@ export class MessageFilterService implements OnModuleInit {
       );
       return {
         pass: false,
-        reason: 'non-personal-wechat',
+        reason: FilterReason.NON_PERSONAL_WECHAT,
         details: {
           actual: messageData.contactType,
           expected: ContactType.PERSONAL_WECHAT,
@@ -155,7 +180,7 @@ export class MessageFilterService implements OnModuleInit {
       );
       return {
         pass: false,
-        reason: 'user-paused',
+        reason: FilterReason.USER_PAUSED,
         details: {
           userId,
         },
@@ -172,7 +197,7 @@ export class MessageFilterService implements OnModuleInit {
         pass: true, // 标记为通过，但设置 historyOnly 标志
         content,
         historyOnly: true,
-        reason: 'group-blacklisted',
+        reason: FilterReason.GROUP_BLACKLISTED,
         details: {
           groupId: messageData.groupId,
           orgId: messageData.orgId,
@@ -188,7 +213,7 @@ export class MessageFilterService implements OnModuleInit {
       );
       return {
         pass: false,
-        reason: 'blocked-enterprise-group',
+        reason: FilterReason.BLOCKED_ENTERPRISE_GROUP,
         details: {
           groupId: messageData.groupId,
           orgId: messageData.orgId,
@@ -205,7 +230,7 @@ export class MessageFilterService implements OnModuleInit {
       );
       return {
         pass: false,
-        reason: 'room-message',
+        reason: FilterReason.ROOM_MESSAGE,
         details: {
           roomId: messageData.imRoomId,
           roomName: messageData.roomName,
@@ -221,7 +246,7 @@ export class MessageFilterService implements OnModuleInit {
       );
       return {
         pass: false,
-        reason: 'unsupported-message-type',
+        reason: FilterReason.UNSUPPORTED_MESSAGE_TYPE,
         details: {
           messageType: messageData.messageType,
           supportedTypes: supportedMessageTypes,
@@ -235,7 +260,7 @@ export class MessageFilterService implements OnModuleInit {
       this.logger.log(`[过滤-空内容] 跳过空内容消息 [${messageData.messageId}]`);
       return {
         pass: false,
-        reason: 'empty-content',
+        reason: FilterReason.EMPTY_CONTENT,
       };
     }
 

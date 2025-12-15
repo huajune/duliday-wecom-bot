@@ -208,7 +208,12 @@
       "Bash(__NEW_LINE__ echo \"\")",
       "Bash(API_KEY=\"$SUPABASE_SERVICE_ROLE_KEY\" BASE_URL=\"https://uvmbxcilpteaiizplcyp.supabase.co/rest/v1\")",
       "Bash(API_KEY=\"$SUPABASE_SERVICE_ROLE_KEY\" echo \"=== 测试其他表的查询速度 ===\" echo \"\" echo \"1. chat_messages 表：\" time curl -m 5 -s \"https://uvmbxcilpteaiizplcyp.supabase.co/rest/v1/chat_messages?limit=5\" -H \"apikey: $API_KEY\" -H \"Authorization: Bearer $API_KEY\")",
-      "Bash(__NEW_LINE__ curl -m 5 -s \"https://uvmbxcilpteaiizplcyp.supabase.co/rest/v1/chat_messages?limit=3\" )"
+      "Bash(__NEW_LINE__ curl -m 5 -s \"https://uvmbxcilpteaiizplcyp.supabase.co/rest/v1/chat_messages?limit=3\" )",
+      "Bash(/usr/bin/curl -s -X POST \"https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal\" -H \"Content-Type: application/json\" -d '{\"\"app_id\"\": \"\"cli_a9ae9bcd92f99cc0\"\", \"\"app_secret\"\": \"\"SCcwMAhNyB014U3sBG5BuhhOmfgaDQJg\"\"}')",
+      "Bash(/usr/bin/curl -s -X POST \"https://open.feishu.cn/open-apis/contact/v3/users/batch_get_id?user_id_type=open_id\" )",
+      "Bash(/usr/bin/curl -s -X POST \"https://open.feishu.cn/open-apis/contact/v3/users/batch_get_id?user_id_type=open_id\" -H \"Authorization: Bearer t-g104cff7OR35Q5RKHE4JMOKGER6VIFFTJ7YZ73EE\" -H \"Content-Type: application/json\" -d '{\"\"\"\"mobiles\"\"\"\": [\"\"\"\"15114818773\"\"\"\", \"\"\"\"13683856674\"\"\"\"]}')",
+      "Bash(TOKEN=\"t-g104cff7OR35Q5RKHE4JMOKGER6VIFFTJ7YZ73EE\" /usr/bin/curl -s -X POST \"https://open.feishu.cn/open-apis/contact/v3/users/batch_get_id?user_id_type=open_id\" -H \"Authorization: Bearer $TOKEN\" -H \"Content-Type: application/json\" -d '{\"\"\"\"mobiles\"\"\"\": [\"\"\"\"15114818773\"\"\"\", \"\"\"\"13683856674\"\"\"\"]}')",
+      "Bash(TOKEN=\"t-g104cff7OR35Q5RKHE4JMOKGER6VIFFTJ7YZ73EE\")"
     ],
     "deny": [
       "Bash(git restore:*)",

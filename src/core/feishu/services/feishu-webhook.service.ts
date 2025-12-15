@@ -102,12 +102,36 @@ export class FeishuWebhookService {
    * @param title 标题
    * @param content Markdown 内容
    * @param color 卡片颜色
+   * @param atUsers 需要 @ 的用户列表
    */
   buildCard(
     title: string,
     content: string,
     color: 'blue' | 'green' | 'yellow' | 'red' = 'blue',
+    atUsers?: Array<{ openId: string; name: string }>,
   ): Record<string, unknown> {
+    const elements: Array<Record<string, unknown>> = [
+      {
+        tag: 'markdown',
+        content,
+      },
+    ];
+
+    // 如果有需要 @ 的用户，添加 @ 区域
+    if (atUsers && atUsers.length > 0) {
+      // 添加分隔线和 @ 区域
+      elements.push({
+        tag: 'hr',
+      });
+      elements.push({
+        tag: 'div',
+        text: {
+          tag: 'lark_md',
+          content: `**请关注**: ${atUsers.map((u) => `<at id=${u.openId}></at>`).join(' ')}`,
+        },
+      });
+    }
+
     return {
       msg_type: 'interactive',
       card: {
@@ -116,12 +140,46 @@ export class FeishuWebhookService {
           title: { tag: 'plain_text', content: title },
           template: color,
         },
-        elements: [
-          {
-            tag: 'markdown',
-            content,
-          },
-        ],
+        elements,
+      },
+    };
+  }
+
+  /**
+   * 构建带 @ 所有人的卡片
+   * 注意：需要机器人是群主或管理员才能 @ 所有人
+   */
+  buildCardWithAtAll(
+    title: string,
+    content: string,
+    color: 'blue' | 'green' | 'yellow' | 'red' = 'blue',
+  ): Record<string, unknown> {
+    const elements: Array<Record<string, unknown>> = [
+      {
+        tag: 'markdown',
+        content,
+      },
+      {
+        tag: 'hr',
+      },
+      {
+        tag: 'div',
+        text: {
+          tag: 'lark_md',
+          content: '**请关注**: <at id=all></at>',
+        },
+      },
+    ];
+
+    return {
+      msg_type: 'interactive',
+      card: {
+        config: { wide_screen_mode: true },
+        header: {
+          title: { tag: 'plain_text', content: title },
+          template: color,
+        },
+        elements,
       },
     };
   }

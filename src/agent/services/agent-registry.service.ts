@@ -81,6 +81,10 @@ export class AgentRegistryService implements OnModuleInit, OnModuleDestroy {
     } catch (error) {
       this.logger.error('注册表初始化失败，将在后续请求时重试:', error);
 
+      // 从 error 对象中提取 API Key（由 AgentApiClientService 附加）
+      const apiKey = (error as any)?.apiKey;
+      const maskedApiKey = this.maskApiKey(apiKey);
+
       // 发送飞书告警（异步，不阻塞服务启动）
       this.feishuAlertService
         .sendAlert({
@@ -88,6 +92,8 @@ export class AgentRegistryService implements OnModuleInit, OnModuleDestroy {
           error,
           apiEndpoint: '/agent/onModuleInit',
           scenario: 'REGISTRY_INIT_FAILED',
+          // 添加 API Key 脱敏信息，便于排查 401 问题
+          extra: maskedApiKey ? { apiKey: maskedApiKey } : undefined,
         })
         .catch((alertError) => {
           this.logger.error(`飞书告警发送失败: ${alertError.message}`);
@@ -213,6 +219,10 @@ export class AgentRegistryService implements OnModuleInit, OnModuleDestroy {
       } catch (error) {
         this.logger.error('自动刷新失败:', error);
 
+        // 从 error 对象中提取 API Key（由 AgentApiClientService 附加）
+        const apiKey = (error as any)?.apiKey;
+        const maskedApiKey = this.maskApiKey(apiKey);
+
         // 发送飞书告警（异步，不阻塞定时任务）
         this.feishuAlertService
           .sendAlert({
@@ -220,6 +230,8 @@ export class AgentRegistryService implements OnModuleInit, OnModuleDestroy {
             error,
             apiEndpoint: '/agent/autoRefresh',
             scenario: 'REGISTRY_AUTO_REFRESH_FAILED',
+            // 添加 API Key 脱敏信息，便于排查 401 问题
+            extra: maskedApiKey ? { apiKey: maskedApiKey } : undefined,
           })
           .catch((alertError) => {
             this.logger.error(`飞书告警发送失败: ${alertError.message}`);
@@ -453,5 +465,18 @@ export class AgentRegistryService implements OnModuleInit, OnModuleDestroy {
    */
   isInitialized(): boolean {
     return this.availableModels.length > 0 || this.availableTools.size > 0;
+  }
+
+  /**
+   * 脱敏 API Key（只显示前6位和后6位）
+   */
+  private maskApiKey(apiKey: string | undefined): string | undefined {
+    if (!apiKey || typeof apiKey !== 'string') {
+      return undefined;
+    }
+    if (apiKey.length <= 12) {
+      return '***';
+    }
+    return `${apiKey.substring(0, 6)}...${apiKey.substring(apiKey.length - 6)}`;
   }
 }
