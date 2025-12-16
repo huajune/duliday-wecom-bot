@@ -154,10 +154,13 @@ export class MessageService implements OnModuleInit {
   /**
    * 处理聚合后的消息（供 MessageProcessor 调用）
    */
-  async processMergedMessages(messages: EnterpriseMessageCallbackDto[]): Promise<void> {
+  async processMergedMessages(
+    messages: EnterpriseMessageCallbackDto[],
+    batchId: string,
+  ): Promise<void> {
     this.processingCount++;
     try {
-      await this.pipelineService.processMergedMessages(messages);
+      await this.pipelineService.processMergedMessages(messages, batchId);
     } finally {
       this.processingCount--;
     }

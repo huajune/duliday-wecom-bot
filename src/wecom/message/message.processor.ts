@@ -164,7 +164,8 @@ export class MessageProcessor implements OnModuleInit {
       this.logger.log(`[Bull] 开始处理任务 ${job.id}, chatId: ${chatId}`);
 
       // 从 Redis 获取待处理消息
-      const messages = await this.simpleMergeService.getAndClearPendingMessages(chatId);
+      const { messages, batchId } =
+        await this.simpleMergeService.getAndClearPendingMessages(chatId);
 
       if (messages.length === 0) {
         this.logger.debug(`[Bull] 任务 ${job.id} 没有待处理消息，跳过`);
@@ -172,7 +173,7 @@ export class MessageProcessor implements OnModuleInit {
       }
 
       // 处理消息
-      await this.processMessages(chatId, messages);
+      await this.processMessages(chatId, messages, batchId);
 
       // 处理完后检查是否有新消息
       await this.simpleMergeService.checkAndProcessNewMessages(chatId);
@@ -191,6 +192,7 @@ export class MessageProcessor implements OnModuleInit {
   private async processMessages(
     chatId: string,
     messages: EnterpriseMessageCallbackDto[],
+    batchId: string,
   ): Promise<void> {
     // 记录 Worker 开始处理时间
     for (const msg of messages) {
@@ -198,7 +200,7 @@ export class MessageProcessor implements OnModuleInit {
     }
 
     // 委托给 MessageService 处理（包含过滤、历史、Agent 调用、发送、去重标记）
-    await this.messageService.processMergedMessages(messages);
+    await this.messageService.processMergedMessages(messages, batchId);
   }
 
   // ==================== 公共 API ====================

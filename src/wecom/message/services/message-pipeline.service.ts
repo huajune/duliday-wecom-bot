@@ -311,7 +311,10 @@ export class MessagePipelineService {
    * 处理聚合后的消息（聚合路径）
    * 由 MessageProcessor 调用
    */
-  async processMergedMessages(messages: EnterpriseMessageCallbackDto[]): Promise<void> {
+  async processMergedMessages(
+    messages: EnterpriseMessageCallbackDto[],
+    batchId: string,
+  ): Promise<void> {
     if (messages.length === 0) return;
 
     const scenario = MessageParser.determineScenario(messages[0]);
@@ -396,7 +399,7 @@ export class MessagePipelineService {
       };
 
       this.logger.debug(
-        `[聚合处理][${chatId}] 开始标记 ${messages.length} 条消息为 success: [${messages.map((m) => m.messageId).join(', ')}]`,
+        `[聚合处理][${chatId}] 开始标记 ${messages.length} 条消息为 success (batchId=${batchId}): [${messages.map((m) => m.messageId).join(', ')}]`,
       );
 
       await Promise.all(
@@ -405,17 +408,24 @@ export class MessagePipelineService {
             `[聚合处理][${chatId}] 正在标记消息 ${index + 1}/${messages.length}: ${message.messageId}`,
           );
           await this.deduplicationService.markMessageAsProcessedAsync(message.messageId);
-          this.monitoringService.recordSuccess(
-            message.messageId,
-            message.messageId === lastMessageId ? sharedSuccessMetadata : { scenario },
-          );
+
+          // 所有消息都共享相同的 AI 响应元数据
+          // isPrimary 标记哪条消息实际调用了 Agent
+          this.monitoringService.recordSuccess(message.messageId, {
+            ...sharedSuccessMetadata,
+            batchId,
+            isPrimary: message.messageId === lastMessageId,
+          });
+
           this.logger.debug(
-            `[聚合处理][${chatId}] 已标记消息 ${index + 1}/${messages.length}: ${message.messageId}`,
+            `[聚合处理][${chatId}] 已标记消息 ${index + 1}/${messages.length}: ${message.messageId} (isPrimary=${message.messageId === lastMessageId})`,
           );
         }),
       );
 
-      this.logger.debug(`[聚合处理][${chatId}] 已标记 ${messages.length} 条消息为已处理`);
+      this.logger.debug(
+        `[聚合处理][${chatId}] 已标记 ${messages.length} 条消息为已处理 (batchId=${batchId})`,
+      );
     } catch (error) {
       this.logger.error(`聚合消息处理失败:`, error.message);
 

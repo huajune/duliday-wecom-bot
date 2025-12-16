@@ -257,6 +257,8 @@ export class MonitoringService implements OnModuleInit {
     record.isFallback = metadata?.isFallback ?? record.isFallback;
     record.fallbackSuccess = metadata?.fallbackSuccess ?? record.fallbackSuccess;
     record.agentInvocation = metadata?.agentInvocation ?? record.agentInvocation;
+    record.batchId = metadata?.batchId ?? record.batchId;
+    record.isPrimary = metadata?.isPrimary ?? record.isPrimary;
 
     // 更新 Redis 计数器
     const counterUpdates: Partial<MonitoringGlobalCounters> = { totalSuccess: 1 };

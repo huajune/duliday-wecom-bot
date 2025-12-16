@@ -2523,6 +2523,8 @@ export class SupabaseService implements OnModuleInit {
     isFallback?: boolean;
     fallbackSuccess?: boolean;
     agentInvocation?: any;
+    batchId?: string;
+    isPrimary?: boolean;
   }): Promise<boolean> {
     if (!this.isInitialized) {
       this.logger.warn('[消息处理记录] Supabase 未初始化，跳过保存');
@@ -2555,6 +2557,8 @@ export class SupabaseService implements OnModuleInit {
         is_fallback: record.isFallback,
         fallback_success: record.fallbackSuccess,
         agent_invocation: record.agentInvocation,
+        batch_id: record.batchId,
+        is_primary: record.isPrimary,
       };
 
       await this.supabaseHttpClient.post(

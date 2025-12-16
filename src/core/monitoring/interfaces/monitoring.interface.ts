@@ -241,6 +241,8 @@ export interface MonitoringMetadata {
   replySegments?: number;
   isFallback?: boolean;
   alertType?: AlertErrorType;
+  batchId?: string; // 聚合批次ID
+  isPrimary?: boolean; // 是否为主消息
   /** Agent 调用记录（完整的请求/响应，用于排障） */
   agentInvocation?: AgentInvocationRecord;
 }
@@ -283,6 +285,10 @@ export interface MessageProcessingRecord {
   tools?: string[]; // 使用的工具
   replySegments?: number; // 实际发送的回复条数
   alertType?: AlertErrorType;
+
+  // 聚合关系
+  batchId?: string; // 聚合批次ID（多条消息聚合时使用）
+  isPrimary?: boolean; // 是否为主消息（调用 Agent 的那条）
 
   /** Agent 调用记录（完整的请求/响应，用于排障） */
   agentInvocation?: AgentInvocationRecord;

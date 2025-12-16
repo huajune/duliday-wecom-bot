@@ -233,7 +233,16 @@
       "Bash(API_KEY=\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV2bWJ4Y2lscHRlYWlpenBsY3lwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2MjkwODI2MiwiZXhwIjoyMDc4NDg0MjYyfQ.IU2po4_YttuvOyHwJSR8yU9739tjV5T6zmMyjPcGaTc\")",
       "Bash(__NEW_LINE__ echo \"=== 测试 get_chat_summary_stats RPC 函数（近 3 天） ===\")",
       "Bash(/tmp/test-summary-optimization.sh)",
-      "Bash(API_KEY=\"$SUPABASE_SERVICE_ROLE_KEY\" curl -s \"https://uvmbxcilpteaiizplcyp.supabase.co/rest/v1/message_processing_records?status=eq.processing&order=received_at.desc&limit=5&select=message_id,user_name,message_preview,received_at,status\" -H \"apikey: $API_KEY\" -H \"Authorization: Bearer $API_KEY\")"
+      "Bash(API_KEY=\"$SUPABASE_SERVICE_ROLE_KEY\" curl -s \"https://uvmbxcilpteaiizplcyp.supabase.co/rest/v1/message_processing_records?status=eq.processing&order=received_at.desc&limit=5&select=message_id,user_name,message_preview,received_at,status\" -H \"apikey: $API_KEY\" -H \"Authorization: Bearer $API_KEY\")",
+      "Bash(/tmp/test-message-aggregation.sh)",
+      "Bash(/tmp/test-message-aggregation-v2.sh)",
+      "Bash(__NEW_LINE__ curl -s \"https://uvmbxcilpteaiizplcyp.supabase.co/rest/v1/message_processing_records?message_id=in.(test_msg_1765878274992,test_msg_1765878277822,test_msg_1765878279067)&select=message_id,status,message_preview,reply_preview,token_usage,total_duration&order=received_at.asc\" )",
+      "Bash(/tmp/quick-test.sh)",
+      "Bash(__NEW_LINE__ echo \"查询最近 20 条记录的状态分布...\")",
+      "Bash(__NEW_LINE__ echo \"查询最近 15 条记录...\")",
+      "Bash(__NEW_LINE__ curl -s \"https://uvmbxcilpteaiizplcyp.supabase.co/rest/v1/message_processing_records?message_preview=like.%E6%B6%88%E6%81%AF*&select=message_id,chat_id,status,message_preview,reply_preview,token_usage&order=received_at.desc&limit=10\" -H \"apikey: $API_KEY\" -H \"Authorization: Bearer $API_KEY\")",
+      "Bash(/tmp/query-recent.sh)",
+      "Bash(/tmp/query-simple.sh:*)"
     ],
     "deny": [
       "Bash(git restore:*)",

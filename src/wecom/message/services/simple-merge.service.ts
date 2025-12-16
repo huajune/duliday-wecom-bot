@@ -153,8 +153,11 @@ export class SimpleMergeService implements OnModuleInit {
   /**
    * 获取并清空待处理消息（供 Worker 调用）
    * 使用原子操作确保不会重复处理
+   * @returns 消息列表和批次ID
    */
-  async getAndClearPendingMessages(chatId: string): Promise<EnterpriseMessageCallbackDto[]> {
+  async getAndClearPendingMessages(
+    chatId: string,
+  ): Promise<{ messages: EnterpriseMessageCallbackDto[]; batchId: string }> {
     const pendingKey = RedisKeyBuilder.pending(chatId);
 
     // 获取所有待处理消息
@@ -162,7 +165,7 @@ export class SimpleMergeService implements OnModuleInit {
 
     if (!rawMessages || rawMessages.length === 0) {
       this.logger.debug(`[${chatId}] 待处理队列为空（可能已被其他 Worker 处理）`);
-      return [];
+      return { messages: [], batchId: '' };
     }
 
     // 清空队列
@@ -179,8 +182,11 @@ export class SimpleMergeService implements OnModuleInit {
       }
     }
 
-    this.logger.log(`[${chatId}] 获取到 ${messages.length} 条待处理消息`);
-    return messages;
+    // 生成批次ID（格式：batch_{chatId}_{timestamp}）
+    const batchId = `batch_${chatId}_${Date.now()}`;
+
+    this.logger.log(`[${chatId}] 获取到 ${messages.length} 条待处理消息, batchId=${batchId}`);
+    return { messages, batchId };
   }
 
   /**
