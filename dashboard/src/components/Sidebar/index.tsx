@@ -125,7 +125,7 @@ export default function Sidebar() {
           to="/config"
           className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
         >
-          <span className="nav-icon"><ConfigIcon /></span> 消息配置
+          <span className="nav-icon"><ConfigIcon /></span> 回复设置
         </NavLink>
 
         {/* 系统 */}
