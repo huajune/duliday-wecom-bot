@@ -124,6 +124,8 @@ export class MonitoringDatabaseService implements OnModuleInit {
         isFallback: record.isFallback,
         fallbackSuccess: record.fallbackSuccess,
         agentInvocation: record.agentInvocation,
+        batchId: record.batchId,
+        isPrimary: record.isPrimary,
       });
     } catch (error) {
       this.logger.error(`保存消息记录异常 [${record.messageId}]:`, error);
