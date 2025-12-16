@@ -98,6 +98,9 @@ export class MonitoringService implements OnModuleInit {
 
     // 存入临时记录
     this.pendingRecords.set(messageId, record);
+    this.logger.debug(
+      `[recordMessageReceived] 已创建临时记录 [${messageId}], pendingRecords size=${this.pendingRecords.size}`,
+    );
 
     // 💾 立即保存 processing 状态到数据库（用户可见处理中的消息）
     this.saveRecordToDatabase(record).catch((err) => {
@@ -229,13 +232,16 @@ export class MonitoringService implements OnModuleInit {
     messageId: string,
     metadata?: MonitoringMetadata & { fallbackSuccess?: boolean },
   ): void {
-    this.logger.debug(`[recordSuccess] 开始处理 [${messageId}]`);
+    this.logger.debug(
+      `[recordSuccess] 开始处理 [${messageId}], pendingRecords size=${this.pendingRecords.size}`,
+    );
 
     const record = this.pendingRecords.get(messageId);
 
     if (!record) {
       this.logger.error(
-        `[recordSuccess] ❌ 临时记录未找到 [${messageId}]，无法更新状态为 success。`,
+        `[recordSuccess] ❌ 临时记录未找到 [${messageId}]，无法更新状态为 success。` +
+          ` 当前 pendingRecords 包含: [${Array.from(this.pendingRecords.keys()).join(', ')}]`,
       );
       return;
     }
@@ -283,7 +289,13 @@ export class MonitoringService implements OnModuleInit {
       })
       .finally(() => {
         // 从临时记录中删除
+        this.logger.debug(
+          `[recordSuccess] 准备删除临时记录 [${messageId}], pendingRecords size=${this.pendingRecords.size}`,
+        );
         this.pendingRecords.delete(messageId);
+        this.logger.debug(
+          `[recordSuccess] 已删除临时记录 [${messageId}], pendingRecords size=${this.pendingRecords.size}`,
+        );
       });
 
     // 同时更新 user_activity 聚合表（异步，不阻塞）

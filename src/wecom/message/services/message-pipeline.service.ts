@@ -395,12 +395,22 @@ export class MessagePipelineService {
             : undefined,
       };
 
+      this.logger.debug(
+        `[聚合处理][${chatId}] 开始标记 ${messages.length} 条消息为 success: [${messages.map((m) => m.messageId).join(', ')}]`,
+      );
+
       await Promise.all(
-        messages.map(async (message) => {
+        messages.map(async (message, index) => {
+          this.logger.debug(
+            `[聚合处理][${chatId}] 正在标记消息 ${index + 1}/${messages.length}: ${message.messageId}`,
+          );
           await this.deduplicationService.markMessageAsProcessedAsync(message.messageId);
           this.monitoringService.recordSuccess(
             message.messageId,
             message.messageId === lastMessageId ? sharedSuccessMetadata : { scenario },
+          );
+          this.logger.debug(
+            `[聚合处理][${chatId}] 已标记消息 ${index + 1}/${messages.length}: ${message.messageId}`,
           );
         }),
       );
