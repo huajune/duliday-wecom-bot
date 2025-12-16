@@ -2,10 +2,12 @@ import { useState, useEffect } from 'react';
 import {
   useAgentReplyConfig,
   useUpdateAgentReplyConfig,
+  useToggleMessageMerge,
+} from '@/hooks/monitoring/useSystemConfig';
+import {
   useWorkerStatus,
   useSetWorkerConcurrency,
-  useToggleMessageMerge,
-} from '@/hooks/useMonitoring';
+} from '@/hooks/monitoring/useWorker';
 import type { AgentReplyConfig } from '@/types/monitoring';
 
 // 组件导入

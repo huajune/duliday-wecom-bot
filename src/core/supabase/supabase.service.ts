@@ -494,6 +494,7 @@ export class SupabaseService implements OnModuleInit {
         params: {
           is_paused: 'eq.true',
           select: 'user_id,paused_at',
+          order: 'paused_at.desc', // 按禁止时间倒序排列（数据库层面）
         },
       });
 
@@ -646,7 +647,7 @@ export class SupabaseService implements OnModuleInit {
         }
       });
 
-      // 合并用户资料
+      // 合并用户资料（保持 SQL 查询返回的倒序）
       return pausedUserIds.map((user) => ({
         userId: user.userId,
         pausedAt: user.pausedAt,
@@ -655,7 +656,8 @@ export class SupabaseService implements OnModuleInit {
       }));
     } catch (error) {
       this.logger.error('查询暂停用户资料异常', error);
-      return pausedUserIds; // 降级：返回不带资料的数据
+      // 降级：返回不带资料的数据（保持 SQL 查询返回的倒序）
+      return pausedUserIds;
     }
   }
 
@@ -1744,6 +1746,149 @@ export class SupabaseService implements OnModuleInit {
       return Array.from(sessionMap.values()).sort(
         (a, b) => (b.lastTimestamp || 0) - (a.lastTimestamp || 0),
       );
+    } catch (error) {
+      this.logger.error('获取会话列表失败:', error);
+      return [];
+    }
+  }
+
+  /**
+   * 获取每日聊天统计数据（数据库聚合查询）
+   * 用于消息趋势图表展示，性能优化版本
+   * v1.5: 使用数据库 RPC 函数进行聚合查询，避免拉取大量原始数据
+   * @param startDate 开始时间
+   * @param endDate 结束时间
+   * @returns 每日统计数据（日期、消息数、活跃会话数）
+   */
+  async getChatDailyStats(
+    startDate: Date,
+    endDate: Date,
+  ): Promise<
+    Array<{
+      date: string;
+      messageCount: number;
+      sessionCount: number;
+    }>
+  > {
+    if (!this.isInitialized) {
+      return [];
+    }
+
+    try {
+      const response = await this.supabaseHttpClient.post('/rpc/get_chat_daily_stats', {
+        p_start_date: startDate.toISOString(),
+        p_end_date: endDate.toISOString(),
+      });
+
+      const stats = response.data ?? [];
+      this.logger.log(
+        `获取每日聊天统计: ${stats.length} 天的数据（${startDate.toISOString().split('T')[0]} ~ ${endDate.toISOString().split('T')[0]}）`,
+      );
+
+      // 格式化返回数据
+      return stats.map((item: any) => ({
+        date: item.date,
+        messageCount: parseInt(item.message_count, 10),
+        sessionCount: parseInt(item.session_count, 10),
+      }));
+    } catch (error) {
+      this.logger.error('获取每日聊天统计失败:', error);
+      return [];
+    }
+  }
+
+  /**
+   * 获取聊天汇总统计数据（数据库聚合查询）
+   * 用于顶部统计栏展示，性能优化版本
+   * v1.5: 使用数据库 RPC 函数进行聚合查询，替代应用层计算
+   * @param startDate 开始时间
+   * @param endDate 结束时间
+   * @returns 汇总统计（总会话数、总消息数、活跃会话数）
+   */
+  async getChatSummaryStats(
+    startDate: Date,
+    endDate: Date,
+  ): Promise<{
+    totalSessions: number;
+    totalMessages: number;
+    activeSessions: number;
+  }> {
+    if (!this.isInitialized) {
+      return { totalSessions: 0, totalMessages: 0, activeSessions: 0 };
+    }
+
+    try {
+      const response = await this.supabaseHttpClient.post('/rpc/get_chat_summary_stats', {
+        p_start_date: startDate.toISOString(),
+        p_end_date: endDate.toISOString(),
+      });
+
+      const stats = response.data ?? [];
+      const result = stats[0] ?? { total_sessions: 0, total_messages: 0, active_sessions: 0 };
+
+      this.logger.log(
+        `获取聊天汇总统计: 总会话 ${result.total_sessions}, 总消息 ${result.total_messages}, 活跃会话 ${result.active_sessions}（${startDate.toISOString().split('T')[0]} ~ ${endDate.toISOString().split('T')[0]}）`,
+      );
+
+      return {
+        totalSessions: parseInt(result.total_sessions, 10),
+        totalMessages: parseInt(result.total_messages, 10),
+        activeSessions: parseInt(result.active_sessions, 10),
+      };
+    } catch (error) {
+      this.logger.error('获取聊天汇总统计失败:', error);
+      return { totalSessions: 0, totalMessages: 0, activeSessions: 0 };
+    }
+  }
+
+  /**
+   * 获取会话列表（数据库聚合查询，性能优化版本）
+   * 用于会话列表展示，性能优化版本
+   * v1.5: 使用数据库 RPC 函数进行聚合查询，替代应用层计算
+   * @param startDate 开始时间
+   * @param endDate 结束时间
+   * @returns 会话列表（含统计信息）
+   */
+  async getChatSessionListOptimized(
+    startDate: Date,
+    endDate: Date,
+  ): Promise<
+    Array<{
+      chatId: string;
+      candidateName?: string;
+      managerName?: string;
+      messageCount: number;
+      lastMessage?: string;
+      lastTimestamp?: number;
+      avatar?: string;
+      contactType?: string;
+    }>
+  > {
+    if (!this.isInitialized) {
+      return [];
+    }
+
+    try {
+      const response = await this.supabaseHttpClient.post('/rpc/get_chat_session_list', {
+        p_start_date: startDate.toISOString(),
+        p_end_date: endDate.toISOString(),
+      });
+
+      const sessions = response.data ?? [];
+      this.logger.log(
+        `获取会话列表: ${sessions.length} 个会话（${startDate.toISOString().split('T')[0]} ~ ${endDate.toISOString().split('T')[0]}）`,
+      );
+
+      return sessions.map((item: any) => ({
+        chatId: item.chat_id,
+        candidateName: item.candidate_name,
+        managerName: item.manager_name,
+        messageCount: parseInt(item.message_count, 10),
+        lastMessage: item.last_message,
+        lastTimestamp: item.last_timestamp ? new Date(item.last_timestamp).getTime() : undefined,
+        avatar: item.avatar,
+        contactType: item.contact_type,
+      }));
     } catch (error) {
       this.logger.error('获取会话列表失败:', error);
       return [];

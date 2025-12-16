@@ -13,15 +13,15 @@ import {
   Legend,
   Filler,
 } from 'chart.js';
+import { useDashboardOverview } from '@/hooks/monitoring/useDashboard';
+import { useHealthStatus } from '@/hooks/monitoring/useMetrics';
 import {
-  useDashboardOverview,
-  useHealthStatus,
   useAiReplyStatus,
   useToggleAiReply,
   useAvailableModels,
   useConfiguredTools,
   useBrandConfigStatus,
-} from '@/hooks/useMonitoring';
+} from '@/hooks/monitoring/useSystemConfig';
 import { formatDuration, formatMinuteLabel, formatDayLabel } from '@/utils/format';
 
 // 组件导入

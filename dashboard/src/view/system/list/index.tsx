@@ -13,9 +13,9 @@ import {
 import {
   useAgentReplyConfig,
   useUpdateAgentReplyConfig,
-  useSystemMonitoring,
-  useMetrics,
-} from '@/hooks/useMonitoring';
+} from '@/hooks/monitoring/useSystemConfig';
+import { useSystemMonitoring } from '@/hooks/monitoring/useDashboard';
+import { useMetrics } from '@/hooks/monitoring/useMetrics';
 import { formatDuration, formatHourLabel } from '@/utils/format';
 import type { AgentReplyConfig } from '@/types/monitoring';
 

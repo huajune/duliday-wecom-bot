@@ -226,7 +226,13 @@
       "Bash(\"https://uvmbxcilpteaiizplcyp.supabase.co/rest/v1/user_activity?select=*&limit=3\" )",
       "Bash(\"https://uvmbxcilpteaiizplcyp.supabase.co/rest/v1/user_activity?select=*&limit=5\" )",
       "Bash(API_KEY=\"$SUPABASE_SERVICE_ROLE_KEY\" time curl:*)",
-      "Bash(API_KEY=\"$SUPABASE_SERVICE_ROLE_KEY\" curl -s \"https://uvmbxcilpteaiizplcyp.supabase.co/rest/v1/monitoring_hourly_stats?select=hour,p95_duration&order=hour.desc&limit=5\" -H \"apikey: $API_KEY\" -H \"Authorization: Bearer $API_KEY\")"
+      "Bash(API_KEY=\"$SUPABASE_SERVICE_ROLE_KEY\" curl -s \"https://uvmbxcilpteaiizplcyp.supabase.co/rest/v1/monitoring_hourly_stats?select=hour,p95_duration&order=hour.desc&limit=5\" -H \"apikey: $API_KEY\" -H \"Authorization: Bearer $API_KEY\")",
+      "Bash(__NEW_LINE__ cat /tmp/response.txt)",
+      "Bash(/tmp/test_rpc.sh)",
+      "Bash(__NEW_LINE__ node -e \"\nconst data = require(''/tmp/api_response.json'');\nconsole.log(''API 响应:'');\nif (data.success !== undefined) {\n  if (data.success && Array.isArray(data.data)) {\n    console.log(''✅ 成功！返回'', data.data.length, ''天的数据'');\n    console.log(''前 5 天:'');\n    data.data.slice(0, 5).forEach(item => {\n      console.log(''  '', item.date, ''- 消息:'', item.messageCount, ''会话:'', item.sessionCount);\n    });\n  } else {\n    console.log(''❌ 错误:'', data.error || data);\n  }\n} else {\n  console.log(''原始响应:'', JSON.stringify(data).substring(0, 200));\n}\n\")",
+      "Bash(API_KEY=\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV2bWJ4Y2lscHRlYWlpenBsY3lwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2MjkwODI2MiwiZXhwIjoyMDc4NDg0MjYyfQ.IU2po4_YttuvOyHwJSR8yU9739tjV5T6zmMyjPcGaTc\")",
+      "Bash(__NEW_LINE__ echo \"=== 测试 get_chat_summary_stats RPC 函数（近 3 天） ===\")",
+      "Bash(/tmp/test-summary-optimization.sh)"
     ],
     "deny": [
       "Bash(git restore:*)",

@@ -5,7 +5,7 @@ import styles from './index.module.scss';
 interface MonthOption {
   value: number;
   label: string;
-  monthOffset: number;
+  months: number;
 }
 
 interface AnalyticsPanelProps {
@@ -58,22 +58,22 @@ export default function AnalyticsPanel({
             <div className={styles.stats}>
               <span className={styles.statItem}>
                 <span>会话 </span>
-                <span className={styles.primary}>{stats.totalSessions}</span>
+                <span className={styles.success}>{stats.totalSessions}</span>
               </span>
               <span className={styles.statItem}>
                 <span>消息 </span>
-                <span className={styles.success}>{stats.totalMessages}</span>
+                <span className={styles.primary}>{stats.totalMessages}</span>
               </span>
             </div>
             <div className={styles.divider} />
             <div className={styles.legend}>
               <span className={styles.legendItem}>
-                <span className={`${styles.legendDot} ${styles.primary}`} />
-                消息数
+                <span className={`${styles.legendDot} ${styles.success}`} />
+                会话数
               </span>
               <span className={styles.legendItem}>
-                <span className={`${styles.legendDot} ${styles.success}`} />
-                活跃会话
+                <span className={`${styles.legendDot} ${styles.primary}`} />
+                消息数
               </span>
             </div>
           </div>

@@ -1,4 +1,4 @@
-import type { ChatSession } from '@/hooks/useMonitoring';
+import type { ChatSession } from '@/hooks/monitoring/useChatRecords';
 import styles from './index.module.scss';
 
 // 客户类型标签映射

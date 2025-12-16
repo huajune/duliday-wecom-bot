@@ -769,6 +769,95 @@ export class MonitoringController {
   }
 
   /**
+   * 获取每日聊天统计数据（数据库聚合查询，性能优化版本）
+   * GET /monitoring/chat-daily-stats?startDate=2024-01-01&endDate=2024-01-31
+   * v1.5: 用于趋势图表展示，使用数据库 RPC 函数进行聚合查询
+   */
+  @Get('chat-daily-stats')
+  async getChatDailyStats(
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+  ): Promise<
+    Array<{
+      date: string;
+      messageCount: number;
+      sessionCount: number;
+    }>
+  > {
+    const start = startDate ? new Date(startDate) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    start.setHours(0, 0, 0, 0);
+    const end = endDate ? new Date(endDate) : new Date();
+    end.setHours(23, 59, 59, 999);
+
+    this.logger.debug(
+      `获取每日聊天统计: ${start.toISOString().split('T')[0]} ~ ${end.toISOString().split('T')[0]}`,
+    );
+
+    const stats = await this.supabaseService.getChatDailyStats(start, end);
+    return stats;
+  }
+
+  /**
+   * 获取聊天汇总统计数据（数据库聚合查询，性能优化版本）
+   * GET /monitoring/chat-summary-stats?startDate=2024-01-01&endDate=2024-01-31
+   * v1.5: 用于顶部统计栏展示，使用数据库 RPC 函数进行聚合查询
+   */
+  @Get('chat-summary-stats')
+  async getChatSummaryStats(
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+  ): Promise<{
+    totalSessions: number;
+    totalMessages: number;
+    activeSessions: number;
+  }> {
+    const start = startDate ? new Date(startDate) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    start.setHours(0, 0, 0, 0);
+    const end = endDate ? new Date(endDate) : new Date();
+    end.setHours(23, 59, 59, 999);
+
+    this.logger.debug(
+      `获取聊天汇总统计: ${start.toISOString().split('T')[0]} ~ ${end.toISOString().split('T')[0]}`,
+    );
+
+    const stats = await this.supabaseService.getChatSummaryStats(start, end);
+    return stats;
+  }
+
+  /**
+   * 获取聊天会话列表（优化版，使用数据库聚合）
+   * GET /monitoring/chat-sessions-optimized?startDate=2025-12-13&endDate=2025-12-16
+   */
+  @Get('chat-sessions-optimized')
+  async getChatSessionsOptimized(
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+  ): Promise<
+    Array<{
+      chatId: string;
+      candidateName?: string;
+      managerName?: string;
+      messageCount: number;
+      lastMessage?: string;
+      lastTimestamp?: number;
+      avatar?: string;
+      contactType?: string;
+    }>
+  > {
+    const start = startDate ? new Date(startDate) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    start.setHours(0, 0, 0, 0);
+    const end = endDate ? new Date(endDate) : new Date();
+    end.setHours(23, 59, 59, 999);
+
+    this.logger.debug(
+      `获取聊天会话列表（优化版）: ${start.toISOString().split('T')[0]} ~ ${end.toISOString().split('T')[0]}`,
+    );
+
+    const sessions = await this.supabaseService.getChatSessionListOptimized(start, end);
+    return sessions;
+  }
+
+  /**
    * 获取聊天趋势数据
    * GET /monitoring/chat-trend?days=7
    */

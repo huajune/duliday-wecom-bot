@@ -11,10 +11,11 @@ import {
   Filler,
 } from 'chart.js';
 import {
-  useChatSessions,
+  useChatSessionsOptimized,
   useChatSessionMessages,
-  type ChatSession,
-} from '@/hooks/useMonitoring';
+  useChatDailyStats,
+  useChatSummaryStats,
+} from '@/hooks/monitoring/useChatRecords';
 
 // 组件导入
 import HeaderBar from './components/HeaderBar';
@@ -47,30 +48,21 @@ const TIME_RANGE_OPTIONS = [
 
 // 数据分析月度选项配置
 const ANALYTICS_MONTH_OPTIONS = [
-  { value: 0, label: '近 1 月', monthOffset: 0 },
-  { value: 1, label: '上个月', monthOffset: 1 },
-  { value: 2, label: '上上月', monthOffset: 2 },
+  { value: 0, label: '近 1 月', months: 1 },
+  { value: 1, label: '近 2 月', months: 2 },
+  { value: 2, label: '近 3 月', months: 3 },
 ];
 
 // 获取月度日期范围
-function getMonthDateRange(monthOffset: number): { startDate: string; endDate: string } {
+function getMonthDateRange(months: number): { startDate: string; endDate: string } {
   const now = new Date();
+  const endDate = getDateString(now);
 
-  if (monthOffset === 0) {
-    // 近1月：过去30天
-    const endDate = getDateString(now);
-    const startDate = new Date(now);
-    startDate.setDate(startDate.getDate() - 29);
-    return { startDate: getDateString(startDate), endDate };
-  }
+  // 计算过去 N 个月的日期范围
+  const startDate = new Date(now);
+  startDate.setDate(startDate.getDate() - (months * 30 - 1));
 
-  // 上个月、上上月：完整月份
-  const targetMonth = new Date(now.getFullYear(), now.getMonth() - monthOffset, 1);
-  const startDate = getDateString(targetMonth);
-  const lastDay = new Date(targetMonth.getFullYear(), targetMonth.getMonth() + 1, 0);
-  const endDate = getDateString(lastDay);
-
-  return { startDate, endDate };
+  return { startDate: getDateString(startDate), endDate };
 }
 
 // 获取日期字符串 (YYYY-MM-DD)
@@ -103,31 +95,31 @@ export default function ChatRecords() {
   // 根据时间范围获取会话列表数据
   const currentRange = TIME_RANGE_OPTIONS[timeRangeIndex];
   const { startDate, endDate } = getDateRange(currentRange.days);
-  const apiDays = currentRange.days === 0 ? 1 : currentRange.days;
 
   // 根据月度选项获取数据分析数据
   const currentMonthOption = ANALYTICS_MONTH_OPTIONS[analyticsMonthIndex];
   const { startDate: analyticsStartDate, endDate: analyticsEndDate } = getMonthDateRange(
-    currentMonthOption.monthOffset,
+    currentMonthOption.months,
   );
 
-  // API 请求 - 会话列表
-  const { data: sessionsData, isLoading: sessionsLoading } = useChatSessions(
-    apiDays,
+  // API 请求 - 会话列表（优化版，使用数据库聚合）
+  const { data: sessionsData, isLoading: sessionsLoading } = useChatSessionsOptimized(
     startDate,
     endDate,
   );
 
-  // API 请求 - 数据分析（独立的月度数据）
-  const { data: analyticsSessionsData, isLoading: analyticsLoading } = useChatSessions(
-    30,
+  // API 请求 - 顶部统计数据（使用聚合查询，性能优化）
+  const { data: summaryStatsData } = useChatSummaryStats(startDate, endDate);
+
+  // API 请求 - 数据分析（使用聚合查询，性能优化）
+  const { data: dailyStatsData, isLoading: analyticsLoading } = useChatDailyStats(
     analyticsStartDate,
     analyticsEndDate,
   );
   const { data: messagesData, isLoading: messagesLoading } = useChatSessionMessages(selectedChatId);
 
   const sessions = sessionsData?.sessions || [];
-  const analyticsSessions = analyticsSessionsData?.sessions || [];
+  const dailyStats = dailyStatsData || [];
   const messages = messagesData?.messages || [];
 
   // 获取当前选中的会话详情
@@ -136,67 +128,42 @@ export default function ChatRecords() {
     [sessions, selectedChatId],
   );
 
-  // 计算会话列表统计数据
-  const sessionStats = useMemo(() => {
-    return {
-      totalSessions: sessions.length,
-      totalMessages: sessions.reduce((acc: number, s: ChatSession) => acc + s.messageCount, 0),
-      activeSessions: sessions.filter((s: ChatSession) => {
-        const lastTime = s.lastTimestamp || 0;
-        const hourAgo = Date.now() - 60 * 60 * 1000;
-        return lastTime > hourAgo;
-      }).length,
-    };
-  }, [sessions]);
+  // 会话列表统计数据（从数据库聚合查询获取）
+  const sessionStats = summaryStatsData || {
+    totalSessions: 0,
+    totalMessages: 0,
+    activeSessions: 0,
+  };
 
-  // 计算数据分析统计数据
+  // 计算数据分析统计数据（从聚合结果中计算）
   const analyticsStats = useMemo(() => {
     return {
-      totalSessions: analyticsSessions.length,
-      totalMessages: analyticsSessions.reduce(
-        (acc: number, s: ChatSession) => acc + s.messageCount,
-        0,
-      ),
+      totalSessions: dailyStats.reduce((acc, day) => acc + day.sessionCount, 0),
+      totalMessages: dailyStats.reduce((acc, day) => acc + day.messageCount, 0),
     };
-  }, [analyticsSessions]);
+  }, [dailyStats]);
 
-  // 基于分析数据计算按天的趋势图数据
+  // 基于数据库聚合结果计算趋势图数据
   const dailyTrendData = useMemo(() => {
-    if (analyticsSessions.length === 0) return null;
+    if (dailyStats.length === 0) return null;
 
-    // 按日期分组汇总
-    const dailyMap = new Map<string, { messages: number; sessions: number }>();
-
-    analyticsSessions.forEach((session: ChatSession) => {
-      if (!session.lastTimestamp) return;
-      const date = new Date(session.lastTimestamp);
+    // 格式化日期为 "月/日" 格式
+    const formattedData = dailyStats.map((stat) => {
+      const date = new Date(stat.date);
       const dateKey = date.toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' });
-      if (!dailyMap.has(dateKey)) {
-        dailyMap.set(dateKey, { messages: 0, sessions: 0 });
-      }
-      const day = dailyMap.get(dateKey)!;
-      day.messages += session.messageCount;
-      day.sessions += 1;
+      return {
+        date: dateKey,
+        messages: stat.messageCount,
+        sessions: stat.sessionCount,
+      };
     });
 
-    // 按日期排序
-    const dailyArray = Array.from(dailyMap.entries())
-      .map(([date, data]) => ({ date, ...data }))
-      .sort((a, b) => {
-        const [aMonth, aDay] = a.date.split('/').map(Number);
-        const [bMonth, bDay] = b.date.split('/').map(Number);
-        if (aMonth !== bMonth) return aMonth - bMonth;
-        return aDay - bDay;
-      });
-
-    if (dailyArray.length === 0) return null;
-
     return {
-      labels: dailyArray.map((d) => d.date),
+      labels: formattedData.map((d) => d.date),
       datasets: [
         {
           label: '消息数',
-          data: dailyArray.map((d) => d.messages),
+          data: formattedData.map((d) => d.messages),
           borderColor: '#6366f1',
           backgroundColor: 'rgba(99, 102, 241, 0.1)',
           fill: true,
@@ -206,8 +173,8 @@ export default function ChatRecords() {
           pointBackgroundColor: '#6366f1',
         },
         {
-          label: '活跃会话',
-          data: dailyArray.map((d) => d.sessions),
+          label: '会话数',
+          data: formattedData.map((d) => d.sessions),
           borderColor: '#10b981',
           backgroundColor: 'rgba(16, 185, 129, 0.1)',
           fill: true,
@@ -218,7 +185,7 @@ export default function ChatRecords() {
         },
       ],
     };
-  }, [analyticsSessions]);
+  }, [dailyStats]);
 
   // Chart.js 配置
   const chartOptions = {

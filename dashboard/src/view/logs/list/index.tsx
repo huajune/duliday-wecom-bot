@@ -4,7 +4,7 @@ import {
   useMessageProcessingRecords,
   useMessageStats,
   useSlowestMessages,
-} from '@/hooks/useMonitoring';
+} from '@/hooks/monitoring/useChatRecords';
 import ControlPanel from './components/ControlPanel';
 import LogsTable from './components/LogsTable';
 import MessageDetailDrawer from './components/MessageDetailDrawer';

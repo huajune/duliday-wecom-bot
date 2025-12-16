@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useUserTrend } from '@/hooks/useMonitoring';
+import { useUserTrend } from '@/hooks/monitoring/useUsers';
 import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, Area, AreaChart } from 'recharts';
 import { IconUsers, IconBarChart, IconFlame, IconTrend, IconEmpty, IconInfo } from '../Icons';
 import styles from './index.module.scss';
