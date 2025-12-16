@@ -14,7 +14,7 @@ import {
   Filler,
 } from 'chart.js';
 import {
-  useDashboard,
+  useDashboardOverview,
   useHealthStatus,
   useAiReplyStatus,
   useToggleAiReply,
@@ -54,7 +54,7 @@ export default function Dashboard() {
   const [timeRange, setTimeRange] = useState<'today' | 'week' | 'month'>('today');
   const [autoRefresh, setAutoRefresh] = useState(true);
 
-  const { data: dashboard, isLoading: dashboardLoading, dataUpdatedAt } = useDashboard(timeRange, autoRefresh);
+  const { data: dashboard, isLoading: dashboardLoading, dataUpdatedAt } = useDashboardOverview(timeRange, autoRefresh);
   const { data: health } = useHealthStatus(autoRefresh);
   const { data: aiStatus } = useAiReplyStatus();
   const toggleAiReply = useToggleAiReply();

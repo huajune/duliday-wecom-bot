@@ -28,7 +28,10 @@ function unwrapResponse<T>(payload: unknown): T {
   return current as T;
 }
 
-// Dashboard 数据
+// Dashboard 数据（已废弃，建议使用 useDashboardOverview）
+/**
+ * @deprecated 使用 useDashboardOverview 或 useSystemMonitoring 替代
+ */
 export function useDashboard(timeRange: string, autoRefresh = true) {
   return useQuery({
     queryKey: ['dashboard', timeRange],
@@ -40,6 +43,62 @@ export function useDashboard(timeRange: string, autoRefresh = true) {
   });
 }
 
+// Dashboard 概览数据（轻量级，推荐使用）
+export function useDashboardOverview(timeRange: string, autoRefresh = true) {
+  return useQuery({
+    queryKey: ['dashboard-overview', timeRange],
+    queryFn: async () => {
+      const { data } = await api.get(`/monitoring/dashboard/overview?range=${timeRange}`);
+      return unwrapResponse<{
+        timeRange: string;
+        overview: any;
+        overviewDelta: any;
+        dailyTrend: any[];
+        businessTrend: any[];
+        responseTrend: any[];
+        business: any;
+        businessDelta: any;
+        fallback: any;
+        fallbackDelta: any;
+      }>(data);
+    },
+    refetchInterval: autoRefresh ? 5000 : false,
+  });
+}
+
+// System 监控数据（轻量级）
+export function useSystemMonitoring(autoRefresh = true) {
+  return useQuery({
+    queryKey: ['system-monitoring'],
+    queryFn: async () => {
+      const { data } = await api.get('/monitoring/dashboard/system');
+      return unwrapResponse<{
+        queue: any;
+        alertsSummary: any;
+        alertTrend: any[];
+      }>(data);
+    },
+    refetchInterval: autoRefresh ? 5000 : false,
+  });
+}
+
+// 趋势数据（独立接口）
+export function useTrendsData(timeRange: string, autoRefresh = true) {
+  return useQuery({
+    queryKey: ['trends-data', timeRange],
+    queryFn: async () => {
+      const { data } = await api.get(`/monitoring/stats/trends?range=${timeRange}`);
+      return unwrapResponse<{
+        dailyTrend: any;
+        responseTrend: any[];
+        alertTrend: any[];
+        businessTrend: any[];
+      }>(data);
+    },
+    refetchInterval: autoRefresh ? 10000 : false, // 10秒刷新
+  });
+}
+
 // 获取近1月咨询用户趋势数据
 export function useUserTrend(autoRefresh = true) {
   return useQuery({
@@ -48,11 +107,34 @@ export function useUserTrend(autoRefresh = true) {
       const { data } = await api.get('/monitoring/user-trend');
       return unwrapResponse<Array<{
         date: string;
-        userCount: number;
+        uniqueUsers: number;
         messageCount: number;
+        tokenUsage: number;
       }>>(data);
     },
     refetchInterval: autoRefresh ? 60000 : false, // 1分钟刷新一次
+  });
+}
+
+// 获取今日咨询用户列表（轻量级接口，仅返回用户数据）
+export function useTodayUsers(autoRefresh = true) {
+  return useQuery({
+    queryKey: ['today-users'],
+    queryFn: async () => {
+      const { data } = await api.get('/monitoring/users');
+      return unwrapResponse<Array<{
+        chatId: string;
+        odId: string;
+        odName: string;
+        groupName?: string;
+        messageCount: number;
+        tokenUsage: number;
+        firstActiveAt: number; // 时间戳
+        lastActiveAt: number; // 时间戳
+        isPaused: boolean;
+      }>>(data);
+    },
+    refetchInterval: autoRefresh ? 10000 : false, // 10秒刷新一次
   });
 }
 
@@ -676,7 +758,48 @@ export function useChatSessionMessages(chatId: string | null) {
 
 // ==================== 消息处理记录（持久化）====================
 
-// 获取消息处理记录（持久化到数据库的完整记录）
+// 获取消息统计数据（聚合查询，轻量级）
+export function useMessageStats(options?: { startDate?: string; endDate?: string }) {
+  return useQuery({
+    queryKey: ['message-stats', options],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (options?.startDate) params.set('startDate', options.startDate);
+      if (options?.endDate) params.set('endDate', options.endDate);
+
+      const { data } = await api.get(`/monitoring/message-stats?${params.toString()}`);
+      return unwrapResponse<{
+        total: number;
+        success: number;
+        failed: number;
+        avgDuration: number;
+      }>(data);
+    },
+    refetchInterval: 5000, // 每 5 秒刷新
+  });
+}
+
+// 获取最慢消息 Top N（数据库排序，轻量级）
+export function useSlowestMessages(options?: {
+  startDate?: string;
+  endDate?: string;
+  limit?: number;
+}) {
+  return useQuery({
+    queryKey: ['slowest-messages', options],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (options?.startDate) params.set('startDate', options.startDate);
+      if (options?.endDate) params.set('endDate', options.endDate);
+      if (options?.limit) params.set('limit', String(options.limit));
+
+      const { data } = await api.get(`/monitoring/slowest-messages?${params.toString()}`);
+      return unwrapResponse<MessageRecord[]>(data);
+    },
+    refetchInterval: 5000, // 每 5 秒刷新
+  });
+}
+
 export function useMessageProcessingRecords(options?: {
   startDate?: string;
   endDate?: string;
@@ -699,5 +822,19 @@ export function useMessageProcessingRecords(options?: {
       const { data } = await api.get(`/monitoring/message-processing-records?${params.toString()}`);
       return unwrapResponse<MessageRecord[]>(data);
     },
+  });
+}
+
+// 获取单条消息处理记录详情（按需加载，包含完整的 agentInvocation）
+export function useMessageProcessingRecordDetail(messageId: string | null) {
+  return useQuery({
+    queryKey: ['message-processing-record-detail', messageId],
+    queryFn: async () => {
+      if (!messageId) return null;
+      const { data } = await api.get(`/monitoring/message-processing-records/${encodeURIComponent(messageId)}`);
+      return unwrapResponse<MessageRecord>(data);
+    },
+    enabled: !!messageId,
+    staleTime: 60000, // 1 分钟内不重新请求
   });
 }

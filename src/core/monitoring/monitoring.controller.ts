@@ -38,14 +38,72 @@ export class MonitoringController {
   ) {}
 
   /**
-   * 获取仪表盘数据
+   * 获取仪表盘数据（完整版，已废弃，建议使用专用接口）
    * GET /monitoring/dashboard?range=today|week|month
-   * 今日用户数据优先从数据库获取
+   * @deprecated 建议使用 /monitoring/dashboard/overview 或 /monitoring/dashboard/system
    */
   @Get('dashboard')
   async getDashboard(@Query('range') range?: TimeRange): Promise<DashboardData> {
     const timeRange = range || 'today';
+    this.logger.warn(
+      `[已废弃] /monitoring/dashboard 接口已废弃，建议使用专用接口: /dashboard/overview 或 /dashboard/system`,
+    );
     return this.monitoringService.getDashboardDataAsync(timeRange);
+  }
+
+  /**
+   * 获取 Dashboard 概览数据（轻量级）
+   * GET /monitoring/dashboard/overview?range=today|week|month
+   * 用于 Dashboard 页面，仅返回必需数据
+   */
+  @Get('dashboard/overview')
+  async getDashboardOverview(@Query('range') range?: TimeRange): Promise<{
+    timeRange: string;
+    overview: any;
+    overviewDelta: any;
+    dailyTrend: any[];
+    businessTrend: any[];
+    responseTrend: any[];
+    business: any;
+    businessDelta: any;
+    fallback: any;
+    fallbackDelta: any;
+  }> {
+    const timeRange = range || 'today';
+    this.logger.debug(`获取 Dashboard 概览: ${timeRange}`);
+    return this.monitoringService.getDashboardOverviewAsync(timeRange);
+  }
+
+  /**
+   * 获取 System 监控数据（轻量级）
+   * GET /monitoring/dashboard/system
+   * 用于 System 页面，仅返回队列和告警数据
+   */
+  @Get('dashboard/system')
+  async getSystemMonitoring(): Promise<{
+    queue: any;
+    alertsSummary: any;
+    alertTrend: any[];
+  }> {
+    this.logger.debug('获取 System 监控数据');
+    return this.monitoringService.getSystemMonitoringAsync();
+  }
+
+  /**
+   * 获取趋势数据（独立接口）
+   * GET /monitoring/stats/trends?range=today|week|month
+   * 用于各类趋势图表
+   */
+  @Get('stats/trends')
+  async getTrends(@Query('range') range?: TimeRange): Promise<{
+    dailyTrend: any;
+    responseTrend: any[];
+    alertTrend: any[];
+    businessTrend: any[];
+  }> {
+    const timeRange = range || 'today';
+    this.logger.debug(`获取趋势数据: ${timeRange}`);
+    return this.monitoringService.getTrendsDataAsync(timeRange);
   }
 
   /**
@@ -764,14 +822,98 @@ export class MonitoringController {
   }
 
   /**
-   * 获取消息处理记录（持久化数据）
+   * 获取消息统计数据（聚合查询，轻量级）
+   * GET /monitoring/message-stats
+   * 查询参数:
+   *   - startDate: 开始日期 (YYYY-MM-DD)
+   *   - endDate: 结束日期 (YYYY-MM-DD)
+   * 返回: { total, success, failed, avgDuration }
+   */
+  @Get('message-stats')
+  async getMessageStats(
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+  ): Promise<{
+    total: number;
+    success: number;
+    failed: number;
+    avgDuration: number;
+  }> {
+    const options: any = {};
+
+    if (startDate) {
+      const start = new Date(startDate);
+      start.setHours(0, 0, 0, 0);
+      options.startDate = start;
+    }
+
+    if (endDate) {
+      const end = new Date(endDate);
+      end.setHours(23, 59, 59, 999);
+      options.endDate = end;
+    }
+
+    this.logger.debug(`获取消息统计: ${JSON.stringify(options)}`);
+
+    // 直接查询聚合统计（使用 Supabase 的聚合查询，不拉取详细记录）
+    const stats = await this.monitoringService.getMessageStatsAsync(
+      options.startDate?.getTime() || Date.now() - 24 * 60 * 60 * 1000,
+      options.endDate?.getTime() || Date.now(),
+    );
+
+    return stats;
+  }
+
+  /**
+   * 获取最慢消息 Top N（专用接口，数据库排序）
+   * GET /monitoring/slowest-messages
+   * 查询参数:
+   *   - startDate: 开始日期 (YYYY-MM-DD)
+   *   - endDate: 结束日期 (YYYY-MM-DD)
+   *   - limit: 返回数量 (默认 10)
+   */
+  @Get('slowest-messages')
+  async getSlowestMessages(
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('limit') limit?: string,
+  ): Promise<any[]> {
+    const options: any = {
+      limit: limit ? parseInt(limit, 10) : 10,
+    };
+
+    if (startDate) {
+      const start = new Date(startDate);
+      start.setHours(0, 0, 0, 0);
+      options.startDate = start;
+    }
+
+    if (endDate) {
+      const end = new Date(endDate);
+      end.setHours(23, 59, 59, 999);
+      options.endDate = end;
+    }
+
+    this.logger.debug(`获取最慢消息 Top ${options.limit}: ${JSON.stringify(options)}`);
+    const records = await this.supabaseService.getSlowestMessages(
+      options.startDate?.getTime(),
+      options.endDate?.getTime(),
+      options.limit,
+    );
+    return records;
+  }
+
+  /**
+   * 获取消息处理记录（持久化数据，支持分页和排序）
    * GET /monitoring/message-processing-records
    * 查询参数:
    *   - startDate: 开始日期 (YYYY-MM-DD)
    *   - endDate: 结束日期 (YYYY-MM-DD)
    *   - status: 状态筛选 (processing|success|failure)
    *   - chatId: 会话ID筛选
-   *   - limit: 返回数量限制 (默认 100)
+   *   - orderBy: 排序字段 (receivedAt|aiDuration，默认 receivedAt)
+   *   - order: 排序方向 (asc|desc，默认 desc)
+   *   - limit: 返回数量限制 (默认 50，最大 200)
    *   - offset: 偏移量 (默认 0)
    */
   @Get('message-processing-records')
@@ -816,5 +958,18 @@ export class MonitoringController {
     this.logger.debug(`获取消息处理记录: ${JSON.stringify(options)}`);
     const records = await this.supabaseService.getMessageProcessingRecords(options);
     return records;
+  }
+
+  /**
+   * 获取单条消息处理记录详情（包含完整的 agent_invocation）
+   * GET /monitoring/message-processing-records/:messageId
+   */
+  @Get('message-processing-records/:messageId')
+  async getMessageProcessingRecordDetail(
+    @Param('messageId') messageId: string,
+  ): Promise<any | null> {
+    this.logger.debug(`获取消息处理记录详情: ${messageId}`);
+    const record = await this.supabaseService.getMessageProcessingRecordById(messageId);
+    return record;
   }
 }

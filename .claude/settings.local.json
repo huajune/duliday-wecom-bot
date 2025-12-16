@@ -213,7 +213,20 @@
       "Bash(/usr/bin/curl -s -X POST \"https://open.feishu.cn/open-apis/contact/v3/users/batch_get_id?user_id_type=open_id\" )",
       "Bash(/usr/bin/curl -s -X POST \"https://open.feishu.cn/open-apis/contact/v3/users/batch_get_id?user_id_type=open_id\" -H \"Authorization: Bearer t-g104cff7OR35Q5RKHE4JMOKGER6VIFFTJ7YZ73EE\" -H \"Content-Type: application/json\" -d '{\"\"\"\"mobiles\"\"\"\": [\"\"\"\"15114818773\"\"\"\", \"\"\"\"13683856674\"\"\"\"]}')",
       "Bash(TOKEN=\"t-g104cff7OR35Q5RKHE4JMOKGER6VIFFTJ7YZ73EE\" /usr/bin/curl -s -X POST \"https://open.feishu.cn/open-apis/contact/v3/users/batch_get_id?user_id_type=open_id\" -H \"Authorization: Bearer $TOKEN\" -H \"Content-Type: application/json\" -d '{\"\"\"\"mobiles\"\"\"\": [\"\"\"\"15114818773\"\"\"\", \"\"\"\"13683856674\"\"\"\"]}')",
-      "Bash(TOKEN=\"t-g104cff7OR35Q5RKHE4JMOKGER6VIFFTJ7YZ73EE\")"
+      "Bash(TOKEN=\"t-g104cff7OR35Q5RKHE4JMOKGER6VIFFTJ7YZ73EE\")",
+      "Bash(API_KEY=\"$SUPABASE_SERVICE_ROLE_KEY\" curl -s -w \"\\nHTTP Status: %{http_code}\\nTime: %{time_total}s\\n\" \"https://uvmbxcilpteaiizplcyp.supabase.co/rest/v1/user_activity?limit=1\" -H \"apikey: $API_KEY\" -H \"Authorization: Bearer $API_KEY\")",
+      "Bash([ -n \"$SUPABASE_SERVICE_ROLE_KEY\" ])",
+      "Bash(\"https://uvmbxcilpteaiizplcyp.supabase.co/rest/v1/user_activity?limit=1\" )",
+      "Bash(\"https://uvmbxcilpteaiizplcyp.supabase.co/rest/v1/chat_messages?limit=1&select=id,chat_id\" )",
+      "Bash(do)",
+      "Bash(\"https://uvmbxcilpteaiizplcyp.supabase.co/rest/v1/chat_messages?limit=1&select=id\" )",
+      "Bash(\"https://uvmbxcilpteaiizplcyp.supabase.co/rest/v1/chat_messages?select=id&limit=5\" )",
+      "Bash(\"https://uvmbxcilpteaiizplcyp.supabase.co/rest/v1/user_activity?select=id,date&limit=5\" )",
+      "Bash(\"https://uvmbxcilpteaiizplcyp.supabase.co/rest/v1/user_activity?select=id,activity_date&limit=5\" )",
+      "Bash(\"https://uvmbxcilpteaiizplcyp.supabase.co/rest/v1/user_activity?select=*&limit=3\" )",
+      "Bash(\"https://uvmbxcilpteaiizplcyp.supabase.co/rest/v1/user_activity?select=*&limit=5\" )",
+      "Bash(API_KEY=\"$SUPABASE_SERVICE_ROLE_KEY\" time curl:*)",
+      "Bash(API_KEY=\"$SUPABASE_SERVICE_ROLE_KEY\" curl -s \"https://uvmbxcilpteaiizplcyp.supabase.co/rest/v1/monitoring_hourly_stats?select=hour,p95_duration&order=hour.desc&limit=5\" -H \"apikey: $API_KEY\" -H \"Authorization: Bearer $API_KEY\")"
     ],
     "deny": [
       "Bash(git restore:*)",

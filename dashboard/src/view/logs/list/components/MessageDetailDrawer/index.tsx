@@ -1,17 +1,45 @@
 import { useState } from 'react';
 import { formatDateTime } from '@/utils/format';
-import type { MessageRecord } from '@/types/monitoring';
+import { useMessageProcessingRecordDetail } from '@/hooks/useMonitoring';
 import HistorySection from './HistorySection';
 import ChatSection from './ChatSection';
 import TechnicalStats from './TechnicalStats';
 
 interface MessageDetailDrawerProps {
-  message: MessageRecord;
+  messageId: string;
   onClose: () => void;
 }
 
-export default function MessageDetailDrawer({ message, onClose }: MessageDetailDrawerProps) {
+export default function MessageDetailDrawer({ messageId, onClose }: MessageDetailDrawerProps) {
   const [showRaw, setShowRaw] = useState(true);
+
+  // 按需加载完整详情（包含 agentInvocation）
+  const { data: message, isLoading } = useMessageProcessingRecordDetail(messageId);
+
+  const handleOverlayClick = (e: React.MouseEvent) => {
+    if (e.target === e.currentTarget) {
+      onClose();
+    }
+  };
+
+  // 加载中状态
+  if (isLoading || !message) {
+    return (
+      <div className="drawer-overlay" onClick={handleOverlayClick}>
+        <div className="drawer-content">
+          <div className="modal-header" style={{ padding: '20px 24px', borderBottom: '1px solid var(--border)' }}>
+            <h3 style={{ margin: 0, fontSize: '18px' }}>消息详情</h3>
+            <button className="modal-close" onClick={onClose}>
+              &times;
+            </button>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 1, color: 'var(--text-secondary)' }}>
+            {isLoading ? '加载中...' : '未找到消息详情'}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // 从 agentInvocation.response.messages 中提取完整的 assistant 响应
   const getFullAgentResponse = (): string => {
@@ -33,12 +61,6 @@ export default function MessageDetailDrawer({ message, onClose }: MessageDetailD
       message.replyPreview ||
       '(无响应内容)'
     );
-  };
-
-  const handleOverlayClick = (e: React.MouseEvent) => {
-    if (e.target === e.currentTarget) {
-      onClose();
-    }
   };
 
   return (

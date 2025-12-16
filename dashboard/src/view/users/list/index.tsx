@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useDashboard, useToggleUserHosting, usePausedUsers } from '@/hooks/useMonitoring';
+import { useTodayUsers, useToggleUserHosting, usePausedUsers } from '@/hooks/useMonitoring';
 
 // 类型导入
 import type { TabType } from './types';
@@ -17,7 +17,7 @@ import styles from './styles/index.module.scss';
 
 export default function Users() {
   const [activeTab, setActiveTab] = useState<TabType>('today');
-  const { data: dashboard, isLoading: isTodayLoading } = useDashboard('today');
+  const { data: todayUsers = [], isLoading: isTodayLoading } = useTodayUsers();
   const { data: pausedUsers = [], isLoading: isPausedLoading } = usePausedUsers();
   const toggleHosting = useToggleUserHosting();
 
@@ -25,7 +25,6 @@ export default function Users() {
     toggleHosting.mutate({ chatId, enabled });
   };
 
-  const todayUsers = dashboard?.todayUsers || [];
   const pausedUsersData = transformPausedUsers(pausedUsers);
 
   const displayUsers = activeTab === 'today' ? todayUsers : pausedUsersData;

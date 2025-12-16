@@ -423,9 +423,9 @@ export class MonitoringService implements OnModuleInit {
         todayUsers,
         globalCounters,
       ] = await Promise.all([
-        // 当前时间范围的详细记录
+        // 当前时间范围的消息记录
         this.databaseService.getRecordsByTimeRange(currentStart, currentEnd),
-        // 前一时间范围的记录（用于计算增长率）
+        // 前一时间范围的消息记录（用于计算增长率）
         this.databaseService.getRecordsByTimeRange(previousStart, previousEnd),
         // 最近 50 条消息
         this.databaseService.getRecentDetailRecords(50),
@@ -437,7 +437,7 @@ export class MonitoringService implements OnModuleInit {
         this.cacheService.getCounters(),
       ]);
 
-      // 3. 计算基础统计指标
+      // 3. 计算基础指标
       const overview = this.calculateOverview(currentRecords);
       const previousOverview = this.calculateOverview(previousRecords);
       const overviewDelta = this.calculateOverviewDelta(overview, previousOverview);
@@ -1583,6 +1583,157 @@ export class MonitoringService implements OnModuleInit {
   }
 
   /**
+   * 获取消息统计数据（聚合查询，轻量级）
+   * 用于消息记录页面顶部统计
+   */
+  async getMessageStatsAsync(
+    startTime: number,
+    endTime: number,
+  ): Promise<{
+    total: number;
+    success: number;
+    failed: number;
+    avgDuration: number;
+  }> {
+    return this.databaseService.getMessageStats(startTime, endTime);
+  }
+
+  /**
+   * 获取 Dashboard 概览数据（轻量级）
+   * 用于 Dashboard 页面
+   */
+  async getDashboardOverviewAsync(timeRange: TimeRange = 'today'): Promise<{
+    timeRange: string;
+    overview: any;
+    overviewDelta: any;
+    dailyTrend: DailyStats[];
+    businessTrend: any[];
+    responseTrend: any[];
+    business: any;
+    businessDelta: any;
+    fallback: any;
+    fallbackDelta: any;
+  }> {
+    try {
+      // 1. 计算时间范围
+      const timeRanges = this.calculateTimeRanges(timeRange);
+      const { currentStart, currentEnd, previousStart, previousEnd } = timeRanges;
+
+      // 2. 并行查询必需的数据（仅 3 个查询）
+      const [currentRecords, previousRecords] = await Promise.all([
+        this.databaseService.getRecordsByTimeRange(currentStart, currentEnd),
+        this.databaseService.getRecordsByTimeRange(previousStart, previousEnd),
+      ]);
+
+      // 3. 计算基础指标
+      const overview = this.calculateOverview(currentRecords);
+      const previousOverview = this.calculateOverview(previousRecords);
+      const overviewDelta = this.calculateOverviewDelta(overview, previousOverview);
+
+      // 4. 计算降级统计
+      const fallback = this.calculateFallbackStats(currentRecords);
+      const previousFallback = this.calculateFallbackStats(previousRecords);
+      const fallbackDelta = this.calculateFallbackDelta(fallback, previousFallback);
+
+      // 5. 计算业务指标
+      const business = this.calculateBusinessMetrics(currentRecords);
+      const previousBusiness = this.calculateBusinessMetrics(previousRecords);
+      const businessDelta = this.calculateBusinessDelta(business, previousBusiness);
+
+      // 6. 构建趋势数据
+      const dailyTrend = this.buildDailyTrend(currentRecords);
+      const businessTrend = this.buildBusinessTrend(currentRecords, timeRange);
+      const responseTrend = this.buildResponseTrend(currentRecords, timeRange);
+
+      return {
+        timeRange,
+        overview,
+        overviewDelta,
+        dailyTrend,
+        businessTrend,
+        responseTrend,
+        business,
+        businessDelta,
+        fallback,
+        fallbackDelta,
+      };
+    } catch (error) {
+      this.logger.error('获取Dashboard概览数据失败:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 获取 System 监控数据（轻量级）
+   * 用于 System 页面
+   */
+  async getSystemMonitoringAsync(): Promise<{
+    queue: any;
+    alertsSummary: any;
+    alertTrend: any[];
+  }> {
+    try {
+      // 并行查询必需的数据（仅 3 个查询）
+      const [currentRecords, errorLogs, globalCounters] = await Promise.all([
+        this.databaseService.getRecordsByTimeRange(Date.now() - 24 * 60 * 60 * 1000, Date.now()),
+        this.databaseService.getErrorLogsByTimeRange('today'),
+        this.cacheService.getCounters(),
+      ]);
+
+      // 计算队列统计
+      const queue = this.calculateQueueMetrics(currentRecords, globalCounters);
+
+      // 计算告警统计
+      const alertsSummary = await this.calculateAlertsSummary(errorLogs);
+
+      // 构建告警趋势
+      const alertTrend = this.buildAlertTrend(errorLogs, 'today');
+
+      return {
+        queue,
+        alertsSummary,
+        alertTrend,
+      };
+    } catch (error) {
+      this.logger.error('获取System监控数据失败:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 获取趋势数据（独立接口）
+   * 用于各类趋势图表
+   */
+  async getTrendsDataAsync(timeRange: TimeRange = 'today'): Promise<{
+    dailyTrend: any;
+    responseTrend: any[];
+    alertTrend: any[];
+    businessTrend: any[];
+  }> {
+    try {
+      const timeRanges = this.calculateTimeRanges(timeRange);
+      const { currentStart, currentEnd } = timeRanges;
+
+      // 并行查询
+      const [currentRecords, errorLogs, trends] = await Promise.all([
+        this.databaseService.getRecordsByTimeRange(currentStart, currentEnd),
+        this.databaseService.getErrorLogsByTimeRange(timeRange),
+        this.calculateTrends(timeRange),
+      ]);
+
+      return {
+        dailyTrend: trends,
+        responseTrend: this.buildResponseTrend(currentRecords, timeRange),
+        alertTrend: this.buildAlertTrend(errorLogs, timeRange),
+        businessTrend: this.buildBusinessTrend(currentRecords, timeRange),
+      };
+    } catch (error) {
+      this.logger.error('获取趋势数据失败:', error);
+      throw error;
+    }
+  }
+
+  /**
    * 获取详细指标数据（用于 /monitoring/metrics 接口）
    */
   async getMetricsDataAsync(): Promise<MetricsData> {
@@ -1595,9 +1746,16 @@ export class MonitoringService implements OnModuleInit {
         this.databaseService.getRecentErrors(20),
       ]);
 
-      // 计算百分位数
+      // 计算百分位数（过滤超时和失败记录，只统计正常完成的请求）
+      // 超时阈值: 60秒 (避免被1小时超时清理的记录污染统计)
+      const MAX_DURATION_MS = 60 * 1000;
       const durations = detailRecords
-        .filter((r) => r.totalDuration !== undefined)
+        .filter(
+          (r) =>
+            r.status === 'success' &&
+            r.totalDuration !== undefined &&
+            r.totalDuration <= MAX_DURATION_MS,
+        )
         .map((r) => r.totalDuration!);
 
       const percentiles = this.calculatePercentilesFromArray(durations);

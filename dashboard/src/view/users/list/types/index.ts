@@ -11,8 +11,8 @@ export interface UserData {
   groupName?: string;
   messageCount: number;
   tokenUsage: number;
-  firstActiveAt: string;
-  lastActiveAt: string;
+  firstActiveAt: number; // 时间戳（毫秒）
+  lastActiveAt: number; // 时间戳（毫秒）
   isPaused: boolean;
 }
 

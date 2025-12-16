@@ -34,6 +34,10 @@ export class MonitoringDatabaseService implements OnModuleInit {
   private readonly TABLE_ERROR_LOGS = 'monitoring_error_logs';
   private readonly TABLE_DAILY_STATS = 'monitoring_daily_stats';
 
+  // 查询缓存（简单内存缓存，避免频繁查询）
+  private queryCache = new Map<string, { data: any; timestamp: number }>();
+  private readonly CACHE_TTL_MS = 60 * 1000; // 1 分钟缓存
+
   constructor(
     private readonly supabaseService: SupabaseService,
     private readonly configService: ConfigService,
@@ -61,6 +65,28 @@ export class MonitoringDatabaseService implements OnModuleInit {
       },
       supabaseKey,
     );
+
+    // 每 5 分钟清理过期缓存，防止内存泄漏
+    setInterval(() => this.cleanExpiredCache(), 5 * 60 * 1000);
+  }
+
+  /**
+   * 清理过期的查询缓存
+   */
+  private cleanExpiredCache(): void {
+    const now = Date.now();
+    let cleanedCount = 0;
+
+    for (const [key, value] of this.queryCache.entries()) {
+      if (now - value.timestamp > this.CACHE_TTL_MS) {
+        this.queryCache.delete(key);
+        cleanedCount++;
+      }
+    }
+
+    if (cleanedCount > 0) {
+      this.logger.debug(`已清理 ${cleanedCount} 条过期缓存`);
+    }
   }
 
   // ========================================
@@ -158,23 +184,37 @@ export class MonitoringDatabaseService implements OnModuleInit {
     endTime: number,
   ): Promise<MessageProcessingRecord[]> {
     try {
+      // 查询缓存键
+      const cacheKey = `records_${startTime}_${endTime}`;
+      const cached = this.queryCache.get(cacheKey);
+
+      // 如果缓存有效，直接返回
+      if (cached && Date.now() - cached.timestamp < this.CACHE_TTL_MS) {
+        this.logger.debug(`使用缓存数据: ${cacheKey}`);
+        return cached.data;
+      }
+
       const startDate = new Date(startTime).toISOString();
       const endDate = new Date(endTime).toISOString();
 
+      // 优化：降低查询限制，添加超时控制
       const response = await this.supabaseHttpClient.get<any[]>('/message_processing_records', {
         params: {
           and: `(received_at.gte.${startDate},received_at.lt.${endDate})`,
           order: 'received_at.desc',
-          limit: 10000, // 最多查询 1 万条
+          limit: 5000, // 降低到 5000 条以减少查询时间
         },
+        timeout: 8000, // 8 秒超时
       });
 
       if (!response.data || response.data.length === 0) {
+        // 缓存空结果
+        this.queryCache.set(cacheKey, { data: [], timestamp: Date.now() });
         return [];
       }
 
       // 转换 snake_case 到 camelCase
-      return response.data.map((record: any) => ({
+      const records = response.data.map((record: any) => ({
         messageId: record.message_id,
         chatId: record.chat_id,
         userId: record.user_id,
@@ -202,9 +242,97 @@ export class MonitoringDatabaseService implements OnModuleInit {
         replySegments: record.reply_segments,
         alertType: record.alert_type,
       }));
+
+      // 缓存查询结果
+      this.queryCache.set(cacheKey, { data: records, timestamp: Date.now() });
+
+      return records;
     } catch (error) {
       this.logger.error('按时间范围查询消息记录失败:', error);
       return [];
+    }
+  }
+
+  /**
+   * 获取消息统计（聚合查询，轻量级）
+   * 使用 Supabase 的 count 功能进行数据库级聚合，避免拉取全量数据
+   */
+  async getMessageStats(
+    startTime: number,
+    endTime: number,
+  ): Promise<{
+    total: number;
+    success: number;
+    failed: number;
+    avgDuration: number;
+  }> {
+    try {
+      const startDate = new Date(startTime).toISOString();
+      const endDate = new Date(endTime).toISOString();
+
+      // 并行查询各项统计（使用 select=count 进行数据库级聚合）
+      const [totalRes, successRes, failedRes, avgDurationRes] = await Promise.all([
+        // 总数
+        this.supabaseHttpClient.get<any[]>('/message_processing_records', {
+          params: {
+            and: `(received_at.gte.${startDate},received_at.lt.${endDate})`,
+            select: 'count',
+          },
+          headers: { Prefer: 'count=exact' },
+          timeout: 5000,
+        }),
+        // 成功数
+        this.supabaseHttpClient.get<any[]>('/message_processing_records', {
+          params: {
+            and: `(received_at.gte.${startDate},received_at.lt.${endDate},status.eq.success)`,
+            select: 'count',
+          },
+          headers: { Prefer: 'count=exact' },
+          timeout: 5000,
+        }),
+        // 失败数
+        this.supabaseHttpClient.get<any[]>('/message_processing_records', {
+          params: {
+            and: `(received_at.gte.${startDate},received_at.lt.${endDate},status.in.(failure,failed))`,
+            select: 'count',
+          },
+          headers: { Prefer: 'count=exact' },
+          timeout: 5000,
+        }),
+        // 平均耗时（仅查询 ai_duration 字段用于计算）
+        this.supabaseHttpClient.get<any[]>('/message_processing_records', {
+          params: {
+            and: `(received_at.gte.${startDate},received_at.lt.${endDate},status.eq.success)`,
+            select: 'ai_duration',
+            limit: 1000, // 最多取 1000 条用于计算平均值
+          },
+          timeout: 5000,
+        }),
+      ]);
+
+      // 从响应头中提取 count
+      const total = parseInt(totalRes.headers['content-range']?.split('/')[1] || '0', 10);
+      const success = parseInt(successRes.headers['content-range']?.split('/')[1] || '0', 10);
+      const failed = parseInt(failedRes.headers['content-range']?.split('/')[1] || '0', 10);
+
+      // 计算平均耗时
+      const durations = (avgDurationRes.data || [])
+        .map((r: any) => r.ai_duration)
+        .filter((d: number) => d !== null && d !== undefined && d > 0);
+
+      const avgDuration =
+        durations.length > 0
+          ? Math.round(durations.reduce((sum: number, d: number) => sum + d, 0) / durations.length)
+          : 0;
+
+      this.logger.debug(
+        `消息统计: total=${total}, success=${success}, failed=${failed}, avgDuration=${avgDuration}ms`,
+      );
+
+      return { total, success, failed, avgDuration };
+    } catch (error) {
+      this.logger.error('获取消息统计失败:', error);
+      return { total: 0, success: 0, failed: 0, avgDuration: 0 };
     }
   }
 

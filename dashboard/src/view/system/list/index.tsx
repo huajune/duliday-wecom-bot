@@ -13,7 +13,7 @@ import {
 import {
   useAgentReplyConfig,
   useUpdateAgentReplyConfig,
-  useDashboard,
+  useSystemMonitoring,
   useMetrics,
 } from '@/hooks/useMonitoring';
 import { formatDuration, formatHourLabel } from '@/utils/format';
@@ -43,7 +43,7 @@ export default function System() {
   const updateConfig = useUpdateAgentReplyConfig();
 
   // 获取真实数据
-  const { data: dashboard } = useDashboard('today');
+  const { data: dashboard } = useSystemMonitoring();
   const { data: metrics } = useMetrics();
 
   // 告警配置本地状态

@@ -2435,6 +2435,69 @@ export class SupabaseService implements OnModuleInit {
    * @param options 查询选项
    * @returns 消息处理记录列表
    */
+  /**
+   * 获取最慢的消息（按 AI 处理耗时降序排序）
+   */
+  async getSlowestMessages(
+    startTime?: number,
+    endTime?: number,
+    limit: number = 10,
+  ): Promise<any[]> {
+    if (!this.isInitialized) {
+      this.logger.warn('[最慢消息] Supabase 未初始化');
+      return [];
+    }
+
+    try {
+      const params: any = {
+        // 过滤：只查询成功且有 AI 耗时的记录
+        and: [],
+        // 排序：按 ai_duration 降序
+        order: 'ai_duration.desc',
+        limit,
+      };
+
+      // 时间范围
+      const conditions = ['status.eq.success', 'ai_duration.gt.0'];
+      if (startTime) {
+        conditions.push(`received_at.gte.${new Date(startTime).toISOString()}`);
+      }
+      if (endTime) {
+        conditions.push(`received_at.lte.${new Date(endTime).toISOString()}`);
+      }
+
+      params.and = `(${conditions.join(',')})`;
+
+      // 只选择需要的字段
+      params.select =
+        'message_id,chat_id,user_id,user_name,manager_name,received_at,message_preview,reply_preview,status,ai_duration,total_duration,scenario,tools,token_usage';
+
+      const response = await this.supabaseHttpClient.get('/message_processing_records', {
+        params,
+      });
+
+      return (response.data ?? []).map((row: any) => ({
+        messageId: row.message_id,
+        chatId: row.chat_id,
+        userId: row.user_id,
+        userName: row.user_name,
+        managerName: row.manager_name,
+        receivedAt: new Date(row.received_at).getTime(),
+        messagePreview: row.message_preview,
+        replyPreview: row.reply_preview,
+        status: row.status,
+        aiDuration: row.ai_duration,
+        totalDuration: row.total_duration,
+        scenario: row.scenario,
+        tools: row.tools,
+        tokenUsage: row.token_usage,
+      }));
+    } catch (error) {
+      this.logger.error('[最慢消息] 查询失败:', error);
+      return [];
+    }
+  }
+
   async getMessageProcessingRecords(options?: {
     startDate?: Date;
     endDate?: Date;
@@ -2471,7 +2534,7 @@ export class SupabaseService implements OnModuleInit {
         params.chat_id = `eq.${options.chatId}`;
       }
 
-      // 排序和分页
+      // 排序和分页（默认按接收时间倒序）
       params.order = 'received_at.desc';
       if (options?.limit) {
         params.limit = options.limit;
@@ -2479,6 +2542,10 @@ export class SupabaseService implements OnModuleInit {
       if (options?.offset) {
         params.offset = options.offset;
       }
+
+      // 只选择需要的字段，排除 agent_invocation（平均 677KB/行）以提升查询性能
+      params.select =
+        'message_id,chat_id,user_id,user_name,manager_name,received_at,message_preview,reply_preview,reply_segments,status,error,scenario,total_duration,queue_duration,prep_duration,ai_start_at,ai_end_at,ai_duration,send_duration,tools,token_usage,is_fallback,fallback_success';
 
       const response = await this.supabaseHttpClient.get('/message_processing_records', {
         params,
@@ -2513,6 +2580,65 @@ export class SupabaseService implements OnModuleInit {
     } catch (error) {
       this.logger.error('[消息处理记录] 查询失败:', error);
       return [];
+    }
+  }
+
+  /**
+   * 根据 messageId 获取单条消息处理记录详情（包含完整的 agent_invocation）
+   * 用于弹窗按需加载详情，避免列表查询时传输大量 JSONB 数据
+   * @param messageId 消息ID
+   * @returns 完整的记录详情或 null
+   */
+  async getMessageProcessingRecordById(messageId: string): Promise<any | null> {
+    if (!this.isInitialized) {
+      this.logger.warn('[消息处理记录] Supabase 未初始化，跳过查询');
+      return null;
+    }
+
+    try {
+      const response = await this.supabaseHttpClient.get('/message_processing_records', {
+        params: {
+          message_id: `eq.${messageId}`,
+          limit: 1,
+        },
+      });
+
+      const rows = response.data ?? [];
+      if (rows.length === 0) {
+        this.logger.debug(`[消息处理记录] 未找到 messageId: ${messageId}`);
+        return null;
+      }
+
+      const row = rows[0];
+      return {
+        messageId: row.message_id,
+        chatId: row.chat_id,
+        userId: row.user_id,
+        userName: row.user_name,
+        managerName: row.manager_name,
+        receivedAt: new Date(row.received_at).getTime(),
+        messagePreview: row.message_preview,
+        replyPreview: row.reply_preview,
+        replySegments: row.reply_segments,
+        status: row.status,
+        error: row.error,
+        scenario: row.scenario,
+        totalDuration: row.total_duration,
+        queueDuration: row.queue_duration,
+        prepDuration: row.prep_duration,
+        aiStartAt: row.ai_start_at,
+        aiEndAt: row.ai_end_at,
+        aiDuration: row.ai_duration,
+        sendDuration: row.send_duration,
+        tools: row.tools,
+        tokenUsage: row.token_usage,
+        isFallback: row.is_fallback,
+        fallbackSuccess: row.fallback_success,
+        agentInvocation: row.agent_invocation, // 包含完整的 agent_invocation
+      };
+    } catch (error) {
+      this.logger.error(`[消息处理记录] 查询详情失败 (messageId: ${messageId}):`, error);
+      return null;
     }
   }
 

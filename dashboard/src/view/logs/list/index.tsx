@@ -1,5 +1,10 @@
-import { useState, useMemo } from 'react';
-import { useMessageProcessingRecords } from '@/hooks/useMonitoring';
+import { useState, useMemo, useCallback, useEffect } from 'react';
+import InfiniteScroll from 'react-infinite-scroll-component';
+import {
+  useMessageProcessingRecords,
+  useMessageStats,
+  useSlowestMessages,
+} from '@/hooks/useMonitoring';
 import ControlPanel from './components/ControlPanel';
 import LogsTable from './components/LogsTable';
 import MessageDetailDrawer from './components/MessageDetailDrawer';
@@ -7,8 +12,13 @@ import type { MessageRecord } from '@/types/monitoring';
 
 export default function Logs() {
   const [timeRange, setTimeRange] = useState<'today' | 'week' | 'month'>('today');
-  const [selectedMessage, setSelectedMessage] = useState<MessageRecord | null>(null);
+  const [selectedMessageId, setSelectedMessageId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'realtime' | 'slowest'>('realtime');
+
+  // 分页状态（仅用于实时列表）
+  const [page, setPage] = useState(1);
+  const [accumulatedMessages, setAccumulatedMessages] = useState<MessageRecord[]>([]);
+  const PAGE_SIZE = 50;
 
   // 计算时间范围
   const dateRange = useMemo(() => {
@@ -31,51 +41,73 @@ export default function Logs() {
     return { startDate, endDate };
   }, [timeRange]);
 
-  // 统一使用持久化数据（数据库）
-  const { data: persistedMessages, isLoading } = useMessageProcessingRecords({
+  // 时间范围变化时重置分页和累加数据
+  const handleTimeRangeChange = useCallback((newRange: 'today' | 'week' | 'month') => {
+    setTimeRange(newRange);
+    setPage(1);
+    setAccumulatedMessages([]);
+  }, []);
+
+  // 统计数据：使用轻量级聚合查询接口
+  const { data: statsData } = useMessageStats({
     startDate: dateRange.startDate,
     endDate: dateRange.endDate,
-    limit: 1000,
   });
 
-  const allMessages = persistedMessages || [];
+  const stats = statsData || { total: 0, success: 0, failed: 0, avgDuration: 0 };
 
-  // 根据 Tab 类型计算不同的视图
-  const messages = useMemo(() => {
-    if (activeTab === 'realtime') {
-      // 实时：按接收时间倒序（最新的在前）
-      return [...allMessages].sort((a, b) => {
-        const timeA = new Date(a.receivedAt || 0).getTime();
-        const timeB = new Date(b.receivedAt || 0).getTime();
-        return timeB - timeA;
-      });
-    } else {
-      // 最慢 Top10：按 AI 处理耗时降序（最慢的在前），取前 10 条
-      return [...allMessages]
-        .filter((m) => m.aiDuration && m.aiDuration > 0)
-        .sort((a, b) => (b.aiDuration || 0) - (a.aiDuration || 0))
-        .slice(0, 10);
+  // 实时列表：支持分页（后端已排序）
+  const { data: realtimeMessages, isLoading: realtimeLoading } = useMessageProcessingRecords({
+    startDate: dateRange.startDate,
+    endDate: dateRange.endDate,
+    limit: PAGE_SIZE,
+    offset: (page - 1) * PAGE_SIZE,
+  });
+
+  // 当拉取到新数据时，累加到列表中
+  useEffect(() => {
+    if (realtimeMessages && realtimeMessages.length > 0) {
+      if (page === 1) {
+        // 第一页：替换数据
+        setAccumulatedMessages(realtimeMessages);
+      } else {
+        // 后续页：累加数据（去重）
+        setAccumulatedMessages((prev) => {
+          const existingIds = new Set(prev.map((m) => m.messageId));
+          const newMessages = realtimeMessages.filter((m) => !existingIds.has(m.messageId));
+          return [...prev, ...newMessages];
+        });
+      }
+    } else if (page === 1 && realtimeMessages) {
+      // 第一页且无数据，清空
+      setAccumulatedMessages([]);
     }
-  }, [allMessages, activeTab]);
+  }, [realtimeMessages, page]);
 
-  // 计算统计数据（基于所有消息）
-  const stats = useMemo(() => {
-    return {
-      total: allMessages.length,
-      success: allMessages.filter((m) => m.status === 'success').length,
-      failed: allMessages.filter((m) => m.status === 'failure' || m.status === 'failed').length,
-      avgDuration:
-        allMessages.length > 0
-          ? Math.round(allMessages.reduce((sum, m) => sum + (m.aiDuration || 0), 0) / allMessages.length)
-          : 0,
-    };
-  }, [allMessages]);
+  // 最慢 Top10：使用专用接口（后端按 ai_duration 排序）
+  const { data: slowestMessages, isLoading: slowestLoading } = useSlowestMessages({
+    startDate: dateRange.startDate,
+    endDate: dateRange.endDate,
+    limit: 10,
+  });
 
-  // 计算两个 Tab 的数据量
-  const realtimeCount = allMessages.length;
-  const slowestCount = allMessages.filter((m) => m.aiDuration && m.aiDuration > 0).length >= 10
-    ? 10
-    : allMessages.filter((m) => m.aiDuration && m.aiDuration > 0).length;
+  // 根据 Tab 切换数据源
+  const messages = activeTab === 'realtime' ? accumulatedMessages : slowestMessages || [];
+  const isLoading = activeTab === 'realtime' ? realtimeLoading && page === 1 : slowestLoading;
+
+  // 是否还有更多数据（仅用于实时列表）
+  const hasMore = activeTab === 'realtime' && accumulatedMessages.length < stats.total;
+
+  // 加载更多
+  const handleLoadMore = useCallback(() => {
+    if (!realtimeLoading) {
+      setPage((prev) => prev + 1);
+    }
+  }, [realtimeLoading]);
+
+  // Tab 数据量
+  const realtimeCount = stats.total; // 使用统计数据的总数
+  const slowestCount = slowestMessages?.length || 0;
 
   return (
     <div id="page-logs" className="page-section active">
@@ -86,20 +118,49 @@ export default function Logs() {
         realtimeCount={realtimeCount}
         slowestCount={slowestCount}
         timeRange={timeRange}
-        onTimeRangeChange={setTimeRange}
+        onTimeRangeChange={handleTimeRangeChange}
       />
 
-      <LogsTable
-        data={messages}
-        loading={isLoading}
-        onRowClick={setSelectedMessage}
-        variant={activeTab}
-      />
+      {/* 最慢Top10不需要无限滚动 */}
+      {activeTab === 'slowest' ? (
+        <LogsTable
+          data={messages}
+          loading={isLoading}
+          onRowClick={(message: MessageRecord) => setSelectedMessageId(message.messageId || null)}
+          variant={activeTab}
+        />
+      ) : (
+        /* 实时列表使用无限滚动 */
+        <InfiniteScroll
+          dataLength={accumulatedMessages.length}
+          next={handleLoadMore}
+          hasMore={hasMore}
+          loader={
+            <div style={{ padding: '20px', textAlign: 'center', color: '#999' }}>
+              加载中...
+            </div>
+          }
+          endMessage={
+            accumulatedMessages.length > 0 ? (
+              <div style={{ padding: '20px', textAlign: 'center', color: '#999' }}>
+                已加载全部 {stats.total} 条记录
+              </div>
+            ) : null
+          }
+        >
+          <LogsTable
+            data={messages}
+            loading={isLoading}
+            onRowClick={(message: MessageRecord) => setSelectedMessageId(message.messageId || null)}
+            variant={activeTab}
+          />
+        </InfiniteScroll>
+      )}
 
-      {selectedMessage && (
+      {selectedMessageId && (
         <MessageDetailDrawer
-          message={selectedMessage}
-          onClose={() => setSelectedMessage(null)}
+          messageId={selectedMessageId}
+          onClose={() => setSelectedMessageId(null)}
         />
       )}
     </div>

@@ -27,8 +27,8 @@ export function transformPausedUsers(pausedUsers: PausedUserRaw[]): UserData[] {
     groupName: user.groupName,
     messageCount: 0,
     tokenUsage: 0,
-    firstActiveAt: new Date(user.pausedAt).toISOString(),
-    lastActiveAt: new Date(user.pausedAt).toISOString(),
+    firstActiveAt: user.pausedAt, // 直接使用时间戳
+    lastActiveAt: user.pausedAt, // 直接使用时间戳
     isPaused: true,
   }));
 }
