@@ -273,7 +273,13 @@
       "Bash(__NEW_LINE__ curl -s \"https://uvmbxcilpteaiizplcyp.supabase.co/rest/v1/message_processing_records?chat_id=eq.batch_test_1765880791&select=message_id,status,batch_id,is_primary,token_usage,total_duration&order=received_at.asc\" )",
       "Bash(__NEW_LINE__ curl -s -X POST \"http://localhost:8080/message/test\" -H \"Content-Type: application/json\" -d \"{\"\"text\"\": \"\"最终测试消息1\"\", \"\"chatId\"\": \"\"$CHAT_ID\"\"}\")",
       "Bash(__NEW_LINE__ echo \"等待 30 秒...\")",
-      "Bash(__NEW_LINE__ curl -s \"https://uvmbxcilpteaiizplcyp.supabase.co/rest/v1/message_processing_records?chat_id=eq.final_test_1765880984&select=message_id,status,batch_id,is_primary,token_usage,total_duration&order=received_at.asc\" )"
+      "Bash(__NEW_LINE__ curl -s \"https://uvmbxcilpteaiizplcyp.supabase.co/rest/v1/message_processing_records?chat_id=eq.final_test_1765880984&select=message_id,status,batch_id,is_primary,token_usage,total_duration&order=received_at.asc\" )",
+      "Bash(true echo \"统计 processing 状态的记录总数...\" curl -s -I \"https://uvmbxcilpteaiizplcyp.supabase.co/rest/v1/message_processing_records?status=eq.processing&select=message_id\"  -H \"apikey: $SUPABASE_SERVICE_ROLE_KEY\"  -H \"Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY\"  -H \"Prefer: count=exact\")",
+      "Bash(__NEW_LINE__ echo \"统计 processing 状态的记录...\")",
+      "Bash(__NEW_LINE__ echo \"将 24 条 processing 状态更新为 success...\")",
+      "Bash(__NEW_LINE__ curl -s -X PATCH \"https://uvmbxcilpteaiizplcyp.supabase.co/rest/v1/message_processing_records?status=eq.processing\" )",
+      "Bash(__NEW_LINE__ echo \"完成\")",
+      "Bash(__NEW_LINE__ echo \"验证：剩余 processing 状态记录数...\")"
     ],
     "deny": [
       "Bash(git restore:*)",

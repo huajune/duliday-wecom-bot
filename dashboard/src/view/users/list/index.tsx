@@ -32,7 +32,7 @@ export default function Users() {
 
   return (
     <div className={styles.page}>
-      {/* 近1月咨询用户趋势图 */}
+      {/* 近1月托管用户趋势图 */}
       <UserTrendChart />
 
       {/* Tab 切换 + 用户列表 */}

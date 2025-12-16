@@ -101,7 +101,7 @@ export default function Sidebar() {
           to="/users"
           className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
         >
-          <span className="nav-icon"><UsersIcon /></span> 今日咨询
+          <span className="nav-icon"><UsersIcon /></span> 今日托管
         </NavLink>
         <NavLink
           to="/logs"
@@ -113,13 +113,13 @@ export default function Sidebar() {
           to="/chat-records"
           className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
         >
-          <span className="nav-icon"><ChatRecordsIcon /></span> 聊天记录
+          <span className="nav-icon"><ChatRecordsIcon /></span> 消息总览
         </NavLink>
         <NavLink
           to="/hosting"
           className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
         >
-          <span className="nav-icon"><HostingIcon /></span> 账号托管
+          <span className="nav-icon"><HostingIcon /></span> 托管设置
         </NavLink>
         <NavLink
           to="/config"

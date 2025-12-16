@@ -153,11 +153,11 @@ export default function Dashboard() {
     },
   };
 
-  // 咨询人数趋势
+  // 托管人数趋势
   const consultationChartData = {
     labels: businessPoints.map((p) => formatLabel(p.minute)),
     datasets: [{
-      label: '咨询人数',
+      label: '托管人数',
       data: businessPoints.map((p) => p.consultations || 0),
       borderColor: '#6366f1',
       backgroundColor: 'rgba(99, 102, 241, 0.2)',
@@ -228,11 +228,11 @@ export default function Dashboard() {
     }],
   };
 
-  // 每日咨询人数
+  // 每日托管人数
   const dailyUserChartData = {
     labels: (dashboard?.dailyTrend || []).map((p) => p.date?.substring(5) || p.date),
     datasets: [{
-      label: '咨询人数',
+      label: '托管人数',
       data: (dashboard?.dailyTrend || []).map((p) => p.uniqueUsers),
       borderColor: '#6366f1',
       backgroundColor: 'rgba(99, 102, 241, 0.2)',
@@ -333,7 +333,7 @@ export default function Dashboard() {
       {/* 业务指标 */}
       <MetricGrid columns={3}>
         <MetricCard
-          label="总咨询人数"
+          label="总托管人数"
           value={dashboardLoading ? '-' : (business?.consultations?.total ?? 0)}
           subtitle={<>新增 <span>{business?.consultations?.new ?? 0}</span> 人</>}
           delta={businessDelta?.consultations}
@@ -359,7 +359,7 @@ export default function Dashboard() {
 
       {/* 趋势图表 */}
       <ChartsRow>
-        <ChartCard title="咨询人数趋势" subtitle="活跃用户数量变化">
+        <ChartCard title="托管人数趋势" subtitle="活跃用户数量变化">
           <Line data={consultationChartData} options={{ ...commonOptions, scales: { ...commonOptions.scales, y: { ...commonOptions.scales.y, ticks: { stepSize: 1, precision: 0 } } } }} />
         </ChartCard>
         <ChartCard title="预约转化趋势" subtitle="预约次数与成功率">
@@ -378,7 +378,7 @@ export default function Dashboard() {
           <Bar data={tokenChartData} options={commonOptions} />
         </ChartCard>
         <ChartCard
-          title="每日咨询人数"
+          title="每日托管人数"
           subtitle="最近 7 天唯一用户"
           kpiLabel="今日人数"
           kpiValue={dashboard?.dailyTrend?.[dashboard.dailyTrend.length - 1]?.uniqueUsers ?? '-'}

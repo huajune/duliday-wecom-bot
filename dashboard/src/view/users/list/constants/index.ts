@@ -21,7 +21,7 @@ export const AVATAR_GRADIENTS = [
 export const TAB_CONFIG = {
   TODAY: {
     key: 'today' as const,
-    label: '今日咨询用户',
+    label: '今日托管用户',
   },
   PAUSED: {
     key: 'paused' as const,

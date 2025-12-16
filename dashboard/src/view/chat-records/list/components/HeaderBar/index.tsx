@@ -37,7 +37,7 @@ export default function HeaderBar({
       {/* 左侧：标题 + 时间筛选 */}
       <div className={styles.leftSection}>
         <div className={styles.titleWrapper}>
-          <h2 className={styles.title}>聊天记录</h2>
+          <h2 className={styles.title}>消息总览</h2>
         </div>
 
         <div className={styles.divider} />

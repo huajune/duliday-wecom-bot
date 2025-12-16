@@ -39,7 +39,7 @@ export default function UserTrendChart() {
               <div className={styles.headerIcon}>
                 <IconTrend />
               </div>
-              <span>近30天咨询用户趋势</span>
+              <span>近30天托管用户趋势</span>
             </h3>
             {!isExpanded && (
               <div className={styles.statsPreview}>
@@ -72,7 +72,7 @@ export default function UserTrendChart() {
                 <IconUsers style={{ color: 'white' }} />
               </div>
               <div className={styles.statInfo}>
-                <div className={styles.statLabel}>累计咨询用户</div>
+                <div className={styles.statLabel}>累计托管用户</div>
                 <div className={styles.statValue}>{totalUsers} <span className={styles.unit}>人</span></div>
               </div>
             </div>
@@ -81,7 +81,7 @@ export default function UserTrendChart() {
                 <IconBarChart style={{ color: 'white' }} />
               </div>
               <div className={styles.statInfo}>
-                <div className={styles.statLabel}>日均咨询用户</div>
+                <div className={styles.statLabel}>日均托管用户</div>
                 <div className={styles.statValue}>{avgUsers} <span className={styles.unit}>人</span></div>
               </div>
             </div>

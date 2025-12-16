@@ -44,7 +44,7 @@ export interface PausedUserData {
 // ==================== Query Hooks ====================
 
 /**
- * 获取近1月咨询用户趋势数据
+ * 获取近1月托管用户趋势数据
  */
 export function useUserTrend(autoRefresh = true) {
   return useQuery({
@@ -58,7 +58,7 @@ export function useUserTrend(autoRefresh = true) {
 }
 
 /**
- * 获取今日咨询用户列表（轻量级接口，仅返回用户数据）
+ * 获取今日托管用户列表（轻量级接口，仅返回用户数据）
  */
 export function useTodayUsers(autoRefresh = true) {
   return useQuery({
