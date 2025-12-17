@@ -42,12 +42,20 @@ export default function ControlPanel({
     []
   );
 
-  // 按回车或失焦时触发搜索
+  // 按回车时触发搜索
   const handleSearch = useCallback(() => {
     if (onSearchUserNameChange) {
       onSearchUserNameChange(inputValue.trim());
     }
   }, [inputValue, onSearchUserNameChange]);
+
+  // 失焦时仅当搜索词变化才触发搜索（避免点击列表项时重复触发）
+  const handleBlur = useCallback(() => {
+    const trimmedValue = inputValue.trim();
+    if (onSearchUserNameChange && trimmedValue !== searchUserName) {
+      onSearchUserNameChange(trimmedValue);
+    }
+  }, [inputValue, searchUserName, onSearchUserNameChange]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -174,7 +182,7 @@ export default function ControlPanel({
             value={inputValue}
             onChange={handleInputChange}
             onKeyDown={handleKeyDown}
-            onBlur={handleSearch}
+            onBlur={handleBlur}
             style={{
               width: '160px',
               padding: '6px 30px 6px 12px',
