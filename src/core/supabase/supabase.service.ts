@@ -2997,6 +2997,7 @@ export class SupabaseService implements OnModuleInit {
     endDate?: Date;
     status?: 'processing' | 'success' | 'failure';
     chatId?: string;
+    userName?: string; // 用户昵称模糊搜索
     limit?: number;
     offset?: number;
   }): Promise<any[]> {
@@ -3026,6 +3027,11 @@ export class SupabaseService implements OnModuleInit {
       // 会话ID过滤
       if (options?.chatId) {
         params.chat_id = `eq.${options.chatId}`;
+      }
+
+      // 用户昵称模糊搜索（使用 ilike 不区分大小写）
+      if (options?.userName) {
+        params.user_name = `ilike.*${options.userName}*`;
       }
 
       // 排序和分页（默认按接收时间倒序）

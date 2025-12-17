@@ -1,3 +1,4 @@
+import { useState, useCallback } from 'react';
 import { formatDuration } from '@/utils/format';
 
 interface Stats {
@@ -15,6 +16,8 @@ interface ControlPanelProps {
   slowestCount: number;
   timeRange: 'today' | 'week' | 'month';
   onTimeRangeChange: (range: 'today' | 'week' | 'month') => void;
+  searchUserName?: string;
+  onSearchUserNameChange?: (userName: string) => void;
 }
 
 export default function ControlPanel({
@@ -25,7 +28,43 @@ export default function ControlPanel({
   slowestCount,
   timeRange,
   onTimeRangeChange,
+  searchUserName = '',
+  onSearchUserNameChange,
 }: ControlPanelProps) {
+  const [inputValue, setInputValue] = useState(searchUserName);
+
+  // 防抖搜索
+  const handleInputChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const value = e.target.value;
+      setInputValue(value);
+    },
+    []
+  );
+
+  // 按回车或失焦时触发搜索
+  const handleSearch = useCallback(() => {
+    if (onSearchUserNameChange) {
+      onSearchUserNameChange(inputValue.trim());
+    }
+  }, [inputValue, onSearchUserNameChange]);
+
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === 'Enter') {
+        handleSearch();
+      }
+    },
+    [handleSearch]
+  );
+
+  // 清空搜索
+  const handleClear = useCallback(() => {
+    setInputValue('');
+    if (onSearchUserNameChange) {
+      onSearchUserNameChange('');
+    }
+  }, [onSearchUserNameChange]);
   return (
     <section
       className="control-panel"
@@ -122,6 +161,55 @@ export default function ControlPanel({
           >
             近30天
           </button>
+        </div>
+
+        {/* 分隔线 */}
+        <div style={{ width: '1px', height: '24px', background: 'var(--border)' }} />
+
+        {/* 用户搜索框 */}
+        <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+          <input
+            type="text"
+            placeholder="搜索用户昵称..."
+            value={inputValue}
+            onChange={handleInputChange}
+            onKeyDown={handleKeyDown}
+            onBlur={handleSearch}
+            style={{
+              width: '160px',
+              padding: '6px 30px 6px 12px',
+              border: '1px solid var(--border)',
+              borderRadius: '6px',
+              fontSize: '13px',
+              color: 'var(--text-primary)',
+              background: 'var(--bg-secondary)',
+              outline: 'none',
+              transition: 'border-color 0.15s ease',
+            }}
+          />
+          {inputValue && (
+            <button
+              onClick={handleClear}
+              style={{
+                position: 'absolute',
+                right: '8px',
+                top: '50%',
+                transform: 'translateY(-50%)',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                color: 'var(--text-muted)',
+                fontSize: '14px',
+                padding: '2px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+              title="清空搜索"
+            >
+              ×
+            </button>
+          )}
         </div>
 
         {/* 分隔线 */}

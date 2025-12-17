@@ -14,6 +14,7 @@ export default function Logs() {
   const [timeRange, setTimeRange] = useState<'today' | 'week' | 'month'>('today');
   const [selectedMessageId, setSelectedMessageId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'realtime' | 'slowest'>('realtime');
+  const [searchUserName, setSearchUserName] = useState<string>('');
 
   // 分页状态（仅用于实时列表）
   const [page, setPage] = useState(1);
@@ -48,6 +49,13 @@ export default function Logs() {
     setAccumulatedMessages([]);
   }, []);
 
+  // 用户搜索变化时重置分页和累加数据
+  const handleSearchUserNameChange = useCallback((userName: string) => {
+    setSearchUserName(userName);
+    setPage(1);
+    setAccumulatedMessages([]);
+  }, []);
+
   // 统计数据：使用轻量级聚合查询接口
   const { data: statsData } = useMessageStats({
     startDate: dateRange.startDate,
@@ -60,6 +68,7 @@ export default function Logs() {
   const { data: realtimeMessages, isLoading: realtimeLoading } = useMessageProcessingRecords({
     startDate: dateRange.startDate,
     endDate: dateRange.endDate,
+    userName: searchUserName || undefined,
     limit: PAGE_SIZE,
     offset: (page - 1) * PAGE_SIZE,
   });
@@ -119,6 +128,8 @@ export default function Logs() {
         slowestCount={slowestCount}
         timeRange={timeRange}
         onTimeRangeChange={handleTimeRangeChange}
+        searchUserName={searchUserName}
+        onSearchUserNameChange={handleSearchUserNameChange}
       />
 
       {/* 最慢Top10不需要无限滚动 */}

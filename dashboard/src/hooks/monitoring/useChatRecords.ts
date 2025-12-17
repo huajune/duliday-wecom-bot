@@ -273,6 +273,7 @@ export function useSlowestMessages(options?: {
  * @param options.endDate - 结束日期 (YYYY-MM-DD)
  * @param options.status - 状态筛选
  * @param options.chatId - 会话ID筛选
+ * @param options.userName - 用户昵称模糊搜索
  * @param options.limit - 返回数量限制
  * @param options.offset - 偏移量（分页）
  */
@@ -281,6 +282,7 @@ export function useMessageProcessingRecords(options?: {
   endDate?: string;
   status?: 'processing' | 'success' | 'failure';
   chatId?: string;
+  userName?: string;
   limit?: number;
   offset?: number;
 }) {
@@ -292,6 +294,7 @@ export function useMessageProcessingRecords(options?: {
       if (options?.endDate) params.set('endDate', options.endDate);
       if (options?.status) params.set('status', options.status);
       if (options?.chatId) params.set('chatId', options.chatId);
+      if (options?.userName) params.set('userName', options.userName);
       if (options?.limit) params.set('limit', String(options.limit));
       if (options?.offset) params.set('offset', String(options.offset));
 

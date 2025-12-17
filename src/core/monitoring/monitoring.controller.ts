@@ -1000,6 +1000,7 @@ export class MonitoringController {
    *   - endDate: 结束日期 (YYYY-MM-DD)
    *   - status: 状态筛选 (processing|success|failure)
    *   - chatId: 会话ID筛选
+   *   - userName: 用户昵称模糊搜索
    *   - orderBy: 排序字段 (receivedAt|aiDuration，默认 receivedAt)
    *   - order: 排序方向 (asc|desc，默认 desc)
    *   - limit: 返回数量限制 (默认 50，最大 200)
@@ -1011,6 +1012,7 @@ export class MonitoringController {
     @Query('endDate') endDate?: string,
     @Query('status') status?: 'processing' | 'success' | 'failure',
     @Query('chatId') chatId?: string,
+    @Query('userName') userName?: string,
     @Query('limit') limit?: string,
     @Query('offset') offset?: string,
   ): Promise<any[]> {
@@ -1034,6 +1036,10 @@ export class MonitoringController {
 
     if (chatId) {
       options.chatId = chatId;
+    }
+
+    if (userName) {
+      options.userName = userName;
     }
 
     if (limit) {
