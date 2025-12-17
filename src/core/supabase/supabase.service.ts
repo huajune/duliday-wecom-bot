@@ -1348,6 +1348,7 @@ export class SupabaseService implements OnModuleInit {
 
   /**
    * 获取会话的历史消息（用于 AI 上下文）
+   * 双重限制：近 3 天 + 最多 60 条
    * @param chatId 会话ID
    * @param limit 最大返回条数，默认 60
    */
@@ -1360,12 +1361,18 @@ export class SupabaseService implements OnModuleInit {
     }
 
     try {
+      // 计算 3 天前的时间点
+      const threeDaysAgo = new Date();
+      threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+      const threeDaysAgoISO = threeDaysAgo.toISOString();
+
       const response = await this.supabaseHttpClient.get('/chat_messages', {
         params: {
           chat_id: `eq.${chatId}`,
+          timestamp: `gte.${threeDaysAgoISO}`, // 近 3 天
           select: 'role,content,timestamp',
           order: 'timestamp.desc',
-          limit: limit,
+          limit: limit, // 最多 60 条
         },
       });
 
