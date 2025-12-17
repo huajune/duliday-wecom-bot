@@ -22,7 +22,7 @@ import {
   useConfiguredTools,
   useBrandConfigStatus,
 } from '@/hooks/monitoring/useSystemConfig';
-import { formatDuration, formatMinuteLabel, formatDayLabel } from '@/utils/format';
+import { formatDuration, formatMinuteLabel, formatDayLabel, formatHourLabel } from '@/utils/format';
 
 // 组件导入
 import ControlPanel from './components/ControlPanel';
@@ -214,12 +214,15 @@ export default function Dashboard() {
     },
   };
 
-  // Token 消耗
+  // Token 消耗 - 本日显示小时级，本周/本月显示天级
+  const tokenPoints = dashboard?.tokenTrend || [];
   const tokenChartData = {
-    labels: (dashboard?.dailyTrend || []).map((p) => p.date?.substring(5) || p.date),
+    labels: tokenPoints.map((p: any) =>
+      isToday ? formatHourLabel(p.time) : formatDayLabel(p.time)
+    ),
     datasets: [{
       label: 'Token 消耗',
-      data: (dashboard?.dailyTrend || []).map((p) => p.tokenUsage),
+      data: tokenPoints.map((p: any) => p.tokenUsage),
       backgroundColor: '#f59e0b',
       borderRadius: 6,
       hoverBackgroundColor: '#d97706',
@@ -228,12 +231,15 @@ export default function Dashboard() {
     }],
   };
 
-  // 响应耗时
+  // 响应耗时 - 本日显示分钟级，本周/本月显示天级
+  const responsePoints = isToday
+    ? (dashboard?.responseTrend || []).slice(-60)
+    : (dashboard?.responseTrend || []);
   const responseChartData = {
-    labels: (dashboard?.responseTrend || []).slice(-60).map((p) => formatMinuteLabel(p.minute)),
+    labels: responsePoints.map((p) => isToday ? formatMinuteLabel(p.minute) : formatDayLabel(p.minute)),
     datasets: [{
       label: '平均耗时 (秒)',
-      data: (dashboard?.responseTrend || []).slice(-60).map((p) => (p.avgDuration ? p.avgDuration / 1000 : 0)),
+      data: responsePoints.map((p) => (p.avgDuration ? p.avgDuration / 1000 : 0)),
       borderColor: '#06b6d4',
       backgroundColor: 'rgba(6, 182, 212, 0.2)',
       fill: true,
@@ -350,19 +356,19 @@ export default function Dashboard() {
         </ChartCard>
       </ChartsRow>
 
-      {/* 每日 Token 消耗 & 响应耗时 */}
+      {/* Token 消耗 & 响应耗时 */}
       <ChartsRow>
         <ChartCard
-          title="每日 Token 消耗"
-          subtitle="最近 7 天使用量"
-          kpiLabel="今日消耗"
-          kpiValue={dashboard?.dailyTrend?.[dashboard.dailyTrend.length - 1]?.tokenUsage ?? '-'}
+          title="Token 消耗"
+          subtitle={isToday ? '今日每小时消耗' : `${timeRangeBadge}每日消耗`}
+          kpiLabel={`${timeRangeBadge}总消耗`}
+          kpiValue={tokenPoints.reduce((sum: number, p: any) => sum + (p.tokenUsage || 0), 0) || '-'}
         >
           <Bar data={tokenChartData} options={commonOptions} />
         </ChartCard>
         <ChartCard
           title="响应耗时"
-          subtitle="最近 60 分钟平均响应时间"
+          subtitle={isToday ? '今日平均响应时间' : `${timeRangeBadge}平均响应时间`}
           kpiLabel="当前平均"
           kpiValue={dashboard?.overview?.avgDuration ? formatDuration(dashboard.overview.avgDuration) : '-'}
         >

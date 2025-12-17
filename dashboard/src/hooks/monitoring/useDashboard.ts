@@ -17,6 +17,7 @@ export interface DashboardOverviewData {
   overview: any;
   overviewDelta: any;
   dailyTrend: any[];
+  tokenTrend: any[];
   businessTrend: any[];
   responseTrend: any[];
   business: any;

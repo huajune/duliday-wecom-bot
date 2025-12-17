@@ -149,13 +149,22 @@ export class MonitoringDatabaseService implements OnModuleInit {
 
   /**
    * 按时间范围查询消息处理记录
+   * 注意：添加了 limit 限制，避免查询过多数据导致超时
    */
   async getDetailRecordsByTimeRange(range: TimeRange): Promise<MessageProcessingRecord[]> {
     try {
       const cutoffTime = this.getTimeRangeCutoff(range);
 
+      // 根据时间范围设置不同的 limit
+      const limitByRange = {
+        today: 2000, // 今日最多 2000 条
+        week: 5000, // 本周最多 5000 条
+        month: 10000, // 本月最多 10000 条
+      };
+
       const records = await this.supabaseService.getMessageProcessingRecords({
         startDate: cutoffTime,
+        limit: limitByRange[range] || 2000,
       });
 
       return records as MessageProcessingRecord[];
@@ -199,14 +208,17 @@ export class MonitoringDatabaseService implements OnModuleInit {
       const startDate = new Date(startTime).toISOString();
       const endDate = new Date(endTime).toISOString();
 
-      // 优化：降低查询限制，添加超时控制
+      // 优化：增加超时时间，添加查询限制
       const response = await this.supabaseHttpClient.get<any[]>('/message_processing_records', {
         params: {
           and: `(received_at.gte.${startDate},received_at.lt.${endDate})`,
           order: 'received_at.desc',
-          limit: 5000, // 降低到 5000 条以减少查询时间
+          limit: 2000, // 限制为 2000 条以减少数据传输
+          // 只选择需要的字段，排除大字段以提升查询性能
+          select:
+            'message_id,chat_id,user_id,user_name,manager_name,received_at,message_preview,reply_preview,status,ai_duration,total_duration,scenario,tools,token_usage,is_fallback,fallback_success,alert_type',
         },
-        timeout: 8000, // 8 秒超时
+        timeout: 30000, // 30 秒超时（Supabase 查询可能较慢）
       });
 
       if (!response.data || response.data.length === 0) {

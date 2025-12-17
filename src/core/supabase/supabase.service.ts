@@ -1841,6 +1841,344 @@ export class SupabaseService implements OnModuleInit {
     }
   }
 
+  // ========================================
+  // Dashboard 统计 RPC 方法（数据库聚合）
+  // ========================================
+
+  /**
+   * 获取 Dashboard 概览统计（数据库聚合查询）
+   * 替代应用层的 calculateOverview，避免拉取全量数据
+   */
+  async getDashboardOverviewStats(
+    startDate: Date,
+    endDate: Date,
+  ): Promise<{
+    totalMessages: number;
+    successCount: number;
+    failureCount: number;
+    successRate: number;
+    avgDuration: number;
+    activeUsers: number;
+    activeChats: number;
+    totalTokenUsage: number;
+  }> {
+    const defaultResult = {
+      totalMessages: 0,
+      successCount: 0,
+      failureCount: 0,
+      successRate: 0,
+      avgDuration: 0,
+      activeUsers: 0,
+      activeChats: 0,
+      totalTokenUsage: 0,
+    };
+
+    if (!this.isInitialized) {
+      return defaultResult;
+    }
+
+    try {
+      const response = await this.supabaseHttpClient.post('/rpc/get_dashboard_overview_stats', {
+        p_start_date: startDate.toISOString(),
+        p_end_date: endDate.toISOString(),
+      });
+
+      const stats = response.data?.[0] ?? {};
+
+      return {
+        totalMessages: parseInt(stats.total_messages ?? '0', 10),
+        successCount: parseInt(stats.success_count ?? '0', 10),
+        failureCount: parseInt(stats.failure_count ?? '0', 10),
+        successRate: parseFloat(stats.success_rate ?? '0'),
+        avgDuration: parseFloat(stats.avg_duration ?? '0'),
+        activeUsers: parseInt(stats.active_users ?? '0', 10),
+        activeChats: parseInt(stats.active_chats ?? '0', 10),
+        totalTokenUsage: parseInt(stats.total_token_usage ?? '0', 10),
+      };
+    } catch (error: any) {
+      // 如果 RPC 函数不存在，记录警告（需要执行 SQL 迁移）
+      if (error.response?.status === 404) {
+        this.logger.warn(
+          'RPC 函数 get_dashboard_overview_stats 不存在，请执行 sql/get_dashboard_stats.sql',
+        );
+      } else {
+        this.logger.error('获取 Dashboard 概览统计失败:', error);
+      }
+      return defaultResult;
+    }
+  }
+
+  /**
+   * 获取 Dashboard 降级统计（数据库聚合查询）
+   * 替代应用层的 calculateFallbackStats
+   */
+  async getDashboardFallbackStats(
+    startDate: Date,
+    endDate: Date,
+  ): Promise<{
+    totalCount: number;
+    successCount: number;
+    successRate: number;
+    affectedUsers: number;
+  }> {
+    const defaultResult = {
+      totalCount: 0,
+      successCount: 0,
+      successRate: 0,
+      affectedUsers: 0,
+    };
+
+    if (!this.isInitialized) {
+      return defaultResult;
+    }
+
+    try {
+      const response = await this.supabaseHttpClient.post('/rpc/get_dashboard_fallback_stats', {
+        p_start_date: startDate.toISOString(),
+        p_end_date: endDate.toISOString(),
+      });
+
+      const stats = response.data?.[0] ?? {};
+
+      return {
+        totalCount: parseInt(stats.fallback_total ?? '0', 10),
+        successCount: parseInt(stats.fallback_success ?? '0', 10),
+        successRate: parseFloat(stats.fallback_success_rate ?? '0'),
+        affectedUsers: parseInt(stats.fallback_affected_users ?? '0', 10),
+      };
+    } catch (error: any) {
+      if (error.response?.status === 404) {
+        this.logger.warn(
+          'RPC 函数 get_dashboard_fallback_stats 不存在，请执行 sql/get_dashboard_stats.sql',
+        );
+      } else {
+        this.logger.error('获取 Dashboard 降级统计失败:', error);
+      }
+      return defaultResult;
+    }
+  }
+
+  /**
+   * 获取 Dashboard 每日趋势（数据库聚合查询）
+   * 用于 Token 消耗图表等
+   */
+  async getDashboardDailyTrend(
+    startDate: Date,
+    endDate: Date,
+  ): Promise<
+    Array<{
+      date: string;
+      messageCount: number;
+      successCount: number;
+      avgDuration: number;
+      tokenUsage: number;
+      uniqueUsers: number;
+    }>
+  > {
+    if (!this.isInitialized) {
+      return [];
+    }
+
+    try {
+      const response = await this.supabaseHttpClient.post('/rpc/get_dashboard_daily_trend', {
+        p_start_date: startDate.toISOString(),
+        p_end_date: endDate.toISOString(),
+      });
+
+      return (response.data ?? []).map((item: any) => ({
+        date: item.date,
+        messageCount: parseInt(item.message_count ?? '0', 10),
+        successCount: parseInt(item.success_count ?? '0', 10),
+        avgDuration: parseFloat(item.avg_duration ?? '0'),
+        tokenUsage: parseInt(item.token_usage ?? '0', 10),
+        uniqueUsers: parseInt(item.unique_users ?? '0', 10),
+      }));
+    } catch (error: any) {
+      if (error.response?.status === 404) {
+        this.logger.warn(
+          'RPC 函数 get_dashboard_daily_trend 不存在，请执行 sql/get_dashboard_stats.sql',
+        );
+      } else {
+        this.logger.error('获取 Dashboard 每日趋势失败:', error);
+      }
+      return [];
+    }
+  }
+
+  /**
+   * 获取 Dashboard 小时级趋势（数据库聚合查询）
+   * 用于本日 Token 消耗图表
+   */
+  async getDashboardHourlyTrend(
+    startDate: Date,
+    endDate: Date,
+  ): Promise<
+    Array<{
+      hour: string;
+      messageCount: number;
+      successCount: number;
+      avgDuration: number;
+      tokenUsage: number;
+      uniqueUsers: number;
+    }>
+  > {
+    if (!this.isInitialized) {
+      return [];
+    }
+
+    try {
+      const response = await this.supabaseHttpClient.post('/rpc/get_dashboard_hourly_trend', {
+        p_start_date: startDate.toISOString(),
+        p_end_date: endDate.toISOString(),
+      });
+
+      return (response.data ?? []).map((item: any) => ({
+        hour: item.hour,
+        messageCount: parseInt(item.message_count ?? '0', 10),
+        successCount: parseInt(item.success_count ?? '0', 10),
+        avgDuration: parseFloat(item.avg_duration ?? '0'),
+        tokenUsage: parseInt(item.token_usage ?? '0', 10),
+        uniqueUsers: parseInt(item.unique_users ?? '0', 10),
+      }));
+    } catch (error: any) {
+      if (error.response?.status === 404) {
+        this.logger.warn(
+          'RPC 函数 get_dashboard_hourly_trend 不存在，请执行 sql/get_dashboard_stats.sql',
+        );
+      } else {
+        this.logger.error('获取 Dashboard 小时趋势失败:', error);
+      }
+      return [];
+    }
+  }
+
+  /**
+   * 获取 Dashboard 分钟级趋势（数据库聚合查询）
+   * 用于实时响应时间图表
+   */
+  async getDashboardMinuteTrend(
+    startDate: Date,
+    endDate: Date,
+    intervalMinutes: number = 5,
+  ): Promise<
+    Array<{
+      minute: string;
+      messageCount: number;
+      successCount: number;
+      avgDuration: number;
+      uniqueUsers: number;
+    }>
+  > {
+    if (!this.isInitialized) {
+      return [];
+    }
+
+    try {
+      const response = await this.supabaseHttpClient.post('/rpc/get_dashboard_minute_trend', {
+        p_start_date: startDate.toISOString(),
+        p_end_date: endDate.toISOString(),
+        p_interval_minutes: intervalMinutes,
+      });
+
+      return (response.data ?? []).map((item: any) => ({
+        minute: item.minute,
+        messageCount: parseInt(item.message_count ?? '0', 10),
+        successCount: parseInt(item.success_count ?? '0', 10),
+        avgDuration: parseFloat(item.avg_duration ?? '0'),
+        uniqueUsers: parseInt(item.unique_users ?? '0', 10),
+      }));
+    } catch (error: any) {
+      if (error.response?.status === 404) {
+        this.logger.warn(
+          'RPC 函数 get_dashboard_minute_trend 不存在，请执行 sql/get_dashboard_stats.sql',
+        );
+      } else {
+        this.logger.error('获取 Dashboard 分钟趋势失败:', error);
+      }
+      return [];
+    }
+  }
+
+  /**
+   * 获取 Dashboard 场景统计（数据库聚合查询）
+   */
+  async getDashboardScenarioStats(
+    startDate: Date,
+    endDate: Date,
+  ): Promise<
+    Array<{
+      scenario: string;
+      count: number;
+      successCount: number;
+      avgDuration: number;
+    }>
+  > {
+    if (!this.isInitialized) {
+      return [];
+    }
+
+    try {
+      const response = await this.supabaseHttpClient.post('/rpc/get_dashboard_scenario_stats', {
+        p_start_date: startDate.toISOString(),
+        p_end_date: endDate.toISOString(),
+      });
+
+      return (response.data ?? []).map((item: any) => ({
+        scenario: item.scenario ?? 'unknown',
+        count: parseInt(item.count ?? '0', 10),
+        successCount: parseInt(item.success_count ?? '0', 10),
+        avgDuration: parseFloat(item.avg_duration ?? '0'),
+      }));
+    } catch (error: any) {
+      if (error.response?.status === 404) {
+        this.logger.warn(
+          'RPC 函数 get_dashboard_scenario_stats 不存在，请执行 sql/get_dashboard_stats.sql',
+        );
+      } else {
+        this.logger.error('获取 Dashboard 场景统计失败:', error);
+      }
+      return [];
+    }
+  }
+
+  /**
+   * 获取 Dashboard 工具统计（数据库聚合查询）
+   */
+  async getDashboardToolStats(
+    startDate: Date,
+    endDate: Date,
+  ): Promise<
+    Array<{
+      toolName: string;
+      useCount: number;
+    }>
+  > {
+    if (!this.isInitialized) {
+      return [];
+    }
+
+    try {
+      const response = await this.supabaseHttpClient.post('/rpc/get_dashboard_tool_stats', {
+        p_start_date: startDate.toISOString(),
+        p_end_date: endDate.toISOString(),
+      });
+
+      return (response.data ?? []).map((item: any) => ({
+        toolName: item.tool_name ?? 'unknown',
+        useCount: parseInt(item.use_count ?? '0', 10),
+      }));
+    } catch (error: any) {
+      if (error.response?.status === 404) {
+        this.logger.warn(
+          'RPC 函数 get_dashboard_tool_stats 不存在，请执行 sql/get_dashboard_stats.sql',
+        );
+      } else {
+        this.logger.error('获取 Dashboard 工具统计失败:', error);
+      }
+      return [];
+    }
+  }
+
   /**
    * 获取会话列表（数据库聚合查询，性能优化版本）
    * 用于会话列表展示，性能优化版本
