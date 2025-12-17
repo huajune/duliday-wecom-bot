@@ -284,12 +284,17 @@ export class MonitoringDatabaseService implements OnModuleInit {
       const startDate = new Date(startTime).toISOString();
       const endDate = new Date(endTime).toISOString();
 
+      // 只统计主消息（is_primary=true 或 is_primary=null 的旧数据）
+      // 排除被聚合的次要消息（is_primary=false）
+      const isPrimaryFilter = '(is_primary.eq.true,is_primary.is.null)';
+
       // 并行查询各项统计（使用 select=count 进行数据库级聚合）
       const [totalRes, successRes, failedRes, avgDurationRes] = await Promise.all([
         // 总数
         this.supabaseHttpClient.get<any[]>('/message_processing_records', {
           params: {
             and: `(received_at.gte.${startDate},received_at.lt.${endDate})`,
+            or: isPrimaryFilter,
             select: 'count',
           },
           headers: { Prefer: 'count=exact' },
@@ -299,6 +304,7 @@ export class MonitoringDatabaseService implements OnModuleInit {
         this.supabaseHttpClient.get<any[]>('/message_processing_records', {
           params: {
             and: `(received_at.gte.${startDate},received_at.lt.${endDate},status.eq.success)`,
+            or: isPrimaryFilter,
             select: 'count',
           },
           headers: { Prefer: 'count=exact' },
@@ -308,6 +314,7 @@ export class MonitoringDatabaseService implements OnModuleInit {
         this.supabaseHttpClient.get<any[]>('/message_processing_records', {
           params: {
             and: `(received_at.gte.${startDate},received_at.lt.${endDate},status.in.(failure,failed))`,
+            or: isPrimaryFilter,
             select: 'count',
           },
           headers: { Prefer: 'count=exact' },
@@ -317,6 +324,7 @@ export class MonitoringDatabaseService implements OnModuleInit {
         this.supabaseHttpClient.get<any[]>('/message_processing_records', {
           params: {
             and: `(received_at.gte.${startDate},received_at.lt.${endDate},status.eq.success)`,
+            or: isPrimaryFilter,
             select: 'ai_duration',
             limit: 1000, // 最多取 1000 条用于计算平均值
           },

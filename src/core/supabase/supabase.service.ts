@@ -2962,6 +2962,9 @@ export class SupabaseService implements OnModuleInit {
 
       params.and = `(${conditions.join(',')})`;
 
+      // 只展示主消息（is_primary=true 或 is_primary=null 的旧数据）
+      params.or = '(is_primary.eq.true,is_primary.is.null)';
+
       // 只选择需要的字段
       params.select =
         'message_id,chat_id,user_id,user_name,manager_name,received_at,message_preview,reply_preview,status,ai_duration,total_duration,scenario,tools,token_usage';
@@ -3033,6 +3036,10 @@ export class SupabaseService implements OnModuleInit {
       if (options?.userName) {
         params.user_name = `ilike.*${options.userName}*`;
       }
+
+      // 只展示主消息（is_primary=true 或 is_primary=null 的旧数据）
+      // 排除被聚合的次要消息（is_primary=false）
+      params.or = '(is_primary.eq.true,is_primary.is.null)';
 
       // 排序和分页（默认按接收时间倒序）
       params.order = 'received_at.desc';
