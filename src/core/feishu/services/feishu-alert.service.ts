@@ -153,13 +153,13 @@ export class FeishuAlertService implements OnModuleInit {
       if (isFallbackAlert) {
         // 话术降级场景：优先显示用户信息，便于快速定位和人工回复
         if (context.contactName) {
-          fields.push(`**用户昵称**\n${context.contactName}`);
+          fields.push(`**用户昵称**: ${context.contactName}`);
         }
         if (context.userMessage) {
-          fields.push(`**用户消息**\n${this.truncate(context.userMessage, 200)}`);
+          fields.push(`**用户消息**: ${this.truncate(context.userMessage, 200)}`);
         }
         if (context.fallbackMessage) {
-          fields.push(`**小蛋糕已回复**\n${context.fallbackMessage}`);
+          fields.push(`**小蛋糕已回复**: ${context.fallbackMessage}`);
         }
         // 次要信息用分隔线隔开
         fields.push('---');

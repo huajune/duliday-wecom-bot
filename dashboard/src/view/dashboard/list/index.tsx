@@ -153,11 +153,11 @@ export default function Dashboard() {
     },
   };
 
-  // 托管人数趋势
+  // 托管用户趋势
   const consultationChartData = {
     labels: businessPoints.map((p) => formatLabel(p.minute)),
     datasets: [{
-      label: '托管人数',
+      label: '用户数',
       data: businessPoints.map((p) => p.consultations || 0),
       borderColor: '#6366f1',
       backgroundColor: 'rgba(99, 102, 241, 0.2)',
@@ -225,23 +225,6 @@ export default function Dashboard() {
       hoverBackgroundColor: '#d97706',
       barThickness: 'flex' as const,
       maxBarThickness: 32,
-    }],
-  };
-
-  // 每日托管人数
-  const dailyUserChartData = {
-    labels: (dashboard?.dailyTrend || []).map((p) => p.date?.substring(5) || p.date),
-    datasets: [{
-      label: '托管人数',
-      data: (dashboard?.dailyTrend || []).map((p) => p.uniqueUsers),
-      borderColor: '#6366f1',
-      backgroundColor: 'rgba(99, 102, 241, 0.2)',
-      fill: true,
-      tension: 0.4,
-      pointBackgroundColor: '#ffffff',
-      pointBorderColor: '#6366f1',
-      pointRadius: 4,
-      pointHoverRadius: 6,
     }],
   };
 
@@ -333,9 +316,9 @@ export default function Dashboard() {
       {/* 业务指标 */}
       <MetricGrid columns={3}>
         <MetricCard
-          label="总托管人数"
+          label="托管用户数"
           value={dashboardLoading ? '-' : (business?.consultations?.total ?? 0)}
-          subtitle={<>新增 <span>{business?.consultations?.new ?? 0}</span> 人</>}
+          subtitle={<>独立用户，同一人多次算 1 个</>}
           delta={businessDelta?.consultations}
           timeRangeBadge={timeRangeBadge}
           className="border-primary-soft"
@@ -359,7 +342,7 @@ export default function Dashboard() {
 
       {/* 趋势图表 */}
       <ChartsRow>
-        <ChartCard title="托管人数趋势" subtitle="活跃用户数量变化">
+        <ChartCard title="托管用户趋势" subtitle="独立用户数">
           <Line data={consultationChartData} options={{ ...commonOptions, scales: { ...commonOptions.scales, y: { ...commonOptions.scales.y, ticks: { stepSize: 1, precision: 0 } } } }} />
         </ChartCard>
         <ChartCard title="预约转化趋势" subtitle="预约次数与成功率">
@@ -367,7 +350,7 @@ export default function Dashboard() {
         </ChartCard>
       </ChartsRow>
 
-      {/* 每日趋势 */}
+      {/* 每日 Token 消耗 & 响应耗时 */}
       <ChartsRow>
         <ChartCard
           title="每日 Token 消耗"
@@ -378,23 +361,10 @@ export default function Dashboard() {
           <Bar data={tokenChartData} options={commonOptions} />
         </ChartCard>
         <ChartCard
-          title="每日托管人数"
-          subtitle="最近 7 天唯一用户"
-          kpiLabel="今日人数"
-          kpiValue={dashboard?.dailyTrend?.[dashboard.dailyTrend.length - 1]?.uniqueUsers ?? '-'}
-        >
-          <Line data={dailyUserChartData} options={commonOptions} />
-        </ChartCard>
-      </ChartsRow>
-
-      {/* 响应耗时 */}
-      <ChartsRow>
-        <ChartCard
           title="响应耗时"
           subtitle="最近 60 分钟平均响应时间"
           kpiLabel="当前平均"
           kpiValue={dashboard?.overview?.avgDuration ? formatDuration(dashboard.overview.avgDuration) : '-'}
-          fullWidth
         >
           <Line data={responseChartData} options={commonOptions} />
         </ChartCard>

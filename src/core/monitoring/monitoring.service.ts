@@ -131,6 +131,21 @@ export class MonitoringService implements OnModuleInit {
       });
     });
 
+    // 💾 立即写入 user_activity 表（消息接收时就记录，不等处理完成）
+    // 这样可以确保即使消息处理失败或卡住，用户活动也会被记录
+    this.databaseService
+      .saveUserActivity({
+        chatId,
+        userId,
+        userName,
+        messageCount: 1,
+        tokenUsage: 0, // 接收时 token 还未消耗，后续 recordSuccess 会更新
+        activeAt: now,
+      })
+      .catch((err) => {
+        this.logger.warn(`记录用户活动失败 [${messageId}]:`, err);
+      });
+
     this.logger.log(
       `[Monitoring] 记录消息接收 [${messageId}], chatId=${chatId}, scenario=${metadata?.scenario ?? 'unknown'}`,
     );
@@ -300,19 +315,22 @@ export class MonitoringService implements OnModuleInit {
         );
       });
 
-    // 同时更新 user_activity 聚合表（异步，不阻塞）
-    this.databaseService
-      .saveUserActivity({
-        chatId: record.chatId,
-        userId: record.userId,
-        userName: record.userName,
-        messageCount: 1,
-        tokenUsage: record.tokenUsage || 0,
-        activeAt: record.receivedAt,
-      })
-      .catch((err) => {
-        this.logger.warn(`更新用户活跃记录失败 [${messageId}]:`, err);
-      });
+    // 更新 user_activity 的 tokenUsage（messageCount 已在 recordMessageReceived 时写入）
+    // 只有当有 token 消耗时才需要更新
+    if (record.tokenUsage && record.tokenUsage > 0) {
+      this.databaseService
+        .saveUserActivity({
+          chatId: record.chatId,
+          userId: record.userId,
+          userName: record.userName,
+          messageCount: 0, // 不再增加消息数，已在 recordMessageReceived 时计数
+          tokenUsage: record.tokenUsage,
+          activeAt: record.receivedAt,
+        })
+        .catch((err) => {
+          this.logger.warn(`更新用户 Token 消耗失败 [${messageId}]:`, err);
+        });
+    }
   }
 
   /**

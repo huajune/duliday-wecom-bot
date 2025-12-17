@@ -279,7 +279,17 @@
       "Bash(__NEW_LINE__ echo \"将 24 条 processing 状态更新为 success...\")",
       "Bash(__NEW_LINE__ curl -s -X PATCH \"https://uvmbxcilpteaiizplcyp.supabase.co/rest/v1/message_processing_records?status=eq.processing\" )",
       "Bash(__NEW_LINE__ echo \"完成\")",
-      "Bash(__NEW_LINE__ echo \"验证：剩余 processing 状态记录数...\")"
+      "Bash(__NEW_LINE__ echo \"验证：剩余 processing 状态记录数...\")",
+      "Bash(/usr/bin/curl -s \"https://uvmbxcilpteaiizplcyp.supabase.co/rest/v1/message_processing_records?select=message_id&limit=1\" -H \"apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV2bWJ4Y2lscHRlYWlpenBsY3lwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2MjkwODI2MiwiZXhwIjoyMDc4NDg0MjYyfQ.IU2po4_YttuvOyHwJSR8yU9739tjV5T6zmMyjPcGaTc\" -H \"Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV2bWJ4Y2lscHRlYWlpenBsY3lwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2MjkwODI2MiwiZXhwIjoyMDc4NDg0MjYyfQ.IU2po4_YttuvOyHwJSR8yU9739tjV5T6zmMyjPcGaTc\")",
+      "Bash(/usr/bin/curl -s \"http://localhost:8080/monitoring/dashboard/overview?range=today\")",
+      "Bash(API_KEY=\"$SUPABASE_SERVICE_ROLE_KEY\" curl -s \"https://uvmbxcilpteaiizplcyp.supabase.co/rest/v1/message_processing_records?select=user_id,chat_id,user_name&received_at=gte.2025-12-17T00:00:00Z&order=received_at.desc&limit=50\" -H \"apikey: $API_KEY\" -H \"Authorization: Bearer $API_KEY\")",
+      "Bash(__NEW_LINE__ echo \"=== 今日数据库中的 userId 去重数 ===\")",
+      "Bash(__NEW_LINE__ echo \"=== user_activity 表今日数据 ===\")",
+      "Bash(__NEW_LINE__ echo \"=== user_activity 表结构 ===\")",
+      "Bash(__NEW_LINE__ echo \"=== 检查缺失的 4 个 chatId 在 message_processing_records 中的状态 ===\")",
+      "Bash(__NEW_LINE__ echo \"=== 检查今日所有 processing 状态的消息 ===\")",
+      "Bash(API_KEY=\"$SUPABASE_SERVICE_ROLE_KEY\" curl -s \"https://uvmbxcilpteaiizplcyp.supabase.co/rest/v1/message_processing_records?status=eq.processing&select=message_id,user_name,received_at,batch_id,is_primary&order=received_at.desc&limit=10\" -H \"apikey: $API_KEY\" -H \"Authorization: Bearer $API_KEY\")",
+      "Bash(/usr/bin/curl:*)"
     ],
     "deny": [
       "Bash(git restore:*)",

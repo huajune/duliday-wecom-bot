@@ -159,8 +159,9 @@ export function useChatSessionsOptimized(startDate: string, endDate: string) {
       params.set('startDate', startDate);
       params.set('endDate', endDate);
       const { data } = await api.get(`/monitoring/chat-sessions-optimized?${params.toString()}`);
-      return unwrapResponse<{
-        sessions: Array<{
+      // API 返回数组，包装成 { sessions: [...] } 格式
+      const sessions = unwrapResponse<
+        Array<{
           chatId: string;
           candidateName?: string;
           managerName?: string;
@@ -169,8 +170,9 @@ export function useChatSessionsOptimized(startDate: string, endDate: string) {
           lastTimestamp?: number;
           avatar?: string;
           contactType?: string;
-        }>;
-      }>(data);
+        }>
+      >(data);
+      return { sessions };
     },
   });
 }
