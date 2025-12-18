@@ -481,9 +481,17 @@ export class MonitoringService implements OnModuleInit {
       const previousFallback = this.calculateFallbackStats(previousRecords);
       const fallbackDelta = this.calculateFallbackDelta(fallback, previousFallback);
 
-      // 5. 计算业务指标
-      const business = this.calculateBusinessMetrics(currentRecords);
-      const previousBusiness = this.calculateBusinessMetrics(previousRecords);
+      // 5. 计算业务指标（从 booking_stats 表获取预约统计）
+      // 将时间戳转换为日期字符串 (YYYY-MM-DD)
+      const currentStartDate = new Date(currentStart).toISOString().split('T')[0];
+      const currentEndDate = new Date(currentEnd).toISOString().split('T')[0];
+      const previousStartDate = new Date(previousStart).toISOString().split('T')[0];
+      const previousEndDate = new Date(previousEnd).toISOString().split('T')[0];
+
+      const [business, previousBusiness] = await Promise.all([
+        this.getBusinessMetricsFromDatabase(currentStartDate, currentEndDate, currentRecords),
+        this.getBusinessMetricsFromDatabase(previousStartDate, previousEndDate, previousRecords),
+      ]);
       const businessDelta = this.calculateBusinessDelta(business, previousBusiness);
 
       // 6. 构建使用统计
@@ -731,47 +739,32 @@ export class MonitoringService implements OnModuleInit {
   }
 
   /**
-   * 计算业务指标
-   * 从 chatResponse.messages.parts 读取工具执行详情
+   * 从数据库获取业务指标
+   * 预约统计从 booking_stats 表读取（事件驱动更新）
    */
-  private calculateBusinessMetrics(records: MessageProcessingRecord[]) {
+  private async getBusinessMetricsFromDatabase(
+    startDate: string,
+    endDate: string,
+    records: MessageProcessingRecord[],
+  ) {
     const users = new Set(records.filter((r) => r.userId).map((r) => r.userId!));
 
-    let bookingAttempts = 0;
+    // 从 booking_stats 表获取预约统计
     let successfulBookings = 0;
-
-    // 遍历所有记录，从 agentInvocation.response.messages.parts 提取工具调用
-    for (const record of records) {
-      const chatResponse = record.agentInvocation?.response;
-      if (!chatResponse?.messages) continue;
-
-      // 遍历所有消息的 parts
-      for (const message of chatResponse.messages) {
-        if (!message.parts) continue;
-
-        for (const part of message.parts) {
-          // 筛选条件: type === 'dynamic-tool' && toolName === 'duliday_interview_booking'
-          if (part.type === 'dynamic-tool' && part.toolName === 'duliday_interview_booking') {
-            bookingAttempts++; // ✅ 找到工具调用即为一次预约尝试
-
-            // 判断成功: state === 'output-available' && output.object.success === true
-            if (part.state === 'output-available' && part.output) {
-              const isSuccess = this.checkBookingOutputSuccess(part.output);
-              if (isSuccess) {
-                successfulBookings++;
-                // 🎉 预约成功，发送飞书通知（异步，不阻塞主流程）
-                this.sendBookingSuccessNotification(record, part).catch((error) => {
-                  this.logger.error('发送预约成功通知失败:', error);
-                });
-              }
-            }
-          }
-        }
-      }
+    try {
+      const bookingStats = await this.supabaseService.getBookingStats({
+        startDate,
+        endDate,
+      });
+      successfulBookings = bookingStats.reduce((sum, item) => sum + item.bookingCount, 0);
+    } catch (error) {
+      this.logger.warn('[业务指标] 获取预约统计失败，使用默认值 0:', error);
     }
 
-    const bookingSuccessRate =
-      bookingAttempts > 0 ? (successfulBookings / bookingAttempts) * 100 : 0;
+    // 注意：目前只统计成功预约数，预约尝试次数暂时与成功数相同
+    // 未来可以添加 booking_attempts 表来跟踪所有尝试
+    const bookingAttempts = successfulBookings;
+    const bookingSuccessRate = bookingAttempts > 0 ? 100 : 0; // 目前只统计成功的
     const conversionRate = users.size > 0 ? (bookingAttempts / users.size) * 100 : 0;
 
     return {
@@ -782,11 +775,37 @@ export class MonitoringService implements OnModuleInit {
       bookings: {
         attempts: bookingAttempts,
         successful: successfulBookings,
-        failed: bookingAttempts - successfulBookings,
+        failed: 0, // 目前不跟踪失败的尝试
         successRate: parseFloat(bookingSuccessRate.toFixed(2)),
       },
       conversion: {
         consultationToBooking: parseFloat(conversionRate.toFixed(2)),
+      },
+    };
+  }
+
+  /**
+   * 计算业务指标（同步版本，用于不需要数据库查询的场景）
+   * @deprecated 优先使用 getBusinessMetricsFromDatabase
+   */
+  private calculateBusinessMetrics(records: MessageProcessingRecord[]) {
+    const users = new Set(records.filter((r) => r.userId).map((r) => r.userId!));
+
+    // 不再从 agentInvocation 读取，因为该字段已从查询中排除以优化性能
+    // 预约统计现在由 BookingDetectionService 实时更新到 booking_stats 表
+    return {
+      consultations: {
+        total: users.size,
+        new: users.size,
+      },
+      bookings: {
+        attempts: 0,
+        successful: 0,
+        failed: 0,
+        successRate: 0,
+      },
+      conversion: {
+        consultationToBooking: 0,
       },
     };
   }

@@ -17,6 +17,7 @@ import { MessageHistoryService } from './message-history.service';
 import { MessageFilterService } from './message-filter.service';
 import { MessageDeliveryService } from './message-delivery.service';
 import { AgentGatewayService } from './message-agent-gateway.service';
+import { BookingDetectionService } from './booking-detection.service';
 
 // 导入工具和类型
 import { MessageParser } from '../utils/message-parser.util';
@@ -45,6 +46,7 @@ export class MessagePipelineService {
     private readonly filterService: MessageFilterService,
     private readonly deliveryService: MessageDeliveryService,
     private readonly agentGateway: AgentGatewayService,
+    private readonly bookingDetection: BookingDetectionService,
     // 监控和告警
     private readonly monitoringService: MonitoringService,
     private readonly feishuAlertService: FeishuAlertService,
@@ -262,6 +264,13 @@ export class MessagePipelineService {
         });
       }
 
+      // 2.6. 异步检测预约成功并处理通知（不阻塞主流程）
+      this.bookingDetection.handleBookingSuccessAsync(
+        chatId,
+        contactName,
+        agentResult.reply.rawResponse,
+      );
+
       // 3. 发送回复
       const deliveryContext = this.buildDeliveryContext(parsed);
       const deliveryResult = await this.deliveryService.deliverReply(
@@ -361,6 +370,13 @@ export class MessagePipelineService {
           chatId,
         });
       }
+
+      // 3.6. 异步检测预约成功并处理通知（不阻塞主流程）
+      this.bookingDetection.handleBookingSuccessAsync(
+        chatId,
+        contactName,
+        agentResult.reply.rawResponse,
+      );
 
       // 4. 发送回复
       const deliveryContext = this.buildDeliveryContext(MessageParser.parse(lastMessage));

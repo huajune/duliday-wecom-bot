@@ -3180,4 +3180,147 @@ export class SupabaseService implements OnModuleInit {
       return 0;
     }
   }
+
+  // ========================================
+  // 预约统计相关方法
+  // ========================================
+
+  /**
+   * 增加预约统计计数
+   * 使用 upsert 实现：如果记录存在则增加计数，否则创建新记录
+   *
+   * @param params 预约信息
+   */
+  async incrementBookingCount(params: {
+    brandName?: string;
+    storeName?: string;
+    chatId?: string;
+  }): Promise<void> {
+    if (!this.isInitialized) {
+      this.logger.warn('[预约统计] Supabase 未初始化，跳过更新');
+      return;
+    }
+
+    const { brandName, storeName } = params;
+    const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+
+    try {
+      // 先查询是否存在记录
+      const existingResponse = await this.supabaseHttpClient.get('/booking_stats', {
+        params: {
+          date: `eq.${today}`,
+          brand_name: brandName ? `eq.${brandName}` : 'is.null',
+          store_name: storeName ? `eq.${storeName}` : 'is.null',
+          limit: 1,
+        },
+      });
+
+      const existing = existingResponse.data?.[0];
+
+      if (existing) {
+        // 更新现有记录
+        await this.supabaseHttpClient.patch(
+          '/booking_stats',
+          {
+            booking_count: existing.booking_count + 1,
+            updated_at: new Date().toISOString(),
+          },
+          {
+            params: {
+              id: `eq.${existing.id}`,
+            },
+          },
+        );
+        this.logger.debug(
+          `[预约统计] 更新: ${brandName || '未知品牌'} - ${storeName || '未知门店'}, count: ${existing.booking_count + 1}`,
+        );
+      } else {
+        // 创建新记录
+        await this.supabaseHttpClient.post('/booking_stats', {
+          date: today,
+          brand_name: brandName || null,
+          store_name: storeName || null,
+          booking_count: 1,
+        });
+        this.logger.debug(
+          `[预约统计] 新增: ${brandName || '未知品牌'} - ${storeName || '未知门店'}, count: 1`,
+        );
+      }
+    } catch (error) {
+      this.logger.error('[预约统计] 更新失败:', error);
+      // 不抛出异常，避免影响主流程
+    }
+  }
+
+  /**
+   * 获取预约统计数据
+   *
+   * @param params 查询参数
+   * @returns 预约统计列表
+   */
+  async getBookingStats(params: {
+    startDate?: string;
+    endDate?: string;
+    brandName?: string;
+  }): Promise<
+    Array<{
+      date: string;
+      brandName: string | null;
+      storeName: string | null;
+      bookingCount: number;
+    }>
+  > {
+    if (!this.isInitialized) {
+      this.logger.warn('[预约统计] Supabase 未初始化，返回空数组');
+      return [];
+    }
+
+    try {
+      const queryParams: Record<string, string> = {
+        order: 'date.desc,brand_name.asc',
+      };
+
+      if (params.startDate) {
+        queryParams['date'] = `gte.${params.startDate}`;
+      }
+      if (params.endDate) {
+        queryParams['date'] = queryParams['date']
+          ? `${queryParams['date']}&date=lte.${params.endDate}`
+          : `lte.${params.endDate}`;
+      }
+      if (params.brandName) {
+        queryParams['brand_name'] = `eq.${params.brandName}`;
+      }
+
+      const response = await this.supabaseHttpClient.get('/booking_stats', {
+        params: queryParams,
+      });
+
+      return (response.data ?? []).map(
+        (row: {
+          date: string;
+          brand_name: string | null;
+          store_name: string | null;
+          booking_count: number;
+        }) => ({
+          date: row.date,
+          brandName: row.brand_name,
+          storeName: row.store_name,
+          bookingCount: row.booking_count,
+        }),
+      );
+    } catch (error) {
+      this.logger.error('[预约统计] 查询失败:', error);
+      return [];
+    }
+  }
+
+  /**
+   * 获取今日预约总数
+   */
+  async getTodayBookingCount(): Promise<number> {
+    const today = new Date().toISOString().split('T')[0];
+    const stats = await this.getBookingStats({ startDate: today, endDate: today });
+    return stats.reduce((sum, item) => sum + item.bookingCount, 0);
+  }
 }

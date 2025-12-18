@@ -19,6 +19,7 @@ import { MessageDeliveryService } from './services/message-delivery.service';
 import { AgentGatewayService } from './services/message-agent-gateway.service';
 import { MessageCallbackAdapterService } from './services/message-callback-adapter.service';
 import { MessagePipelineService } from './services/message-pipeline.service';
+import { BookingDetectionService } from './services/booking-detection.service';
 
 /**
  * 消息处理模块
@@ -193,6 +194,7 @@ import { MessagePipelineService } from './services/message-pipeline.service';
     AgentGatewayService, // Agent 调用网关（增强版：包含上下文构建、降级处理和降级话术）
     MessageCallbackAdapterService, // 消息回调适配器（支持小组级和企业级格式）
     MessagePipelineService, // 消息处理管线（核心处理逻辑）
+    BookingDetectionService, // 预约成功检测（异步通知和统计更新）
   ],
   exports: [MessageService, MessageFilterService, MessageHistoryService, MessageProcessor],
 })
