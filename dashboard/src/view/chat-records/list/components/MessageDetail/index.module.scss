@@ -7,6 +7,8 @@
   flex-direction: column;
   flex: 1;
   min-width: 0;
+  height: 100%; // 填充父容器高度
+  overflow: hidden;
 }
 
 .stateContainer {

@@ -2,17 +2,24 @@
 @use '@/assets/styles/variables' as *;
 
 .page {
-  padding-bottom: 40px;
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 60px); // 减去顶部装饰栏高度
+  overflow: hidden;
 }
 
 .chatLayout {
   display: flex;
   gap: $spacing-md;
-  height: calc(100vh - 280px);
-  min-height: 650px;
+  flex: 1; // 自动填充剩余空间
+  min-height: 0; // 关键：允许 flex 子项收缩到内容以下
+  overflow: hidden; // 防止内容溢出
 
   @include respond-to(lg) {
     flex-direction: column;
+    flex: none;
     height: auto;
+    min-height: 600px;
+    overflow: visible;
   }
 }
