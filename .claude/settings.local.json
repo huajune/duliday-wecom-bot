@@ -316,7 +316,8 @@
       "Bash(# 分析品牌映射失败的情况 echo \"\"=== 品牌映射失败的输出分析 ===\"\" jq -r ''[.[] | select(.output | test(\"\"未找到品牌\"\")) | .output] | .[0:30] | .[]'' /tmp/job_list_calls.json echo \"\"\"\" echo \"\"=== 提取失败的品牌名称 ===\"\" jq -r ''[.[] | select(.output | test(\"\"未找到品牌\"\")) | .output] | .[] | split(\"\"品牌\"\") | .[1] | split(\"\"的组织\"\") | .[0] | gsub(\"\"''\"\"''\"\"''\"\"; \"\"\"\")'' /tmp/job_list_calls.json)",
       "Bash(API_KEY=\"$SUPABASE_SERVICE_ROLE_KEY\" curl -s \"https://uvmbxcilpteaiizplcyp.supabase.co/rest/v1/message_processing_records?status=eq.processing&select=message_id,user_name,received_at&order=received_at.desc&limit=10\" -H \"apikey: $API_KEY\" -H \"Authorization: Bearer $API_KEY\")",
       "Bash(API_KEY=\"$SUPABASE_SERVICE_ROLE_KEY\" curl -s \"https://uvmbxcilpteaiizplcyp.supabase.co/rest/v1/message_processing_records?status=eq.failure&select=message_id,status,is_primary&limit=10\" -H \"apikey: $API_KEY\" -H \"Authorization: Bearer $API_KEY\")",
-      "Bash(API_KEY=\"$SUPABASE_SERVICE_ROLE_KEY\" curl -s -I \"https://uvmbxcilpteaiizplcyp.supabase.co/rest/v1/message_processing_records?status=eq.failure&select=message_id\" -H \"apikey: $API_KEY\" -H \"Authorization: Bearer $API_KEY\" -H \"Prefer: count=exact\")"
+      "Bash(API_KEY=\"$SUPABASE_SERVICE_ROLE_KEY\" curl -s -I \"https://uvmbxcilpteaiizplcyp.supabase.co/rest/v1/message_processing_records?status=eq.failure&select=message_id\" -H \"apikey: $API_KEY\" -H \"Authorization: Bearer $API_KEY\" -H \"Prefer: count=exact\")",
+      "Bash(API_KEY=\"$SUPABASE_SERVICE_ROLE_KEY\" curl -s \"https://uvmbxcilpteaiizplcyp.supabase.co/rest/v1/?apikey=$API_KEY\" -H \"Authorization: Bearer $API_KEY\")"
     ],
     "deny": [
       "Bash(git restore:*)",

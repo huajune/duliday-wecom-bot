@@ -3280,14 +3280,16 @@ export class SupabaseService implements OnModuleInit {
         order: 'date.desc,brand_name.asc',
       };
 
-      if (params.startDate) {
+      // 构建日期范围过滤条件
+      // PostgREST 支持 and/or 语法: and=(date.gte.xxx,date.lte.xxx)
+      if (params.startDate && params.endDate) {
+        queryParams['and'] = `(date.gte.${params.startDate},date.lte.${params.endDate})`;
+      } else if (params.startDate) {
         queryParams['date'] = `gte.${params.startDate}`;
+      } else if (params.endDate) {
+        queryParams['date'] = `lte.${params.endDate}`;
       }
-      if (params.endDate) {
-        queryParams['date'] = queryParams['date']
-          ? `${queryParams['date']}&date=lte.${params.endDate}`
-          : `lte.${params.endDate}`;
-      }
+
       if (params.brandName) {
         queryParams['brand_name'] = `eq.${params.brandName}`;
       }

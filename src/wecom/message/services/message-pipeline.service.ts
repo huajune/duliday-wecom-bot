@@ -234,82 +234,16 @@ export class MessagePipelineService {
     const scenario = MessageParser.determineScenario(messageData);
 
     try {
-      // 1. 获取历史消息（已预先写入当前消息，此处排除当前消息）
-      const historyMessages = await this.historyService.getHistoryForContext(chatId, messageId);
-
-      // 2. 调用 Agent
-      const agentResult = await this.agentGateway.invoke({
-        conversationId: chatId,
-        userMessage: content,
-        historyMessages,
-        scenario,
+      await this.processMessageCore({
+        primaryMessage: messageData,
         messageId,
-        recordMonitoring: true,
-      });
-
-      this.logger.log(
-        `[${contactName}] Agent 处理完成，耗时 ${agentResult.processingTime}ms，` +
-          `tokens=${agentResult.reply.usage?.totalTokens || 'N/A'}`,
-      );
-
-      // 2.5. 如果是降级响应，发送告警（需要人工介入）
-      if (agentResult.isFallback) {
-        this.sendFallbackAlert({
-          contactName,
-          userMessage: content,
-          fallbackMessage: agentResult.reply.content,
-          fallbackReason: agentResult.result?.fallbackInfo?.reason || 'Agent API 调用失败',
-          scenario,
-          chatId,
-        });
-      }
-
-      // 2.6. 异步检测预约成功并处理通知（不阻塞主流程）
-      this.bookingDetection.handleBookingSuccessAsync(
         chatId,
+        content,
         contactName,
-        agentResult.reply.rawResponse,
-      );
-
-      // 3. 发送回复
-      const deliveryContext = this.buildDeliveryContext(parsed);
-      const deliveryResult = await this.deliveryService.deliverReply(
-        agentResult.reply,
-        deliveryContext,
-        true,
-      );
-
-      // 4. 记录成功
-      const rawResponse = agentResult.reply.rawResponse;
-      const requestBody = (agentResult.result as any).requestBody;
-      const rawHttpResponse = agentResult.result.rawHttpResponse;
-      this.monitoringService.recordSuccess(messageId, {
         scenario,
-        tools: agentResult.reply.tools?.used,
-        tokenUsage: agentResult.reply.usage?.totalTokens,
-        replyPreview: agentResult.reply.content,
-        replySegments: deliveryResult.segmentCount,
-        isFallback: agentResult.isFallback,
-        agentInvocation:
-          requestBody && rawResponse
-            ? {
-                request: requestBody,
-                response: rawResponse,
-                isFallback: agentResult.isFallback,
-                http: rawHttpResponse
-                  ? {
-                      status: rawHttpResponse.status,
-                      statusText: rawHttpResponse.statusText,
-                      headers: rawHttpResponse.headers,
-                    }
-                  : undefined,
-              }
-            : undefined,
+        parsed,
+        isSingleMessage: true,
       });
-
-      // 5. 标记消息为已处理
-      await this.deduplicationService.markMessageAsProcessedAsync(messageId);
-      this.logger.debug(`[${contactName}] 消息 [${messageId}] 已标记为已处理`);
     } catch (error) {
       const errorType: AlertErrorType = this.isAgentError(error) ? 'agent' : 'message';
       await this.handleProcessingError(error, parsed, { errorType, scenario });
@@ -327,148 +261,224 @@ export class MessagePipelineService {
     if (messages.length === 0) return;
 
     const scenario = MessageParser.determineScenario(messages[0]);
+    const lastMessage = messages[messages.length - 1];
+    const parsed = MessageParser.parse(lastMessage);
+    const { chatId, contactName } = parsed;
+    const content = MessageParser.extractContent(lastMessage);
+
+    this.logger.log(`[聚合处理][${chatId}] 处理 ${messages.length} 条消息`);
 
     try {
-      const parsed = MessageParser.parse(messages[0]);
-      const { chatId, contactName } = parsed;
-
-      this.logger.log(`[聚合处理][${chatId}] 处理 ${messages.length} 条消息`);
-
-      // 1. 获取历史消息
-      const lastMessage = messages[messages.length - 1];
-      const historyMessages = await this.historyService.getHistoryForContext(
+      await this.processMessageCore({
+        primaryMessage: lastMessage,
+        messageId: lastMessage.messageId,
         chatId,
-        lastMessage.messageId,
-      );
-
-      // 2. 最后一条消息作为 userMessage
-      const lastContent = MessageParser.extractContent(lastMessage);
-
-      // 3. 调用 Agent
-      const lastMessageId = lastMessage.messageId;
-      const agentResult = await this.agentGateway.invoke({
-        conversationId: chatId,
-        userMessage: lastContent,
-        historyMessages,
-        scenario,
-        recordMonitoring: true,
-        messageId: lastMessageId,
-      });
-
-      this.logger.log(
-        `[聚合处理][${contactName}] Agent 处理完成，耗时 ${agentResult.processingTime}ms`,
-      );
-
-      // 3.5. 如果是降级响应，发送告警（需要人工介入）
-      if (agentResult.isFallback) {
-        this.sendFallbackAlert({
-          contactName,
-          userMessage: lastContent,
-          fallbackMessage: agentResult.reply.content,
-          fallbackReason: agentResult.result?.fallbackInfo?.reason || 'Agent API 调用失败',
-          scenario,
-          chatId,
-        });
-      }
-
-      // 3.6. 异步检测预约成功并处理通知（不阻塞主流程）
-      this.bookingDetection.handleBookingSuccessAsync(
-        chatId,
+        content,
         contactName,
-        agentResult.reply.rawResponse,
-      );
-
-      // 4. 发送回复
-      const deliveryContext = this.buildDeliveryContext(MessageParser.parse(lastMessage));
-      const deliveryResult = await this.deliveryService.deliverReply(
-        agentResult.reply,
-        deliveryContext,
-        false,
-      );
-
-      // 5. 标记所有聚合的消息为已处理
-      const rawResponse = agentResult.reply.rawResponse;
-      const requestBody = (agentResult.result as any).requestBody;
-      const rawHttpResponse = agentResult.result.rawHttpResponse;
-      const sharedSuccessMetadata = {
         scenario,
-        tools: agentResult.reply.tools?.used,
-        tokenUsage: agentResult.reply.usage?.totalTokens,
-        replyPreview: agentResult.reply.content,
-        replySegments: deliveryResult.segmentCount,
-        isFallback: agentResult.isFallback,
-        agentInvocation:
-          requestBody && rawResponse
-            ? {
-                request: requestBody,
-                response: rawResponse,
-                isFallback: agentResult.isFallback,
-                http: rawHttpResponse
-                  ? {
-                      status: rawHttpResponse.status,
-                      statusText: rawHttpResponse.statusText,
-                      headers: rawHttpResponse.headers,
-                    }
-                  : undefined,
-              }
-            : undefined,
-      };
-
-      this.logger.debug(
-        `[聚合处理][${chatId}] 开始标记 ${messages.length} 条消息为 success (batchId=${batchId}): [${messages.map((m) => m.messageId).join(', ')}]`,
-      );
-
-      await Promise.all(
-        messages.map(async (message, index) => {
-          this.logger.debug(
-            `[聚合处理][${chatId}] 正在标记消息 ${index + 1}/${messages.length}: ${message.messageId}`,
-          );
-          await this.deduplicationService.markMessageAsProcessedAsync(message.messageId);
-
-          // 所有消息都共享相同的 AI 响应元数据
-          // isPrimary 标记哪条消息实际调用了 Agent
-          this.monitoringService.recordSuccess(message.messageId, {
-            ...sharedSuccessMetadata,
-            batchId,
-            isPrimary: message.messageId === lastMessageId,
-          });
-
-          this.logger.debug(
-            `[聚合处理][${chatId}] 已标记消息 ${index + 1}/${messages.length}: ${message.messageId} (isPrimary=${message.messageId === lastMessageId})`,
-          );
-        }),
-      );
-
-      this.logger.debug(
-        `[聚合处理][${chatId}] 已标记 ${messages.length} 条消息为已处理 (batchId=${batchId})`,
-      );
+        parsed,
+        isSingleMessage: false,
+        batchContext: { batchId, allMessages: messages },
+      });
     } catch (error) {
       this.logger.error(`聚合消息处理失败:`, error.message);
 
-      const fallbackTarget =
-        messages.length > 0 ? MessageParser.parse(messages[messages.length - 1]) : null;
+      const errorType: AlertErrorType = this.isAgentError(error) ? 'agent' : 'merge';
+      await this.handleProcessingError(error, parsed, { errorType, scenario });
 
-      if (fallbackTarget) {
-        const errorType: AlertErrorType = this.isAgentError(error) ? 'agent' : 'merge';
-        await this.handleProcessingError(error, fallbackTarget, { errorType, scenario });
-
-        const handledMessageId = fallbackTarget.messageId;
-        await Promise.all(
-          messages
-            .filter((m) => m.messageId !== handledMessageId)
-            .map(async (message) => {
-              await this.deduplicationService.markMessageAsProcessedAsync(message.messageId);
-              this.monitoringService.recordFailure(
-                message.messageId,
-                error.message || '聚合处理失败',
-                { scenario, alertType: errorType },
-              );
-            }),
-        );
-      }
+      // 标记其他消息为失败
+      const handledMessageId = parsed.messageId;
+      await Promise.all(
+        messages
+          .filter((m) => m.messageId !== handledMessageId)
+          .map(async (message) => {
+            await this.deduplicationService.markMessageAsProcessedAsync(message.messageId);
+            this.monitoringService.recordFailure(
+              message.messageId,
+              error.message || '聚合处理失败',
+              { scenario, alertType: errorType },
+            );
+          }),
+      );
 
       throw error;
     }
+  }
+
+  // ========================================
+  // 核心处理逻辑
+  // ========================================
+
+  /**
+   * 消息处理核心逻辑
+   * 统一处理单条消息和聚合消息的共同流程
+   */
+  private async processMessageCore(params: {
+    primaryMessage: EnterpriseMessageCallbackDto;
+    messageId: string;
+    chatId: string;
+    content: string;
+    contactName: string;
+    scenario: ScenarioType;
+    parsed: ReturnType<typeof MessageParser.parse>;
+    isSingleMessage: boolean;
+    batchContext?: { batchId: string; allMessages: EnterpriseMessageCallbackDto[] };
+  }): Promise<void> {
+    const {
+      messageId,
+      chatId,
+      content,
+      contactName,
+      scenario,
+      parsed,
+      isSingleMessage,
+      batchContext,
+    } = params;
+
+    const logPrefix = isSingleMessage ? '' : '[聚合处理]';
+
+    // 1. 获取历史消息（已预先写入当前消息，此处排除当前消息）
+    const historyMessages = await this.historyService.getHistoryForContext(chatId, messageId);
+
+    // 2. 调用 Agent
+    const agentResult = await this.agentGateway.invoke({
+      conversationId: chatId,
+      userMessage: content,
+      historyMessages,
+      scenario,
+      messageId,
+      recordMonitoring: true,
+    });
+
+    this.logger.log(
+      `${logPrefix}[${contactName}] Agent 处理完成，耗时 ${agentResult.processingTime}ms，` +
+        `tokens=${agentResult.reply.usage?.totalTokens || 'N/A'}`,
+    );
+
+    // 3. 如果是降级响应，发送告警（需要人工介入）
+    if (agentResult.isFallback) {
+      this.sendFallbackAlert({
+        contactName,
+        userMessage: content,
+        fallbackMessage: agentResult.reply.content,
+        fallbackReason: agentResult.result?.fallbackInfo?.reason || 'Agent API 调用失败',
+        scenario,
+        chatId,
+      });
+    }
+
+    // 4. 异步检测预约成功并处理通知（不阻塞主流程）
+    this.bookingDetection.handleBookingSuccessAsync(
+      chatId,
+      contactName,
+      agentResult.reply.rawResponse,
+    );
+
+    // 5. 发送回复
+    const deliveryContext = this.buildDeliveryContext(parsed);
+    const deliveryResult = await this.deliveryService.deliverReply(
+      agentResult.reply,
+      deliveryContext,
+      isSingleMessage,
+    );
+
+    // 6. 构建成功记录的元数据
+    const successMetadata = this.buildSuccessMetadata(agentResult, deliveryResult, scenario);
+
+    // 7. 标记消息为已处理并记录成功
+    if (batchContext) {
+      // 聚合路径：批量标记所有消息
+      await this.markBatchMessagesSuccess(
+        batchContext.allMessages,
+        messageId,
+        chatId,
+        batchContext.batchId,
+        successMetadata,
+      );
+    } else {
+      // 单条路径：只标记当前消息
+      this.monitoringService.recordSuccess(messageId, successMetadata);
+      await this.deduplicationService.markMessageAsProcessedAsync(messageId);
+      this.logger.debug(`[${contactName}] 消息 [${messageId}] 已标记为已处理`);
+    }
+  }
+
+  /**
+   * 构建成功记录的元数据
+   */
+  private buildSuccessMetadata(
+    agentResult: Awaited<ReturnType<AgentGatewayService['invoke']>>,
+    deliveryResult: { segmentCount: number },
+    scenario: ScenarioType,
+  ): Record<string, unknown> {
+    const rawResponse = agentResult.reply.rawResponse;
+    const requestBody = (agentResult.result as unknown as Record<string, unknown>)?.requestBody;
+    const rawHttpResponse = agentResult.result.rawHttpResponse;
+
+    return {
+      scenario,
+      tools: agentResult.reply.tools?.used,
+      tokenUsage: agentResult.reply.usage?.totalTokens,
+      replyPreview: agentResult.reply.content,
+      replySegments: deliveryResult.segmentCount,
+      isFallback: agentResult.isFallback,
+      agentInvocation:
+        requestBody && rawResponse
+          ? {
+              request: requestBody,
+              response: rawResponse,
+              isFallback: agentResult.isFallback,
+              http: rawHttpResponse
+                ? {
+                    status: rawHttpResponse.status,
+                    statusText: rawHttpResponse.statusText,
+                    headers: rawHttpResponse.headers,
+                  }
+                : undefined,
+            }
+          : undefined,
+    };
+  }
+
+  /**
+   * 批量标记聚合消息为成功
+   */
+  private async markBatchMessagesSuccess(
+    messages: EnterpriseMessageCallbackDto[],
+    primaryMessageId: string,
+    chatId: string,
+    batchId: string,
+    baseMetadata: Record<string, unknown>,
+  ): Promise<void> {
+    this.logger.debug(
+      `[聚合处理][${chatId}] 开始标记 ${messages.length} 条消息为 success (batchId=${batchId}): [${messages.map((m) => m.messageId).join(', ')}]`,
+    );
+
+    await Promise.all(
+      messages.map(async (message, index) => {
+        this.logger.debug(
+          `[聚合处理][${chatId}] 正在标记消息 ${index + 1}/${messages.length}: ${message.messageId}`,
+        );
+
+        await this.deduplicationService.markMessageAsProcessedAsync(message.messageId);
+
+        // 所有消息都共享相同的 AI 响应元数据
+        // isPrimary 标记哪条消息实际调用了 Agent
+        this.monitoringService.recordSuccess(message.messageId, {
+          ...baseMetadata,
+          batchId,
+          isPrimary: message.messageId === primaryMessageId,
+        });
+
+        this.logger.debug(
+          `[聚合处理][${chatId}] 已标记消息 ${index + 1}/${messages.length}: ${message.messageId} (isPrimary=${message.messageId === primaryMessageId})`,
+        );
+      }),
+    );
+
+    this.logger.debug(
+      `[聚合处理][${chatId}] 已标记 ${messages.length} 条消息为已处理 (batchId=${batchId})`,
+    );
   }
 
   // ========================================
