@@ -368,11 +368,14 @@ export class MessagePipelineService {
     }
 
     // 4. 异步检测预约成功并处理通知（不阻塞主流程）
-    this.bookingDetection.handleBookingSuccessAsync(
+    this.bookingDetection.handleBookingSuccessAsync({
       chatId,
       contactName,
-      agentResult.reply.rawResponse,
-    );
+      userId: parsed.imContactId,
+      managerId: parsed.imBotId,
+      managerName: parsed.managerName,
+      chatResponse: agentResult.reply.rawResponse,
+    });
 
     // 5. 发送回复
     const deliveryContext = this.buildDeliveryContext(parsed);

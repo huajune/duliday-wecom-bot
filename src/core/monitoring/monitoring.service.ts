@@ -481,7 +481,7 @@ export class MonitoringService implements OnModuleInit {
       const previousFallback = this.calculateFallbackStats(previousRecords);
       const fallbackDelta = this.calculateFallbackDelta(fallback, previousFallback);
 
-      // 5. 计算业务指标（从 booking_stats 表获取预约统计）
+      // 5. 计算业务指标（从 interview_booking_records 表获取预约统计）
       // 将时间戳转换为日期字符串 (YYYY-MM-DD)
       const currentStartDate = new Date(currentStart).toISOString().split('T')[0];
       const currentEndDate = new Date(currentEnd).toISOString().split('T')[0];
@@ -740,7 +740,7 @@ export class MonitoringService implements OnModuleInit {
 
   /**
    * 从数据库获取业务指标
-   * 预约统计从 booking_stats 表读取（事件驱动更新）
+   * 预约统计从 interview_booking_records 表读取（事件驱动更新）
    */
   private async getBusinessMetricsFromDatabase(
     startDate: string,
@@ -749,7 +749,7 @@ export class MonitoringService implements OnModuleInit {
   ) {
     const users = new Set(records.filter((r) => r.userId).map((r) => r.userId!));
 
-    // 从 booking_stats 表获取预约统计
+    // 从 interview_booking_records 表获取预约统计
     let successfulBookings = 0;
     try {
       const bookingStats = await this.supabaseService.getBookingStats({
@@ -792,7 +792,7 @@ export class MonitoringService implements OnModuleInit {
     const users = new Set(records.filter((r) => r.userId).map((r) => r.userId!));
 
     // 不再从 agentInvocation 读取，因为该字段已从查询中排除以优化性能
-    // 预约统计现在由 BookingDetectionService 实时更新到 booking_stats 表
+    // 预约统计现在由 BookingDetectionService 实时更新到 interview_booking_records 表
     return {
       consultations: {
         total: users.size,

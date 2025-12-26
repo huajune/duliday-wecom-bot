@@ -181,15 +181,18 @@ export class BookingDetectionService {
    * - 发送飞书通知（异步）
    * - 更新统计数据（异步）
    *
-   * @param chatId 会话ID
-   * @param contactName 候选人名称
-   * @param chatResponse Agent 响应
+   * @param params 预约处理参数
    */
-  async handleBookingSuccessAsync(
-    chatId: string,
-    contactName: string,
-    chatResponse: ChatResponse | undefined,
-  ): Promise<void> {
+  async handleBookingSuccessAsync(params: {
+    chatId: string;
+    contactName: string;
+    userId?: string; // 用户的系统 wxid (imContactId)
+    managerId?: string; // 招募经理 ID (botUserId/imBotId)
+    managerName?: string; // 招募经理昵称
+    chatResponse: ChatResponse | undefined;
+  }): Promise<void> {
+    const { chatId, contactName, userId, managerId, managerName, chatResponse } = params;
+
     const detection = this.detectBookingSuccess(chatResponse);
 
     if (!detection.detected || !detection.bookingInfo) {
@@ -198,18 +201,22 @@ export class BookingDetectionService {
 
     this.logger.log(`[${contactName}] 检测到预约成功，开始异步处理`);
 
-    // 补充候选人信息
+    // 补充候选人和招募经理信息
     const bookingInfo: InterviewBookingInfo = {
       ...detection.bookingInfo,
       candidateName: detection.bookingInfo.candidateName || contactName,
       chatId,
+      userId,
+      userName: contactName,
+      managerId,
+      managerName,
     };
 
     // 异步发送飞书通知（不阻塞主流程）
     this.sendFeishuNotificationAsync(bookingInfo);
 
     // 异步更新统计数据（不阻塞主流程）
-    this.updateBookingStatsAsync(chatId, bookingInfo);
+    this.updateBookingStatsAsync(bookingInfo);
   }
 
   /**
@@ -234,14 +241,18 @@ export class BookingDetectionService {
   /**
    * 异步更新预约统计数据
    */
-  private updateBookingStatsAsync(chatId: string, bookingInfo: InterviewBookingInfo): void {
+  private updateBookingStatsAsync(bookingInfo: InterviewBookingInfo): void {
     // 使用 setImmediate 确保异步执行，不阻塞主流程
     setImmediate(async () => {
       try {
         await this.supabaseService.incrementBookingCount({
           brandName: bookingInfo.brandName,
           storeName: bookingInfo.storeName,
-          chatId,
+          chatId: bookingInfo.chatId,
+          userId: bookingInfo.userId,
+          userName: bookingInfo.userName,
+          managerId: bookingInfo.managerId,
+          managerName: bookingInfo.managerName,
         });
         this.logger.debug(`预约统计已更新: ${bookingInfo.brandName}`);
       } catch (error) {

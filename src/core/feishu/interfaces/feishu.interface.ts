@@ -63,6 +63,12 @@ export interface InterviewBookingInfo {
   interviewTime?: string;
   contactInfo?: string;
   toolOutput?: Record<string, unknown>;
+  // 用户信息（用于统计）
+  userId?: string; // 用户的系统 wxid (imContactId)
+  userName?: string; // 用户昵称 (contactName)
+  // 招募经理信息
+  managerId?: string; // 招募经理 ID (botUserId)
+  managerName?: string; // 招募经理昵称
 }
 
 /**

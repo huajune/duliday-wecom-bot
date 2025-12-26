@@ -3187,65 +3187,44 @@ export class SupabaseService implements OnModuleInit {
 
   /**
    * 增加预约统计计数
-   * 使用 upsert 实现：如果记录存在则增加计数，否则创建新记录
+   * 每次预约成功都创建一条新记录，便于追溯每次预约的详细信息
    *
-   * @param params 预约信息
+   * @param params 预约信息（包含用户和招募经理信息）
    */
   async incrementBookingCount(params: {
     brandName?: string;
     storeName?: string;
     chatId?: string;
+    userId?: string;
+    userName?: string;
+    managerId?: string;
+    managerName?: string;
   }): Promise<void> {
     if (!this.isInitialized) {
       this.logger.warn('[预约统计] Supabase 未初始化，跳过更新');
       return;
     }
 
-    const { brandName, storeName } = params;
+    const { brandName, storeName, chatId, userId, userName, managerId, managerName } = params;
     const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
 
     try {
-      // 先查询是否存在记录
-      const existingResponse = await this.supabaseHttpClient.get('/booking_stats', {
-        params: {
-          date: `eq.${today}`,
-          brand_name: brandName ? `eq.${brandName}` : 'is.null',
-          store_name: storeName ? `eq.${storeName}` : 'is.null',
-          limit: 1,
-        },
+      // 每次预约成功都创建一条新记录
+      await this.supabaseHttpClient.post('/interview_booking_records', {
+        date: today,
+        brand_name: brandName || null,
+        store_name: storeName || null,
+        chat_id: chatId || null,
+        user_id: userId || null,
+        user_name: userName || null,
+        manager_id: managerId || null,
+        manager_name: managerName || null,
+        booking_count: 1,
       });
-
-      const existing = existingResponse.data?.[0];
-
-      if (existing) {
-        // 更新现有记录
-        await this.supabaseHttpClient.patch(
-          '/booking_stats',
-          {
-            booking_count: existing.booking_count + 1,
-            updated_at: new Date().toISOString(),
-          },
-          {
-            params: {
-              id: `eq.${existing.id}`,
-            },
-          },
-        );
-        this.logger.debug(
-          `[预约统计] 更新: ${brandName || '未知品牌'} - ${storeName || '未知门店'}, count: ${existing.booking_count + 1}`,
-        );
-      } else {
-        // 创建新记录
-        await this.supabaseHttpClient.post('/booking_stats', {
-          date: today,
-          brand_name: brandName || null,
-          store_name: storeName || null,
-          booking_count: 1,
-        });
-        this.logger.debug(
-          `[预约统计] 新增: ${brandName || '未知品牌'} - ${storeName || '未知门店'}, count: 1`,
-        );
-      }
+      this.logger.debug(
+        `[预约统计] 新增: ${brandName || '未知品牌'} - ${storeName || '未知门店'}, ` +
+          `用户: ${userName || '未知'}, 招募经理: ${managerName || '未知'}`,
+      );
     } catch (error) {
       this.logger.error('[预约统计] 更新失败:', error);
       // 不抛出异常，避免影响主流程
@@ -3268,6 +3247,11 @@ export class SupabaseService implements OnModuleInit {
       brandName: string | null;
       storeName: string | null;
       bookingCount: number;
+      chatId: string | null;
+      userId: string | null;
+      userName: string | null;
+      managerId: string | null;
+      managerName: string | null;
     }>
   > {
     if (!this.isInitialized) {
@@ -3294,7 +3278,7 @@ export class SupabaseService implements OnModuleInit {
         queryParams['brand_name'] = `eq.${params.brandName}`;
       }
 
-      const response = await this.supabaseHttpClient.get('/booking_stats', {
+      const response = await this.supabaseHttpClient.get('/interview_booking_records', {
         params: queryParams,
       });
 
@@ -3304,11 +3288,21 @@ export class SupabaseService implements OnModuleInit {
           brand_name: string | null;
           store_name: string | null;
           booking_count: number;
+          chat_id: string | null;
+          user_id: string | null;
+          user_name: string | null;
+          manager_id: string | null;
+          manager_name: string | null;
         }) => ({
           date: row.date,
           brandName: row.brand_name,
           storeName: row.store_name,
           bookingCount: row.booking_count,
+          chatId: row.chat_id,
+          userId: row.user_id,
+          userName: row.user_name,
+          managerId: row.manager_id,
+          managerName: row.manager_name,
         }),
       );
     } catch (error) {
