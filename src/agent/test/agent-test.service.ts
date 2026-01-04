@@ -232,6 +232,20 @@ export class AgentTestService {
    * 返回 Agent API 的原始流式响应
    */
   async executeTestStream(request: TestChatRequestDto): Promise<NodeJS.ReadableStream> {
+    const result = await this.executeTestStreamWithMeta(request);
+    return result.stream;
+  }
+
+  /**
+   * 执行流式测试（带元数据）
+   * 返回流式响应和估算的 input token 数量
+   *
+   * 由于花卷 API 在流式模式下不返回 token usage，
+   * 我们在这里估算 input token 数量，供前端展示使用
+   */
+  async executeTestStreamWithMeta(
+    request: TestChatRequestDto,
+  ): Promise<{ stream: NodeJS.ReadableStream; estimatedInputTokens: number }> {
     const scenario = request.scenario || 'candidate-consultation';
 
     // 获取配置档案
@@ -275,8 +289,23 @@ export class AgentTestService {
       pruneOptions: profile.pruneOptions,
     };
 
+    // 估算 input token 数量
+    // 使用简单的字符数/4 估算法（Claude 平均每个 token 约 4 个字符）
+    // 只计算 systemPrompt + messages，不计算 context（context 会被 Agent API 处理/压缩）
+    const systemPromptLength = profile.systemPrompt?.length || 0;
+    const messagesLength = messages.reduce((sum, msg) => sum + (msg.content?.length || 0), 0);
+    const totalInputLength = systemPromptLength + messagesLength;
+    // 乘以 1.3 系数，因为 tokenizer 对中文字符的处理比字符数/4 更复杂
+    const estimatedInputTokens = Math.round((totalInputLength / 4) * 1.3);
+
+    this.logger.debug(
+      `[Stream] 估算 input tokens: ${estimatedInputTokens} (prompt: ${systemPromptLength}, messages: ${messagesLength})`,
+    );
+
     // 调用流式 API
-    return this.apiClient.chatStream(chatRequest, testId);
+    const stream = await this.apiClient.chatStream(chatRequest, testId);
+
+    return { stream, estimatedInputTokens };
   }
 
   /**

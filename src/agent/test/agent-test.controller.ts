@@ -22,14 +22,22 @@ import {
   UpdateReviewRequestDto,
   ImportFromFeishuRequestDto,
   VercelAIChatRequestDto,
+  SubmitFeedbackRequestDto,
 } from './dto/test-chat.dto';
+import {
+  FeishuBitableSyncService,
+  AgentTestFeedback,
+} from '@core/feishu/services/feishu-bitable.service';
 
 @ApiTags('Agent 测试')
 @Controller('agent/test')
 export class AgentTestController {
   private readonly logger = new Logger(AgentTestController.name);
 
-  constructor(private readonly testService: AgentTestService) {}
+  constructor(
+    private readonly testService: AgentTestService,
+    private readonly feishuBitableService: FeishuBitableSyncService,
+  ) {}
 
   // ==================== 单条测试 ====================
 
@@ -318,15 +326,58 @@ export class AgentTestController {
         saveExecution: request.saveExecution ?? false,
       };
 
-      // 获取花卷 API 的流式响应
-      const stream = await this.testService.executeTestStream(testRequest);
+      // 获取花卷 API 的流式响应（带估算的 input token 数量）
+      const { stream, estimatedInputTokens } =
+        await this.testService.executeTestStreamWithMeta(testRequest);
 
-      // 直接透传流数据
+      // 追踪输出文本长度，用于估算 output token
+      let outputTextLength = 0;
+
       stream.on('data', (chunk: Buffer) => {
+        const text = chunk.toString();
+
+        // 解析 SSE 数据，追踪输出文本长度
+        const lines = text.split('\n').filter((line) => line.trim());
+        for (const line of lines) {
+          try {
+            // 解析 SSE 格式: "data: {...}"
+            if (line.startsWith('data: ')) {
+              const jsonStr = line.slice(6);
+              if (jsonStr && jsonStr !== '[DONE]') {
+                const data = JSON.parse(jsonStr);
+                // 累计 text-delta 事件的文本长度
+                if (data.type === 'text-delta' && data.delta) {
+                  outputTextLength += data.delta.length;
+                }
+              }
+            }
+          } catch {
+            // 解析失败，忽略
+          }
+        }
+
+        // 透传原始数据
         res.write(chunk);
       });
 
       stream.on('end', () => {
+        // 在流结束时，发送估算的 token usage
+        // 使用 Vercel AI SDK v6 的 JSON event stream 格式
+        // data part 格式: {"type":"data-tokenUsage","data":{...}}
+        // 花卷 API 在流式模式下不返回 usage，所以我们使用估算值
+        const estimatedOutputTokens = Math.round(outputTextLength / 4);
+        const tokenUsage = {
+          inputTokens: estimatedInputTokens,
+          outputTokens: estimatedOutputTokens,
+          totalTokens: estimatedInputTokens + estimatedOutputTokens,
+        };
+
+        // Vercel AI SDK v6 使用 JSON event stream 格式，data part type 必须以 "data-" 开头
+        const usageData = `data: ${JSON.stringify({ type: 'data-tokenUsage', data: tokenUsage })}\n\n`;
+        res.write(usageData);
+        this.logger.log(
+          `[AI-Stream] 发送估算 token usage: input=${estimatedInputTokens}, output=${estimatedOutputTokens}`,
+        );
         res.end();
       });
 
@@ -636,6 +687,54 @@ export class AgentTestController {
       };
     } catch (error: any) {
       this.logger.error(`批量更新评审失败: ${error.message}`, error.stack);
+      throw new HttpException(
+        {
+          success: false,
+          error: error.message,
+        },
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  // ==================== 反馈管理 ====================
+
+  /**
+   * 提交测试反馈（踩/赞）
+   * POST /agent/test/feedback
+   */
+  @Post('feedback')
+  @ApiOperation({
+    summary: '提交测试反馈',
+    description: '将测试结果标记为 badcase 或 goodcase，写入飞书多维表格',
+  })
+  async submitFeedback(@Body() request: SubmitFeedbackRequestDto) {
+    this.logger.log(`[Feedback] 提交 ${request.type} 反馈`);
+
+    try {
+      const feedback: AgentTestFeedback = {
+        type: request.type,
+        chatHistory: request.chatHistory,
+        errorType: request.errorType,
+        remark: request.remark,
+        chatId: request.chatId,
+      };
+
+      const result = await this.feishuBitableService.writeAgentTestFeedback(feedback);
+
+      if (result.success) {
+        return {
+          success: true,
+          data: {
+            recordId: result.recordId,
+            type: request.type,
+          },
+        };
+      } else {
+        throw new Error(result.error || '写入飞书表格失败');
+      }
+    } catch (error: any) {
+      this.logger.error(`[Feedback] 提交失败: ${error.message}`, error.stack);
       throw new HttpException(
         {
           success: false,

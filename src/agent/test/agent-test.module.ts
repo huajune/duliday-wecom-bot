@@ -4,6 +4,7 @@ import { HttpModule } from '@core/client-http';
 import { AgentTestController } from './agent-test.controller';
 import { AgentTestService } from './agent-test.service';
 import { AgentModule } from '../agent.module';
+import { FeishuModule } from '@core/feishu';
 
 /**
  * Agent 测试模块
@@ -14,6 +15,7 @@ import { AgentModule } from '../agent.module';
     ConfigModule,
     HttpModule,
     AgentModule, // 导入 AgentModule 以使用 AgentService 等
+    FeishuModule, // 导入 FeishuModule 以使用飞书多维表格服务
   ],
   controllers: [AgentTestController],
   providers: [AgentTestService],

@@ -16,6 +16,17 @@ interface FeishuRecordPayload {
 }
 
 /**
+ * Agent 测试反馈数据
+ */
+export interface AgentTestFeedback {
+  type: 'badcase' | 'goodcase';
+  chatHistory: string; // 格式化的聊天记录
+  errorType?: string; // 错误类型（仅 badcase）
+  remark?: string; // 备注
+  chatId?: string; // 会话 ID
+}
+
+/**
  * 每日将上一日聊天记录写入飞书多维表格（使用代码内配置为主）
  */
 @Injectable()
@@ -180,5 +191,92 @@ export class FeishuBitableSyncService {
     const start = new Date(end);
     start.setDate(start.getDate() - 1);
     return { start: start.getTime(), end: end.getTime() };
+  }
+
+  /**
+   * 写入 Agent 测试反馈到飞书多维表格
+   * @param feedback 反馈数据
+   * @returns 写入结果
+   */
+  async writeAgentTestFeedback(
+    feedback: AgentTestFeedback,
+  ): Promise<{ success: boolean; recordId?: string; error?: string }> {
+    const { appId, appSecret, tables } = this.loadFeedbackConfig();
+
+    if (!appId || !appSecret) {
+      return { success: false, error: '飞书应用凭证未配置' };
+    }
+
+    const tableConfig = feedback.type === 'badcase' ? tables.badcase : tables.goodcase;
+    if (!tableConfig?.appToken || !tableConfig?.tableId) {
+      return { success: false, error: `${feedback.type} 表配置不完整` };
+    }
+
+    try {
+      const token = await this.getTenantToken(appId, appSecret);
+
+      // 构建记录数据
+      const fields: Record<string, unknown> = {
+        候选人微信昵称: '测试用户',
+        招募经理姓名: 'AI测试',
+        咨询时间: Date.now(),
+        聊天记录: this.truncate(feedback.chatHistory, 10000),
+      };
+
+      if (feedback.chatId) {
+        fields.chatId = feedback.chatId;
+      }
+
+      if (feedback.remark) {
+        fields['备注'] = feedback.remark;
+      }
+
+      if (feedback.errorType) {
+        fields['错误类型'] = feedback.errorType;
+      }
+
+      const response = await this.http.post(
+        `${this.apiBase}/bitable/v1/apps/${tableConfig.appToken}/tables/${tableConfig.tableId}/records`,
+        { fields },
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+
+      if (response.data?.code === 0) {
+        const recordId = response.data?.data?.record?.record_id;
+        this.logger.log(`[Feedback] 成功写入 ${feedback.type} 反馈, recordId: ${recordId}`);
+        return { success: true, recordId };
+      } else {
+        const errorMsg = response.data?.msg || '未知错误';
+        this.logger.error(`[Feedback] 写入失败: ${errorMsg}`);
+        return { success: false, error: errorMsg };
+      }
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logger.error(`[Feedback] 写入异常: ${errorMessage}`);
+      return { success: false, error: errorMessage };
+    }
+  }
+
+  /**
+   * 加载反馈表配置
+   */
+  private loadFeedbackConfig() {
+    const appId =
+      feishuBitableConfig.appId && feishuBitableConfig.appId !== 'PLEASE_SET_APP_ID'
+        ? feishuBitableConfig.appId
+        : this.configService.get<string>('FEISHU_APP_ID') || '';
+    const appSecret =
+      feishuBitableConfig.appSecret && feishuBitableConfig.appSecret !== 'PLEASE_SET_APP_SECRET'
+        ? feishuBitableConfig.appSecret
+        : this.configService.get<string>('FEISHU_APP_SECRET') || '';
+
+    return {
+      appId,
+      appSecret,
+      tables: {
+        badcase: feishuBitableConfig.tables.badcase,
+        goodcase: feishuBitableConfig.tables.goodcase,
+      },
+    };
   }
 }

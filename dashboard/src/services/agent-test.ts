@@ -187,6 +187,23 @@ export interface ImportResult {
   }>;
 }
 
+// ==================== 反馈相关类型 ====================
+
+export type FeedbackType = 'badcase' | 'goodcase';
+
+export interface SubmitFeedbackRequest {
+  type: FeedbackType;
+  chatHistory: string;
+  errorType?: string;
+  remark?: string;
+  chatId?: string;
+}
+
+export interface SubmitFeedbackResponse {
+  recordId: string;
+  type: FeedbackType;
+}
+
 // ==================== API 函数 ====================
 
 /**
@@ -446,6 +463,14 @@ export async function batchUpdateReview(
  */
 export async function importFromFeishu(request: ImportFromFeishuRequest): Promise<ImportResult> {
   const { data } = await api.post('/agent/test/batches/import-from-feishu', request);
+  return data.data;
+}
+
+/**
+ * 提交测试反馈（badcase/goodcase）
+ */
+export async function submitFeedback(request: SubmitFeedbackRequest): Promise<SubmitFeedbackResponse> {
+  const { data } = await api.post('/agent/test/feedback', request);
   return data.data;
 }
 

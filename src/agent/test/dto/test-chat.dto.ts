@@ -304,3 +304,31 @@ export interface ImportResult {
     message: string;
   }>;
 }
+
+/**
+ * 提交反馈请求 DTO
+ */
+export class SubmitFeedbackRequestDto {
+  @ApiProperty({ description: '反馈类型', enum: ['badcase', 'goodcase'] })
+  @IsString()
+  type: 'badcase' | 'goodcase';
+
+  @ApiProperty({ description: '格式化的聊天记录' })
+  @IsString()
+  chatHistory: string;
+
+  @ApiPropertyOptional({ description: '错误类型（仅 badcase）' })
+  @IsOptional()
+  @IsString()
+  errorType?: string;
+
+  @ApiPropertyOptional({ description: '备注' })
+  @IsOptional()
+  @IsString()
+  remark?: string;
+
+  @ApiPropertyOptional({ description: '会话 ID' })
+  @IsOptional()
+  @IsString()
+  chatId?: string;
+}

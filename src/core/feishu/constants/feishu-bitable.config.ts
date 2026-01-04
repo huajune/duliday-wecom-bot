@@ -12,7 +12,8 @@ export interface FeishuBitableConfig {
   appSecret: string;
   tables: {
     chat: FeishuBitableTableConfig;
-    // second?: FeishuBitableTableConfig; // 预留第二张表
+    badcase: FeishuBitableTableConfig;
+    goodcase: FeishuBitableTableConfig;
   };
 }
 
@@ -25,6 +26,16 @@ export const feishuBitableConfig: FeishuBitableConfig = {
       // 聊天记录表
       appToken: 'WXQgb98iPauYsHsSYzMckqHcnbb', // 从 wiki 节点转换得到的实际 bitable token
       tableId: 'tblKNwN8aquh2JAy',
+    },
+    badcase: {
+      // badcase 反馈表
+      appToken: 'WXQgb98iPauYsHsSYzMckqHcnbb',
+      tableId: 'tbllFuw1BVwpvyrI',
+    },
+    goodcase: {
+      // goodcase 反馈表
+      appToken: 'WXQgb98iPauYsHsSYzMckqHcnbb',
+      tableId: 'tblmI0UBzhknkIOm',
     },
   },
 };

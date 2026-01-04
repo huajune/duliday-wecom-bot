@@ -319,7 +319,11 @@
       "Bash(API_KEY=\"$SUPABASE_SERVICE_ROLE_KEY\" curl -s -I \"https://uvmbxcilpteaiizplcyp.supabase.co/rest/v1/message_processing_records?status=eq.failure&select=message_id\" -H \"apikey: $API_KEY\" -H \"Authorization: Bearer $API_KEY\" -H \"Prefer: count=exact\")",
       "Bash(API_KEY=\"$SUPABASE_SERVICE_ROLE_KEY\" curl -s \"https://uvmbxcilpteaiizplcyp.supabase.co/rest/v1/?apikey=$API_KEY\" -H \"Authorization: Bearer $API_KEY\")",
       "Bash(/tmp/test-stream.sh:*)",
-      "Bash(timeout 30 curl:*)"
+      "Bash(timeout 30 curl:*)",
+      "Bash(ENABLE_BULL_QUEUE=false timeout 30 pnpm run start:dev:*)",
+      "Bash(API_KEY=\"f4174f.nEA0MYE3Vz-U0O2w4HawdA.QH1lUahJwLpKnvm6\")",
+      "Bash(pnpm exec eslint:*)",
+      "Bash(timeout 10 pnpm run dev:*)"
     ],
     "deny": [
       "Bash(git restore:*)",
