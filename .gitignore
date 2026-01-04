@@ -59,3 +59,6 @@ lerna-debug.log*
 codex.config.yml
 
 .mcp.json
+
+tenant_token_cache.json
+user_token_cache.json

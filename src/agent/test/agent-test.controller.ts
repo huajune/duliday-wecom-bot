@@ -1,0 +1,648 @@
+import {
+  Controller,
+  Get,
+  Post,
+  Patch,
+  Body,
+  Param,
+  Query,
+  Logger,
+  HttpException,
+  HttpStatus,
+  Res,
+  Header,
+} from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiQuery, ApiParam } from '@nestjs/swagger';
+import { Response } from 'express';
+import { AgentTestService } from './agent-test.service';
+import {
+  TestChatRequestDto,
+  BatchTestRequestDto,
+  CreateBatchRequestDto,
+  UpdateReviewRequestDto,
+  ImportFromFeishuRequestDto,
+  VercelAIChatRequestDto,
+} from './dto/test-chat.dto';
+
+@ApiTags('Agent 测试')
+@Controller('agent/test')
+export class AgentTestController {
+  private readonly logger = new Logger(AgentTestController.name);
+
+  constructor(private readonly testService: AgentTestService) {}
+
+  // ==================== 单条测试 ====================
+
+  /**
+   * 执行单条测试
+   * POST /agent/test/chat
+   */
+  @Post('chat')
+  @ApiOperation({
+    summary: '执行单条测试',
+    description: '测试 Agent 对话并返回详细的请求/响应信息',
+  })
+  async testChat(@Body() request: TestChatRequestDto) {
+    this.logger.log(`执行单条测试: ${request.message.substring(0, 50)}...`);
+
+    try {
+      const result = await this.testService.executeTest(request);
+      return {
+        success: true,
+        data: result,
+      };
+    } catch (error: any) {
+      this.logger.error(`测试执行失败: ${error.message}`, error.stack);
+      throw new HttpException(
+        {
+          success: false,
+          error: error.message,
+        },
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  /**
+   * 执行流式测试（SSE）
+   * POST /agent/test/chat/stream
+   *
+   * 返回 Server-Sent Events 流，事件类型：
+   * - start: 开始处理
+   * - text: 文本增量
+   * - tool_call: 工具调用开始
+   * - tool_result: 工具调用结果
+   * - metrics: 性能指标
+   * - done: 完成
+   * - error: 错误
+   */
+  @Post('chat/stream')
+  @Header('Content-Type', 'text/event-stream')
+  @Header('Cache-Control', 'no-cache')
+  @Header('Connection', 'keep-alive')
+  @ApiOperation({
+    summary: '执行流式测试（SSE）',
+    description: '通过 Server-Sent Events 返回流式响应',
+  })
+  async testChatStream(@Body() request: TestChatRequestDto, @Res() res: Response) {
+    this.logger.log(`[Stream] 执行流式测试: ${request.message.substring(0, 50)}...`);
+
+    // 设置 SSE 响应头
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no'); // 禁用 nginx 缓冲
+    res.flushHeaders();
+
+    const startTime = Date.now();
+
+    // 发送 SSE 事件的辅助函数
+    const sendEvent = (event: string, data: any) => {
+      res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+    };
+
+    try {
+      // 发送开始事件
+      sendEvent('start', { timestamp: new Date().toISOString() });
+
+      // 执行测试并获取流式响应
+      const stream = await this.testService.executeTestStream(request);
+
+      // 累积数据用于最终统计
+      let fullText = '';
+      const toolCalls: any[] = [];
+      let tokenUsage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 };
+
+      // 处理流式数据
+      stream.on('data', (chunk: Buffer) => {
+        const text = chunk.toString();
+        this.logger.debug(`[Stream] 收到数据块: ${text.substring(0, 200)}...`);
+
+        // SSE 格式：以 "data: " 开头的行
+        const lines = text.split('\n').filter((line) => line.startsWith('data: '));
+
+        for (const line of lines) {
+          try {
+            const jsonStr = line.slice(6); // 移除 "data: "
+            if (jsonStr === '[DONE]') {
+              this.logger.debug('[Stream] 收到 [DONE] 信号');
+              continue;
+            }
+
+            const data = JSON.parse(jsonStr);
+            this.logger.debug(`[Stream] 解析事件: ${JSON.stringify(data).substring(0, 300)}`);
+
+            // 处理不同类型的流式事件
+            // 花卷 API 实际格式:
+            // - 文本增量: { type: 'text-delta', id: '0', delta: '你好' }
+            // - 工具调用: { type: 'tool-call', toolCallId: '...', toolName: '...', args: {...} }
+            // - 工具结果: { type: 'tool-result', toolCallId: '...', result: {...} }
+            // - 步骤事件: { type: 'start-step' }, { type: 'finish-step' }
+            // - 完成事件: { type: 'finish', usage: {...} }
+            if (data.type === 'text-delta') {
+              // 花卷 API 文本增量格式 - delta 直接就是文本内容
+              const textContent = data.delta || '';
+              fullText += textContent;
+              sendEvent('text', { text: textContent, fullText });
+            } else if (data.type === 'content_block_delta' && data.delta?.type === 'text_delta') {
+              // Anthropic 原生格式（备用）
+              const textContent = data.delta.text || '';
+              fullText += textContent;
+              sendEvent('text', { text: textContent, fullText });
+            } else if (data.type === 'text' || data.delta?.text) {
+              // 通用格式
+              const textContent = data.delta?.text || data.text || '';
+              fullText += textContent;
+              sendEvent('text', { text: textContent, fullText });
+            } else if (data.type === 'tool-call') {
+              // 花卷 API 工具调用格式
+              const toolCall = {
+                toolCallId: data.toolCallId,
+                toolName: data.toolName,
+                input: data.args,
+              };
+              toolCalls.push(toolCall);
+              sendEvent('tool_call', toolCall);
+            } else if (data.type === 'tool_use' || data.type === 'tool_call' || data.toolName) {
+              // 其他工具调用格式（备用）
+              const toolCall = {
+                toolName: data.name || data.toolName,
+                input: data.input || data.arguments,
+              };
+              toolCalls.push(toolCall);
+              sendEvent('tool_call', toolCall);
+            } else if (data.type === 'tool-result') {
+              // 花卷 API 工具结果格式
+              const toolCallId = data.toolCallId;
+              const matchingTool = toolCalls.find((t) => t.toolCallId === toolCallId);
+              if (matchingTool) {
+                matchingTool.output = data.result;
+              }
+              sendEvent('tool_result', {
+                toolCallId,
+                toolName: matchingTool?.toolName,
+                output: data.result,
+              });
+            } else if (data.type === 'tool_result') {
+              // 其他工具结果格式（备用）
+              const lastTool = toolCalls[toolCalls.length - 1];
+              if (lastTool) {
+                lastTool.output = data.output || data.result || data.content;
+              }
+              sendEvent('tool_result', {
+                toolName: lastTool?.toolName,
+                output: data.output || data.result || data.content,
+              });
+            } else if (data.type === 'finish' && data.usage) {
+              // 花卷 API 完成事件，包含 usage 统计
+              tokenUsage = {
+                inputTokens: data.usage.inputTokens || data.usage.input_tokens || 0,
+                outputTokens: data.usage.outputTokens || data.usage.output_tokens || 0,
+                totalTokens:
+                  data.usage.totalTokens ||
+                  data.usage.total_tokens ||
+                  (data.usage.inputTokens || 0) + (data.usage.outputTokens || 0),
+              };
+            } else if (data.type === 'message_delta' && data.usage) {
+              // Anthropic 原生格式的使用统计（备用）
+              tokenUsage = {
+                inputTokens: data.usage.input_tokens || 0,
+                outputTokens: data.usage.output_tokens || 0,
+                totalTokens: (data.usage.input_tokens || 0) + (data.usage.output_tokens || 0),
+              };
+            } else if (data.usage) {
+              tokenUsage = {
+                inputTokens: data.usage.input_tokens || data.usage.inputTokens || 0,
+                outputTokens: data.usage.output_tokens || data.usage.outputTokens || 0,
+                totalTokens: data.usage.total_tokens || data.usage.totalTokens || 0,
+              };
+            }
+          } catch {
+            // 解析失败，可能是不完整的 JSON，忽略
+          }
+        }
+      });
+
+      stream.on('end', () => {
+        const durationMs = Date.now() - startTime;
+
+        // 发送最终指标
+        sendEvent('metrics', {
+          durationMs,
+          tokenUsage,
+          toolCallsCount: toolCalls.length,
+        });
+
+        // 发送完成事件
+        sendEvent('done', {
+          status: 'success',
+          actualOutput: fullText,
+          toolCalls,
+          metrics: { durationMs, tokenUsage },
+        });
+
+        res.end();
+      });
+
+      stream.on('error', (error: Error) => {
+        this.logger.error(`[Stream] 流式处理错误: ${error.message}`);
+        sendEvent('error', { message: error.message });
+        res.end();
+      });
+    } catch (error: any) {
+      this.logger.error(`[Stream] 测试执行失败: ${error.message}`, error.stack);
+      sendEvent('error', { message: error.message });
+      res.end();
+    }
+  }
+
+  /**
+   * 流式测试 - Vercel AI SDK 兼容格式
+   * POST /agent/test/chat/ai-stream
+   *
+   * 接收 useChat hook 发送的请求，转换格式后调用花卷 API
+   * 前端可使用 @ai-sdk/react 的 useChat hook 直接解析
+   */
+  @Post('chat/ai-stream')
+  @Header('Content-Type', 'text/event-stream')
+  @Header('Cache-Control', 'no-cache')
+  @Header('Connection', 'keep-alive')
+  @Header('x-vercel-ai-ui-message-stream', 'v1')
+  @ApiOperation({
+    summary: '执行流式测试（Vercel AI SDK 格式）',
+    description: '接收 useChat hook 请求格式，兼容 DefaultChatTransport',
+  })
+  async testChatAIStream(@Body() request: VercelAIChatRequestDto, @Res() res: Response) {
+    // 从 UIMessage 格式提取最新的用户消息
+    const userMessages = request.messages.filter((m) => m.role === 'user');
+    const latestUserMessage = userMessages[userMessages.length - 1];
+
+    // 从 parts 中提取文本内容
+    const messageText =
+      latestUserMessage?.parts
+        ?.filter((p) => p.type === 'text')
+        .map((p) => p.text)
+        .join('') || '';
+
+    this.logger.log(
+      `[AI-Stream] 执行流式测试: ${messageText.substring(0, 50)}... (共 ${request.messages.length} 条消息)`,
+    );
+
+    // 设置 Vercel AI SDK 兼容的响应头
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
+    res.setHeader('x-vercel-ai-ui-message-stream', 'v1');
+    res.flushHeaders();
+
+    try {
+      // 将 UIMessage 格式转换为 SimpleMessage 格式
+      const history = request.messages.slice(0, -1).map((msg) => {
+        const textContent =
+          msg.parts
+            ?.filter((p) => p.type === 'text')
+            .map((p) => p.text)
+            .join('') || '';
+        return {
+          role: msg.role as 'user' | 'assistant' | 'system',
+          content: textContent,
+        };
+      });
+
+      // 构建 TestChatRequestDto 格式的请求
+      const testRequest: TestChatRequestDto = {
+        message: messageText,
+        history,
+        scenario: request.scenario || 'candidate-consultation',
+        saveExecution: request.saveExecution ?? false,
+      };
+
+      // 获取花卷 API 的流式响应
+      const stream = await this.testService.executeTestStream(testRequest);
+
+      // 直接透传流数据
+      stream.on('data', (chunk: Buffer) => {
+        res.write(chunk);
+      });
+
+      stream.on('end', () => {
+        res.end();
+      });
+
+      stream.on('error', (error: Error) => {
+        this.logger.error(`[AI-Stream] 流式处理错误: ${error.message}`);
+        res.write(`data: {"type":"error","error":"${error.message}"}\n\n`);
+        res.end();
+      });
+    } catch (error: any) {
+      this.logger.error(`[AI-Stream] 测试执行失败: ${error.message}`, error.stack);
+      res.write(`data: {"type":"error","error":"${error.message}"}\n\n`);
+      res.end();
+    }
+  }
+
+  /**
+   * 批量执行测试
+   * POST /agent/test/batch
+   */
+  @Post('batch')
+  @ApiOperation({ summary: '批量执行测试', description: '批量执行多个测试用例' })
+  async batchTest(@Body() request: BatchTestRequestDto) {
+    this.logger.log(`批量执行测试: ${request.cases.length} 个用例`);
+
+    try {
+      // 创建批次（如果提供了名称）
+      let batchId: string | undefined;
+      if (request.batchName) {
+        const batch = await this.testService.createBatch({
+          name: request.batchName,
+          source: 'manual',
+        });
+        batchId = batch.id;
+      }
+
+      const results = await this.testService.executeBatch(request.cases, batchId, request.parallel);
+
+      return {
+        success: true,
+        data: {
+          batchId,
+          totalCases: results.length,
+          successCount: results.filter((r) => r.status === 'success').length,
+          failureCount: results.filter((r) => r.status === 'failure').length,
+          results,
+        },
+      };
+    } catch (error: any) {
+      this.logger.error(`批量测试执行失败: ${error.message}`, error.stack);
+      throw new HttpException(
+        {
+          success: false,
+          error: error.message,
+        },
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  // ==================== 批次管理 ====================
+
+  /**
+   * 创建测试批次
+   * POST /agent/test/batches
+   */
+  @Post('batches')
+  @ApiOperation({ summary: '创建测试批次' })
+  async createBatch(@Body() request: CreateBatchRequestDto) {
+    this.logger.log(`创建测试批次: ${request.name}`);
+
+    try {
+      const batch = await this.testService.createBatch(request);
+      return {
+        success: true,
+        data: batch,
+      };
+    } catch (error: any) {
+      this.logger.error(`创建批次失败: ${error.message}`, error.stack);
+      throw new HttpException(
+        {
+          success: false,
+          error: error.message,
+        },
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  /**
+   * 从飞书多维表格导入测试用例
+   * POST /agent/test/batches/import-from-feishu
+   */
+  @Post('batches/import-from-feishu')
+  @ApiOperation({
+    summary: '从飞书多维表格导入测试用例',
+    description: '从飞书多维表格导入测试用例，自动识别字段映射',
+  })
+  async importFromFeishu(@Body() request: ImportFromFeishuRequestDto) {
+    this.logger.log(`从飞书导入测试用例: appToken=${request.appToken}, tableId=${request.tableId}`);
+
+    try {
+      const result = await this.testService.importFromFeishu(request);
+      return {
+        success: true,
+        data: result,
+      };
+    } catch (error: any) {
+      this.logger.error(`导入失败: ${error.message}`, error.stack);
+      throw new HttpException(
+        {
+          success: false,
+          error: error.message,
+        },
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  /**
+   * 获取批次列表
+   * GET /agent/test/batches
+   */
+  @Get('batches')
+  @ApiOperation({ summary: '获取测试批次列表' })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  @ApiQuery({ name: 'offset', required: false, type: Number })
+  async getBatches(@Query('limit') limit?: number, @Query('offset') offset?: number) {
+    const batches = await this.testService.getBatches(limit || 20, offset || 0);
+    return {
+      success: true,
+      data: batches,
+    };
+  }
+
+  /**
+   * 获取批次详情
+   * GET /agent/test/batches/:id
+   */
+  @Get('batches/:id')
+  @ApiOperation({ summary: '获取批次详情' })
+  @ApiParam({ name: 'id', description: '批次ID' })
+  async getBatch(@Param('id') id: string) {
+    const batch = await this.testService.getBatch(id);
+    if (!batch) {
+      throw new HttpException('批次不存在', HttpStatus.NOT_FOUND);
+    }
+    return {
+      success: true,
+      data: batch,
+    };
+  }
+
+  /**
+   * 获取批次统计信息
+   * GET /agent/test/batches/:id/stats
+   */
+  @Get('batches/:id/stats')
+  @ApiOperation({ summary: '获取批次统计信息' })
+  @ApiParam({ name: 'id', description: '批次ID' })
+  async getBatchStats(@Param('id') id: string) {
+    const stats = await this.testService.getBatchStats(id);
+    return {
+      success: true,
+      data: stats,
+    };
+  }
+
+  /**
+   * 获取批次分类统计
+   * GET /agent/test/batches/:id/category-stats
+   */
+  @Get('batches/:id/category-stats')
+  @ApiOperation({ summary: '获取批次分类统计' })
+  @ApiParam({ name: 'id', description: '批次ID' })
+  async getCategoryStats(@Param('id') id: string) {
+    const stats = await this.testService.getCategoryStats(id);
+    return {
+      success: true,
+      data: stats,
+    };
+  }
+
+  /**
+   * 获取批次失败原因统计
+   * GET /agent/test/batches/:id/failure-stats
+   */
+  @Get('batches/:id/failure-stats')
+  @ApiOperation({ summary: '获取批次失败原因统计' })
+  @ApiParam({ name: 'id', description: '批次ID' })
+  async getFailureReasonStats(@Param('id') id: string) {
+    const stats = await this.testService.getFailureReasonStats(id);
+    return {
+      success: true,
+      data: stats,
+    };
+  }
+
+  // ==================== 执行记录管理 ====================
+
+  /**
+   * 获取批次的执行记录
+   * GET /agent/test/batches/:id/executions
+   */
+  @Get('batches/:id/executions')
+  @ApiOperation({ summary: '获取批次的执行记录' })
+  @ApiParam({ name: 'id', description: '批次ID' })
+  @ApiQuery({ name: 'reviewStatus', required: false })
+  @ApiQuery({ name: 'executionStatus', required: false })
+  @ApiQuery({ name: 'category', required: false })
+  async getBatchExecutions(
+    @Param('id') id: string,
+    @Query('reviewStatus') reviewStatus?: string,
+    @Query('executionStatus') executionStatus?: string,
+    @Query('category') category?: string,
+  ) {
+    const executions = await this.testService.getBatchExecutions(id, {
+      reviewStatus,
+      executionStatus,
+      category,
+    });
+    return {
+      success: true,
+      data: executions,
+    };
+  }
+
+  /**
+   * 获取执行记录列表（不关联批次）
+   * GET /agent/test/executions
+   */
+  @Get('executions')
+  @ApiOperation({ summary: '获取执行记录列表' })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  @ApiQuery({ name: 'offset', required: false, type: Number })
+  async getExecutions(@Query('limit') limit?: number, @Query('offset') offset?: number) {
+    const executions = await this.testService.getExecutions(limit || 50, offset || 0);
+    return {
+      success: true,
+      data: executions,
+    };
+  }
+
+  /**
+   * 获取执行记录详情
+   * GET /agent/test/executions/:id
+   */
+  @Get('executions/:id')
+  @ApiOperation({ summary: '获取执行记录详情' })
+  @ApiParam({ name: 'id', description: '执行记录ID' })
+  async getExecution(@Param('id') id: string) {
+    const execution = await this.testService.getExecution(id);
+    if (!execution) {
+      throw new HttpException('执行记录不存在', HttpStatus.NOT_FOUND);
+    }
+    return {
+      success: true,
+      data: execution,
+    };
+  }
+
+  // ==================== 评审管理 ====================
+
+  /**
+   * 更新评审状态
+   * PATCH /agent/test/executions/:id/review
+   */
+  @Patch('executions/:id/review')
+  @ApiOperation({ summary: '更新评审状态' })
+  @ApiParam({ name: 'id', description: '执行记录ID' })
+  async updateReview(@Param('id') id: string, @Body() review: UpdateReviewRequestDto) {
+    this.logger.log(`更新评审状态: ${id} -> ${review.reviewStatus}`);
+
+    try {
+      const execution = await this.testService.updateReview(id, review);
+      return {
+        success: true,
+        data: execution,
+      };
+    } catch (error: any) {
+      this.logger.error(`更新评审失败: ${error.message}`, error.stack);
+      throw new HttpException(
+        {
+          success: false,
+          error: error.message,
+        },
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  /**
+   * 批量更新评审状态
+   * PATCH /agent/test/executions/batch-review
+   */
+  @Patch('executions/batch-review')
+  @ApiOperation({ summary: '批量更新评审状态' })
+  async batchUpdateReview(
+    @Body() body: { executionIds: string[]; review: UpdateReviewRequestDto },
+  ) {
+    this.logger.log(`批量更新评审状态: ${body.executionIds.length} 条记录`);
+
+    try {
+      const count = await this.testService.batchUpdateReview(body.executionIds, body.review);
+      return {
+        success: true,
+        data: { updatedCount: count },
+      };
+    } catch (error: any) {
+      this.logger.error(`批量更新评审失败: ${error.message}`, error.stack);
+      throw new HttpException(
+        {
+          success: false,
+          error: error.message,
+        },
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+}
