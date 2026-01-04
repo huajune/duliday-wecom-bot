@@ -10,6 +10,8 @@ import System from '@/view/system/list';
 import Config from '@/view/config/list';
 import Hosting from '@/view/hosting/list';
 import Users from '@/view/users/list';
+import AgentTest from '@/view/agent-test/list';
+import TestSuite from '@/view/test-suite/list';
 
 function App() {
   return (
@@ -46,6 +48,8 @@ function App() {
           <Route path="system" element={<System />} />
           <Route path="logs" element={<Logs />} />
           <Route path="chat-records" element={<ChatRecords />} />
+          <Route path="agent-test" element={<AgentTest />} />
+          <Route path="test-suite" element={<TestSuite />} />
         </Route>
       </Routes>
     </>

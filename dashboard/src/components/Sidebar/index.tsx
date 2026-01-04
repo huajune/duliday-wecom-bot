@@ -1,4 +1,11 @@
+import logoIcon from '@/assets/images/cake_recruiter_icon.png';
 import { NavLink } from 'react-router-dom';
+import { PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+
+interface SidebarProps {
+  isCollapsed: boolean;
+  onToggle: () => void;
+}
 
 // SVG 图标组件 - 圣诞节日限定版
 const DashboardIcon = () => (
@@ -52,6 +59,25 @@ const SystemIcon = () => (
   </svg>
 );
 
+const AgentTestIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v18m0 0h10a2 2 0 0 0 2-2v-4M9 21H5a2 2 0 0 1-2-2v-4" />
+    <circle cx="5" cy="9" r="1" />
+    <circle cx="5" cy="15" r="1" />
+    <path d="M12 7h6" />
+    <path d="M12 11h4" />
+    <path d="M12 15h6" />
+  </svg>
+);
+
+const TestSuiteIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2" />
+    <rect x="9" y="3" width="6" height="4" rx="1" />
+    <path d="M9 12l2 2 4-4" />
+  </svg>
+);
+
 const LogsIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
     <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
@@ -71,87 +97,136 @@ const ChatRecordsIcon = () => (
   </svg>
 );
 
-export default function Sidebar() {
+export default function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
   return (
-    <aside className="sidebar">
+    <aside className={`sidebar ${isCollapsed ? 'collapsed' : ''}`}>
       {/* Background Decorations */}
-      <div className="sidebar-watermark">❄️</div>
-      <div className="sidebar-watermark-2">🎄</div>
+      {!isCollapsed && (
+        <>
+          <div className="sidebar-watermark">❄️</div>
+          <div className="sidebar-watermark-2">🎄</div>
+        </>
+      )}
+
+      {/* 收起/展开按钮 - 放在侧边栏右边缘 */}
+      <button
+        className="sidebar-toggle"
+        onClick={onToggle}
+        title={isCollapsed ? '展开菜单 (⌘S)' : '收起菜单 (⌘S)'}
+      >
+        {isCollapsed ? <PanelLeftOpen size={14} /> : <PanelLeftClose size={14} />}
+      </button>
 
       <div className="sidebar-header">
         <div className="sidebar-logo">
-          <span>🤖</span> 独立日 Bot
+          <img src={logoIcon} alt="Logo" style={{ width: 36, height: 36, borderRadius: 10, objectFit: 'cover' }} />
+          {!isCollapsed && '蛋糕私域托管'}
         </div>
       </div>
 
       <div className="sidebar-menu">
         {/* 概览 */}
-        <div className="group-title">概览</div>
+        {!isCollapsed && <div className="group-title">概览</div>}
         <NavLink
           to="/"
           end
           className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+          title={isCollapsed ? '仪表盘' : undefined}
         >
-          <span className="nav-icon"><DashboardIcon /></span> 仪表盘
+          <span className="nav-icon"><DashboardIcon /></span>
+          {!isCollapsed && <span className="nav-text">仪表盘</span>}
         </NavLink>
 
         {/* 管理 */}
-        <div className="group-title">管理</div>
+        {!isCollapsed && <div className="group-title">管理</div>}
         <NavLink
           to="/users"
           className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+          title={isCollapsed ? '今日托管' : undefined}
         >
-          <span className="nav-icon"><UsersIcon /></span> 今日托管
+          <span className="nav-icon"><UsersIcon /></span>
+          {!isCollapsed && <span className="nav-text">今日托管</span>}
         </NavLink>
         <NavLink
           to="/logs"
           className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+          title={isCollapsed ? '实时消息' : undefined}
         >
-          <span className="nav-icon"><LogsIcon /></span> 实时消息
+          <span className="nav-icon"><LogsIcon /></span>
+          {!isCollapsed && <span className="nav-text">实时消息</span>}
         </NavLink>
         <NavLink
           to="/chat-records"
           className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+          title={isCollapsed ? '消息总览' : undefined}
         >
-          <span className="nav-icon"><ChatRecordsIcon /></span> 消息总览
+          <span className="nav-icon"><ChatRecordsIcon /></span>
+          {!isCollapsed && <span className="nav-text">消息总览</span>}
         </NavLink>
         <NavLink
           to="/hosting"
           className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+          title={isCollapsed ? '托管设置' : undefined}
         >
-          <span className="nav-icon"><HostingIcon /></span> 托管设置
+          <span className="nav-icon"><HostingIcon /></span>
+          {!isCollapsed && <span className="nav-text">托管设置</span>}
         </NavLink>
         <NavLink
           to="/config"
           className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+          title={isCollapsed ? '回复设置' : undefined}
         >
-          <span className="nav-icon"><ConfigIcon /></span> 回复设置
+          <span className="nav-icon"><ConfigIcon /></span>
+          {!isCollapsed && <span className="nav-text">回复设置</span>}
         </NavLink>
 
         {/* 系统 */}
-        <div className="group-title">系统</div>
+        {!isCollapsed && <div className="group-title">系统</div>}
         <NavLink
           to="/system"
           className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+          title={isCollapsed ? '系统监控' : undefined}
         >
-          <span className="nav-icon"><SystemIcon /></span> 系统监控
+          <span className="nav-icon"><SystemIcon /></span>
+          {!isCollapsed && <span className="nav-text">系统监控</span>}
+        </NavLink>
+
+        {/* 开发工具 */}
+        {!isCollapsed && <div className="group-title">开发</div>}
+        <NavLink
+          to="/agent-test"
+          className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+          title={isCollapsed ? '对话测试' : undefined}
+        >
+          <span className="nav-icon"><AgentTestIcon /></span>
+          {!isCollapsed && <span className="nav-text">对话测试</span>}
+        </NavLink>
+        <NavLink
+          to="/test-suite"
+          className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+          title={isCollapsed ? '飞书测试集' : undefined}
+        >
+          <span className="nav-icon"><TestSuiteIcon /></span>
+          {!isCollapsed && <span className="nav-text">飞书测试集</span>}
         </NavLink>
       </div>
 
-      <div className="sidebar-footer">
-        <div className="santa-floating">🎅</div>
+      {!isCollapsed && (
+        <div className="sidebar-footer">
+          <div className="santa-floating">🎅</div>
 
-        {/* Christmas Decorative Element */}
-        <div className="christmas-card">
-          <div className="christmas-title">Merry Christmas! 🎄</div>
-          <div className="christmas-text">May your code be bug-free and your holidays bright.</div>
-          <div className="snowflakes" aria-hidden="true">
-            <div className="snowflake">❅</div>
-            <div className="snowflake">❆</div>
-            <div className="snowflake">❅</div>
+          {/* Christmas Decorative Element */}
+          <div className="christmas-card">
+            <div className="christmas-title">Merry Christmas! 🎄</div>
+            <div className="christmas-text">May your code be bug-free and your holidays bright.</div>
+            <div className="snowflakes" aria-hidden="true">
+              <div className="snowflake">❅</div>
+              <div className="snowflake">❆</div>
+              <div className="snowflake">❅</div>
+            </div>
           </div>
         </div>
-      </div>
+      )}
     </aside>
   );
 }

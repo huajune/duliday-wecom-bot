@@ -7,6 +7,7 @@ import { MonitoringModule } from './core/monitoring/monitoring.module';
 import { LoggerModule } from './core/logger';
 import { FeishuModule } from './core/feishu';
 import { AgentModule } from './agent';
+import { AgentTestModule } from './agent/test/agent-test.module';
 import { WecomModule } from './wecom/wecom.module';
 import { validate } from './core/config/env.validation';
 
@@ -55,6 +56,7 @@ import { validate } from './core/config/env.validation';
 
     // ==================== 业务域 (Business Domains) ====================
     AgentModule, // AI Agent 业务域
+    AgentTestModule, // Agent 测试模块
     WecomModule, // 企业微信业务域
   ],
 })

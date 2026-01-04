@@ -1,0 +1,1049 @@
+// ChatTester 组件样式 - 使用设计系统
+@use '@/assets/styles/variables' as *;
+
+// ==================== 动画 ====================
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+
+@keyframes glow {
+  0%, 100% { box-shadow: 0 0 5px rgba($primary, 0.3); }
+  50% { box-shadow: 0 0 15px rgba($primary, 0.5); }
+}
+
+// ==================== 混合宏 ====================
+@mixin glass-panel {
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid $border;
+  box-shadow: $shadow-sm;
+  border-radius: $radius-xl;
+}
+
+@mixin input-style {
+  width: 100%;
+  padding: $spacing-sm $spacing-md;
+  border-radius: $radius-lg;
+  border: 1px solid $border;
+  font-size: $font-size-sm;
+  background: $bg-primary;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  resize: vertical;
+  transition: all 0.2s ease;
+  line-height: 1.6;
+  color: $text-primary;
+
+  &:focus {
+    outline: none;
+    border-color: $primary;
+    box-shadow: 0 0 0 3px $primary-soft;
+  }
+
+  &:disabled {
+    background: $bg-secondary;
+    color: $text-muted;
+    cursor: not-allowed;
+  }
+
+  &::placeholder {
+    color: $text-muted;
+  }
+}
+
+// ==================== 主容器 ====================
+.chatTester {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  animation: fadeIn 0.5s ease-out;
+  padding: $spacing-sm;
+  overflow: hidden; // 防止外层滚动
+}
+
+.mainContent {
+  display: flex;
+  gap: $spacing-lg;
+  flex: 1;
+  min-height: 0; // 关键：允许 flex 子元素收缩，支持内部滚动
+
+  @include respond-to(lg) {
+    flex-direction: column;
+  }
+}
+
+// ==================== 面板通用样式 ====================
+.inputPanel,
+.resultPanel {
+  @include glass-panel;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transition: box-shadow 0.3s ease;
+
+  &:hover {
+    box-shadow: $shadow-md;
+  }
+}
+
+.panelHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: $spacing-md $spacing-lg;
+  border-bottom: 1px solid rgba(139, 92, 246, 0.1);
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.03) 0%, $bg-secondary 30%, rgba(253, 242, 248, 0.3) 70%, rgba(236, 72, 153, 0.03) 100%);
+  flex-shrink: 0;
+  position: relative;
+  overflow: hidden;
+
+  // 装饰性光线效果
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 50%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
+    animation: shimmer 3s ease-in-out infinite;
+    pointer-events: none;
+  }
+
+  h3 {
+    font-size: $font-size-base;
+    font-weight: $font-weight-semibold;
+    color: $text-primary;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: $spacing-sm;
+
+    svg {
+      color: #8b5cf6;
+      filter: drop-shadow(0 0 3px rgba(139, 92, 246, 0.3));
+    }
+  }
+}
+
+// ==================== 左侧输入面板 ====================
+.inputPanel {
+  flex: 0 0 42%;
+  min-width: 400px;
+  max-height: 100%;
+  overflow: hidden;
+  position: relative;
+
+  // 左侧面板装饰 - 与右侧平衡
+  &::before {
+    content: '';
+    position: absolute;
+    top: -30px;
+    left: -30px;
+    width: 150px;
+    height: 150px;
+    background: radial-gradient(circle, rgba(99, 102, 241, 0.05) 0%, transparent 70%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  &::after {
+    content: '';
+    position: absolute;
+    bottom: -40px;
+    right: -40px;
+    width: 180px;
+    height: 180px;
+    background: radial-gradient(circle, rgba(139, 92, 246, 0.04) 0%, rgba(236, 72, 153, 0.03) 50%, transparent 70%);
+    pointer-events: none;
+    z-index: 0;
+  }
+}
+
+.inputPanelBody {
+  flex: 1;
+  overflow-y: auto;
+  padding: $spacing-lg;
+  position: relative;
+  z-index: 1;
+
+  &::-webkit-scrollbar {
+    width: 6px;
+  }
+  &::-webkit-scrollbar-thumb {
+    background: rgba(148, 163, 184, 0.3);
+    border-radius: 3px;
+  }
+}
+
+.inputGroup {
+  margin-bottom: $spacing-lg;
+
+  &:last-child {
+    margin-bottom: 0;
+  }
+}
+
+.inputLabel {
+  display: flex;
+  align-items: center;
+  gap: $spacing-sm;
+  margin-bottom: $spacing-sm;
+
+  .labelText {
+    font-size: $font-size-sm;
+    font-weight: $font-weight-semibold;
+    color: $text-secondary;
+  }
+
+  .labelHint {
+    font-size: $font-size-xs;
+    color: $text-muted;
+    background: $bg-secondary;
+    padding: 2px 6px;
+    border-radius: $radius-sm;
+  }
+
+  .labelRequired {
+    color: $danger;
+  }
+
+  .statusValid {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: $font-size-xs;
+    color: $success;
+    font-weight: $font-weight-medium;
+    margin-left: $spacing-sm;
+    background: $success-soft;
+    padding: 2px 8px;
+    border-radius: $radius-full;
+  }
+
+  .statusInvalid {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: $font-size-xs;
+    color: $danger;
+    font-weight: $font-weight-medium;
+    margin-left: $spacing-sm;
+    background: $danger-soft;
+    padding: 2px 8px;
+    border-radius: $radius-full;
+  }
+
+  .exampleBtn {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 5px 12px;
+    border: 1px solid rgba(217, 70, 239, 0.15);
+    border-radius: $radius-full;
+    background: rgba(217, 70, 239, 0.06);
+    color: #d946ef;
+    font-size: $font-size-xs;
+    font-weight: $font-weight-medium;
+    cursor: pointer;
+    transition: all 0.2s ease;
+
+    &:hover {
+      background: rgba(236, 72, 153, 0.12);
+      border-color: rgba(236, 72, 153, 0.25);
+      transform: translateY(-1px);
+      box-shadow: 0 3px 8px rgba(236, 72, 153, 0.15);
+    }
+  }
+}
+
+.historyInput {
+  @include input-style;
+  min-height: 180px;
+
+  &.inputError {
+    border-color: $danger;
+    background: $danger-soft;
+
+    &:focus {
+      box-shadow: 0 0 0 3px $danger-soft;
+    }
+  }
+}
+
+.messageInputWrapper {
+  position: relative;
+
+  .messageInput {
+    @include input-style;
+    min-height: 100px;
+    padding-right: 48px;
+  }
+
+  .sendIconBtn {
+    position: absolute;
+    bottom: 12px;
+    right: 12px;
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: $radius-lg;
+    border: none;
+    background: linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%);
+    color: $text-on-primary;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: 0 3px 10px rgba(236, 72, 153, 0.25);
+
+    &:hover:not(:disabled) {
+      transform: scale(1.05);
+      box-shadow: 0 5px 14px rgba(236, 72, 153, 0.35);
+    }
+
+    &:active:not(:disabled) {
+      transform: scale(0.95);
+    }
+
+    &:disabled {
+      background: $border;
+      cursor: not-allowed;
+      box-shadow: none;
+      transform: none;
+    }
+
+    svg {
+      transition: transform 0.2s ease;
+    }
+
+    &:hover:not(:disabled) svg {
+      transform: translateX(2px);
+    }
+  }
+}
+
+.inputHint {
+  margin-top: $spacing-sm;
+  font-size: $font-size-xs;
+  color: $text-muted;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+
+  kbd {
+    background: $bg-secondary;
+    border: 1px solid $border;
+    border-radius: $radius-sm;
+    padding: 1px 5px;
+    font-family: inherit;
+    font-size: 11px;
+    min-width: 20px;
+    text-align: center;
+    box-shadow: 0 1px 0 $border;
+  }
+}
+
+// ==================== 清空按钮 ====================
+.clearBtn {
+  padding: 6px 14px;
+  border-radius: $radius-full;
+  border: 1px solid rgba($danger, 0.2);
+  background: rgba($danger, 0.05);
+  color: $danger;
+  font-size: $font-size-xs;
+  font-weight: $font-weight-medium;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+
+  svg {
+    transition: transform 0.3s ease;
+  }
+
+  &:hover:not(:disabled) {
+    border-color: $danger;
+    background: rgba($danger, 0.1);
+    box-shadow: 0 2px 8px rgba($danger, 0.15);
+
+    svg {
+      transform: rotate(90deg);
+    }
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}
+
+// ==================== 右侧结果面板 ====================
+.resultPanel {
+  flex: 1;
+  min-width: 450px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0; // 重要：允许 flex 子元素收缩
+  max-height: 100%; // 限制最大高度
+  overflow: hidden; // 面板本身不滚动
+
+  .panelHeader {
+    flex-shrink: 0; // 头部不收缩
+  }
+}
+
+// 可滚动的内容区域
+.scrollableContent {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0; // 允许收缩
+  padding: $spacing-lg;
+
+  &::-webkit-scrollbar {
+    width: 6px;
+  }
+  &::-webkit-scrollbar-thumb {
+    background: rgba(148, 163, 184, 0.3);
+    border-radius: 3px;
+  }
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+}
+
+.resultPanel .panelHeader {
+  .statusTag {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 12px;
+    border-radius: $radius-full;
+    font-size: $font-size-xs;
+    font-weight: $font-weight-semibold;
+
+    &.success {
+      background: $success-soft;
+      color: $success;
+      border: 1px solid rgba($success, 0.2);
+    }
+
+    &.failure {
+      background: $danger-soft;
+      color: $danger;
+      border: 1px solid rgba($danger, 0.2);
+    }
+
+    &.timeout {
+      background: $warning-soft;
+      color: $warning;
+      border: 1px solid rgba($warning, 0.2);
+    }
+  }
+}
+
+.resultContent {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-lg;
+}
+
+// ==================== 指标卡片 ====================
+.metricsRow {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: $spacing-sm;
+}
+
+.metricCard {
+  padding: $spacing-md;
+  background: rgba(255, 255, 255, 0.9);
+  border-radius: $radius-lg;
+  border: 1px solid rgba(139, 92, 246, 0.08);
+  text-align: center;
+  transition: all 0.2s ease;
+  position: relative;
+  overflow: hidden;
+
+  // 每个卡片不同的强调色 - 紫粉调色盘
+  &:nth-child(1) {
+    .metricValue { color: #6366f1; }
+    .metricLabel svg { color: #6366f1; }
+    &::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, #6366f1, #818cf8);
+    }
+  }
+
+  &:nth-child(2) {
+    .metricValue { color: #8b5cf6; }
+    .metricLabel svg { color: #8b5cf6; }
+    &::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, #8b5cf6, #a78bfa);
+    }
+  }
+
+  &:nth-child(3) {
+    .metricValue { color: #d946ef; }
+    .metricLabel svg { color: #d946ef; }
+    &::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, #d946ef, #e879f9);
+    }
+  }
+
+  &:nth-child(4) {
+    .metricValue { color: #ec4899; }
+    .metricLabel svg { color: #ec4899; }
+    &::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, #ec4899, #f472b6);
+    }
+  }
+
+  &:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 3px 10px rgba(139, 92, 246, 0.08);
+  }
+
+  .metricValue {
+    display: block;
+    font-size: 24px;
+    font-weight: $font-weight-bold;
+    font-family: 'JetBrains Mono', monospace;
+    letter-spacing: -0.5px;
+    line-height: 1.2;
+  }
+
+  .metricLabel {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    font-size: 10px;
+    color: $text-muted;
+    margin-top: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    font-weight: $font-weight-medium;
+
+    svg {
+      opacity: 0.6;
+    }
+  }
+}
+
+// ==================== AI 回复 ====================
+.replySection {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(250, 248, 255, 0.9) 100%);
+  border: 1px solid rgba(139, 92, 246, 0.1);
+  border-radius: $radius-lg;
+  padding: $spacing-lg;
+  position: relative;
+
+  .sectionHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: $spacing-md;
+    padding-bottom: $spacing-sm;
+    border-bottom: 1px solid rgba(139, 92, 246, 0.08);
+    position: relative;
+
+    h4 {
+      display: flex;
+      align-items: center;
+      gap: $spacing-sm;
+      font-size: $font-size-sm;
+      font-weight: $font-weight-semibold;
+      color: $text-primary;
+      margin: 0;
+
+      svg {
+        color: #8b5cf6;
+        opacity: 0.7;
+      }
+    }
+
+    .copyBtn {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      padding: 5px 12px;
+      border: 1px solid rgba(139, 92, 246, 0.12);
+      border-radius: $radius-full;
+      background: rgba(255, 255, 255, 0.8);
+      color: $text-secondary;
+      font-size: 11px;
+      font-weight: $font-weight-medium;
+      cursor: pointer;
+      transition: all 0.2s;
+
+      &:hover {
+        border-color: rgba(139, 92, 246, 0.25);
+        color: #8b5cf6;
+        background: rgba(139, 92, 246, 0.05);
+      }
+    }
+  }
+
+  .replyContent {
+    font-size: $font-size-sm;
+    color: $text-primary;
+    line-height: 1.8;
+    white-space: pre-wrap;
+  }
+}
+
+// ==================== 可折叠区块 ====================
+.collapsibleSection {
+  border: 1px solid rgba(139, 92, 246, 0.1);
+  border-radius: $radius-lg;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.95);
+
+  .collapsibleHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: $spacing-sm $spacing-md;
+    background: rgba(250, 248, 255, 0.6);
+    cursor: pointer;
+    user-select: none;
+
+    &:hover {
+      background: rgba(245, 243, 255, 0.8);
+    }
+
+    h4 {
+      display: flex;
+      align-items: center;
+      gap: $spacing-sm;
+      font-size: $font-size-sm;
+      font-weight: $font-weight-semibold;
+      color: $text-primary;
+      margin: 0;
+
+      svg {
+        color: #8b5cf6;
+        opacity: 0.7;
+      }
+    }
+
+    .toggleIcon {
+      color: #d946ef;
+      display: flex;
+      transition: transform 0.2s ease;
+    }
+  }
+}
+
+.toolCallsList {
+  padding: $spacing-md;
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-sm;
+  background: rgba(255, 255, 255, 0.5);
+  border-top: 1px solid rgba(139, 92, 246, 0.06);
+}
+
+.toolCallItem {
+  background: rgba(255, 255, 255, 0.9);
+  border-radius: $radius-md;
+  border: 1px solid rgba(139, 92, 246, 0.08);
+  overflow: hidden;
+  transition: all 0.2s ease;
+
+  &:hover {
+    border-color: rgba(139, 92, 246, 0.15);
+    box-shadow: 0 2px 6px rgba(139, 92, 246, 0.06);
+  }
+
+  .toolHeader {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: $spacing-sm $spacing-md;
+    user-select: none;
+  }
+
+  .toolHeaderClickable {
+    cursor: pointer;
+
+    &:hover {
+      background: rgba(139, 92, 246, 0.03);
+    }
+  }
+
+  .toolHeaderRight {
+    display: flex;
+    align-items: center;
+    gap: $spacing-sm;
+  }
+
+  .toolExpandIcon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #8b5cf6;
+  }
+
+  .toolName {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 10px;
+    background: linear-gradient(135deg, rgba(139, 92, 246, 0.12) 0%, rgba(236, 72, 153, 0.12) 100%);
+    color: #8b5cf6;
+    border: 1px solid rgba(139, 92, 246, 0.15);
+    border-radius: $radius-md;
+    font-size: $font-size-xs;
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: $font-weight-medium;
+  }
+
+  .toolStatus {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    font-weight: $font-weight-medium;
+    padding: 3px 8px;
+    border-radius: $radius-full;
+
+    &.statusSuccess {
+      background: $success-soft;
+      color: $success;
+    }
+
+    &.statusCalling {
+      background: $warning-soft;
+      color: $warning;
+    }
+  }
+
+  .toolBody {
+    padding: 0 $spacing-md $spacing-md;
+    animation: slideDown 0.2s ease-out;
+  }
+
+  @keyframes slideDown {
+    from {
+      opacity: 0;
+      transform: translateY(-8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .toolSection {
+    margin-top: $spacing-sm;
+
+    .toolSectionLabel {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      font-weight: $font-weight-semibold;
+      color: $text-secondary;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 6px;
+
+      svg {
+        opacity: 0.7;
+      }
+    }
+  }
+
+  .toolDetail {
+    margin: 0;
+    padding: 12px;
+    background: #0f172a;
+    border-radius: $radius-md;
+    font-size: 11px;
+    font-family: 'JetBrains Mono', monospace;
+    color: #e2e8f0;
+    overflow-x: auto;
+    white-space: pre-wrap;
+    word-break: break-all;
+    line-height: 1.6;
+    max-height: 200px;
+    overflow-y: auto;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+
+    &::-webkit-scrollbar {
+      width: 4px;
+      height: 4px;
+    }
+    &::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 2px;
+    }
+  }
+
+  .toolOutputPreview {
+    position: relative;
+
+    .expandBtn {
+      position: absolute;
+      bottom: 8px;
+      right: 8px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 8px;
+      background: rgba(255, 255, 255, 0.1);
+      border: none;
+      border-radius: $radius-sm;
+      color: #94a3b8;
+      font-size: 10px;
+      cursor: pointer;
+      transition: all 0.2s;
+
+      &:hover {
+        background: rgba(255, 255, 255, 0.2);
+        color: #fff;
+      }
+    }
+  }
+}
+
+.jsonViewer {
+  margin: 0;
+  padding: $spacing-md;
+  background: #0f172a;
+  color: #e2e8f0;
+  font-size: 11px;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  overflow-x: auto;
+  max-height: 400px;
+  overflow-y: auto;
+  line-height: 1.6;
+}
+
+// ==================== MessagePartsAdapter 容器 ====================
+.messagePartsContainer {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-md;
+}
+
+// ==================== 流式输出样式 ====================
+.streamingContent {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-lg;
+  animation: fadeIn 0.3s ease-out;
+}
+
+.streamingIcon {
+  color: $success;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+.streamCursor {
+  display: inline-block;
+  color: #ec4899;
+  font-weight: bold;
+  animation: blink 1s step-end infinite;
+  margin-left: 2px;
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+.streamingPlaceholder {
+  color: $text-muted;
+  font-style: italic;
+}
+
+.cancelBtn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border: 1px solid rgba($danger, 0.3);
+  border-radius: $radius-md;
+  background: $danger-soft;
+  color: $danger;
+  font-size: 11px;
+  font-weight: $font-weight-medium;
+  cursor: pointer;
+  transition: all 0.2s;
+
+  &:hover {
+    background: rgba($danger, 0.15);
+    border-color: $danger;
+  }
+}
+
+.toolCalling {
+  border-color: rgba(139, 92, 246, 0.2) !important;
+  background: rgba(139, 92, 246, 0.04) !important;
+}
+
+.toolSpinner {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border: 2px solid rgba(139, 92, 246, 0.2);
+  border-top-color: #8b5cf6;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  margin-right: 6px;
+}
+
+.toolSpinnerIcon {
+  animation: spin 1s linear infinite;
+}
+
+// ==================== 错误与空状态 ====================
+.errorBox {
+  display: flex;
+  align-items: center;
+  gap: $spacing-sm;
+  padding: $spacing-sm $spacing-md;
+  margin: $spacing-md $spacing-lg 0;
+  background: $danger-soft;
+  border: 1px solid rgba($danger, 0.2);
+  border-radius: $radius-lg;
+  animation: fadeIn 0.3s ease-out;
+
+  .errorIcon {
+    color: $danger;
+  }
+
+  .errorText {
+    flex: 1;
+    font-size: $font-size-sm;
+    color: $danger;
+    font-weight: $font-weight-medium;
+  }
+
+  .errorClose {
+    background: transparent;
+    border: none;
+    color: $danger;
+    cursor: pointer;
+    padding: 4px;
+    border-radius: $radius-sm;
+    display: flex;
+    &:hover { background: rgba($danger, 0.1); }
+  }
+}
+
+.emptyState, .loadingState {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: $text-muted;
+  padding: $spacing-2xl;
+  position: relative;
+
+  // 装饰性背景圆圈
+  &::before {
+    content: '';
+    position: absolute;
+    width: 180px;
+    height: 180px;
+    background: radial-gradient(circle, rgba(139, 92, 246, 0.04) 0%, transparent 70%);
+    border-radius: 50%;
+    pointer-events: none;
+  }
+
+  .emptyIcon {
+    color: rgba(139, 92, 246, 0.35);
+    margin-bottom: $spacing-md;
+    animation: float 4s ease-in-out infinite;
+    filter: drop-shadow(0 3px 6px rgba(139, 92, 246, 0.15));
+  }
+
+  p {
+    font-size: $font-size-sm;
+    margin: 4px 0;
+    color: $text-secondary;
+  }
+
+  .emptyHint, .loadingHint {
+    font-size: $font-size-xs;
+    color: $text-muted;
+  }
+
+  .loadingSpinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid rgba(139, 92, 246, 0.15);
+    border-top-color: #8b5cf6;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin-bottom: $spacing-lg;
+  }
+}
+
+// ==================== 发送按钮增强 ====================
+.sendIconBtn {
+  &::after {
+    content: '';
+    position: absolute;
+    inset: -2px;
+    border-radius: inherit;
+    background: linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%);
+    z-index: -1;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+  }
+
+  &:hover:not(:disabled)::after {
+    opacity: 0.4;
+  }
+}
+

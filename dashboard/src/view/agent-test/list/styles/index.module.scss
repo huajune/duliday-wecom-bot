@@ -1,0 +1,34 @@
+// Agent 测试页面主样式
+@use '@/assets/styles/variables' as *;
+
+.page {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 60px);
+  overflow: hidden; // 页面不滚动
+}
+
+.pageHeader {
+  margin-bottom: $spacing-md;
+  padding: 0 $spacing-sm;
+
+  h1 {
+    margin: 0;
+    font-size: $font-size-xl;
+    font-weight: $font-weight-semibold;
+    color: $text-primary;
+    display: flex;
+    align-items: center;
+    gap: $spacing-sm;
+
+    span {
+      font-size: 20px;
+    }
+  }
+
+  .subtitle {
+    margin: $spacing-xs 0 0 0;
+    font-size: $font-size-sm;
+    color: $text-muted;
+  }
+}

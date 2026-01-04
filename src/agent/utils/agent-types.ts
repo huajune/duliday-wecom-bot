@@ -177,15 +177,15 @@ export type ContextStrategy = 'error' | 'skip' | 'report';
 
 /**
  * /api/v1/chat 请求体
- * 注意：本项目不使用流式输出，stream 参数固定为 false
+ * 支持流式和非流式输出
  */
 export interface ChatRequest {
   // 必填字段
   model: string;
   messages: (UIMessage | SimpleMessage)[];
 
-  // 流式输出配置（本项目不使用）
-  stream?: false;
+  // 流式输出配置
+  stream?: boolean;
 
   // 消息剪裁配置
   prune?: boolean;
@@ -193,10 +193,7 @@ export interface ChatRequest {
 
   // 系统提示词配置（二选一，systemPrompt 优先级更高）
   systemPrompt?: string;
-  promptType?:
-    | 'bossZhipinSystemPrompt'
-    | 'bossZhipinLocalSystemPrompt'
-    | 'generalComputerSystemPrompt';
+  promptType?: string;
 
   // 工具配置
   allowedTools?: string[];

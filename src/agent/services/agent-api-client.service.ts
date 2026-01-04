@@ -126,6 +126,36 @@ export class AgentApiClientService {
   }
 
   /**
+   * 调用 /api/v1/chat 接口（流式输出）
+   * @param request 聊天请求参数
+   * @param conversationId 会话ID（用于日志）
+   * @returns 可读流
+   */
+  async chatStream(
+    request: Omit<ChatRequest, 'stream'>,
+    conversationId: string,
+  ): Promise<NodeJS.ReadableStream> {
+    try {
+      // 强制设置 stream: true
+      const streamRequest = { ...request, stream: true };
+
+      this.logger.log(`[Stream] 发起流式请求，会话: ${conversationId}`);
+
+      const response = await this.httpClient.post('/chat', streamRequest, {
+        headers: { 'X-Conversation-Id': conversationId },
+        responseType: 'stream',
+      });
+
+      return response.data as NodeJS.ReadableStream;
+    } catch (error) {
+      this.logger.error(`[Stream] Agent API 流式调用失败，会话: ${conversationId}`);
+      (error as any).requestParams = request;
+      (error as any).apiKey = this.apiKey;
+      throw this.convertError(error);
+    }
+  }
+
+  /**
    * 获取可用模型列表
    */
   async getModels() {

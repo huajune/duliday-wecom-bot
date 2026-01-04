@@ -1,7 +1,27 @@
+import { useState, useEffect, useCallback } from 'react';
 import { Outlet } from 'react-router-dom';
 import Sidebar from '@/components/Sidebar';
 
 export default function Layout() {
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+
+  const toggleSidebar = useCallback(() => {
+    setIsSidebarCollapsed((prev) => !prev);
+  }, []);
+
+  // 监听 Cmd+S (Mac) / Ctrl+S (Windows) 快捷键
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 's') {
+        e.preventDefault(); // 阻止浏览器默认保存行为
+        toggleSidebar();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [toggleSidebar]);
+
   return (
     <>
       {/* 柔和背景动画 */}
@@ -25,8 +45,8 @@ export default function Layout() {
         <div className="garland-item" style={{ animationDelay: '4.5s' }}>🎈</div>
       </div>
 
-      <div className="app-layout">
-        <Sidebar />
+      <div className={`app-layout ${isSidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
+        <Sidebar isCollapsed={isSidebarCollapsed} onToggle={toggleSidebar} />
         <main className="content">
           <div className="container">
             <Outlet />
