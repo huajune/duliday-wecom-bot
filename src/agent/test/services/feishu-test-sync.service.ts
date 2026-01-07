@@ -260,49 +260,29 @@ export class FeishuTestSyncService {
     try {
       const { appToken, tableId } = this.bitableApi.getTableConfig('testSuite');
 
-      // 获取表格字段（用于获取选项 ID）
-      const fields = await this.bitableApi.getFields(appToken, tableId);
-
-      // 构建更新数据
+      // 构建更新数据（飞书 API 更新记录时需要使用字段名称，不是字段 ID）
       const updateFields: Record<string, any> = {};
 
-      // 1. 测试状态（单选字段）
-      const statusField = fields.find((f) => f.field_name === testSuiteFieldNames.testStatus);
-      if (statusField?.property?.options) {
-        const option = statusField.property.options.find((opt) => opt.name === testStatus);
-        if (option) {
-          updateFields[statusField.field_id] = option.id;
-        }
-      }
+      this.logger.debug(`回写飞书: 记录=${recordId}, 状态=${testStatus}, 批次=${batchId}`);
+
+      // 1. 测试状态（单选字段）- 单选字段使用选项名称（不是选项 ID）
+      updateFields[testSuiteFieldNames.testStatus] = testStatus;
 
       // 2. 最近测试时间（日期时间字段）
-      const timeField = fields.find((f) => f.field_name === testSuiteFieldNames.lastTestTime);
-      if (timeField) {
-        updateFields[timeField.field_id] = Date.now();
-      }
+      updateFields[testSuiteFieldNames.lastTestTime] = Date.now();
 
       // 3. 测试批次（文本字段）
       if (batchId) {
-        const batchField = fields.find((f) => f.field_name === testSuiteFieldNames.testBatch);
-        if (batchField) {
-          updateFields[batchField.field_id] = batchId;
-        }
+        updateFields[testSuiteFieldNames.testBatch] = batchId;
       }
 
       // 4. 分类/失败原因（单选字段）- 仅在失败时更新
       if (testStatus === FeishuTestStatus.FAILED && failureCategory) {
-        const categoryField = fields.find(
-          (f) => f.field_name === testSuiteFieldNames.failureCategory,
-        );
-        if (categoryField?.property?.options) {
-          const option = categoryField.property.options.find((opt) => opt.name === failureCategory);
-          if (option) {
-            updateFields[categoryField.field_id] = option.id;
-          }
-        }
+        updateFields[testSuiteFieldNames.failureCategory] = failureCategory;
       }
 
       // 调用飞书 API 更新记录
+      this.logger.debug(`更新字段: ${JSON.stringify(updateFields)}`);
       const result = await this.bitableApi.updateRecord(appToken, tableId, recordId, updateFields);
 
       if (!result.success) {

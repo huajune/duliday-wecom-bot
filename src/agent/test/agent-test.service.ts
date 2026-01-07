@@ -363,12 +363,18 @@ export class AgentTestService {
    * 更新评审状态
    */
   async updateReview(executionId: string, review: UpdateReviewRequestDto): Promise<TestExecution> {
-    const execution = await this.executionRepository.updateReview(executionId, {
+    await this.executionRepository.updateReview(executionId, {
       reviewStatus: review.reviewStatus,
       reviewComment: review.reviewComment,
       failureReason: review.failureReason,
       reviewedBy: review.reviewedBy,
     });
+
+    // 重新查询完整的执行记录（获取 case_id 等字段用于飞书回写）
+    const execution = await this.executionRepository.findById(executionId);
+    if (!execution) {
+      throw new Error(`执行记录不存在: ${executionId}`);
+    }
 
     // 更新批次统计
     if (execution.batch_id) {
