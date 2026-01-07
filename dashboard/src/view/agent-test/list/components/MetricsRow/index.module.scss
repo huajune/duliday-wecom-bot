@@ -1,0 +1,107 @@
+// MetricsRow 组件样式
+@use '@/assets/styles/variables' as *;
+
+.metricsRow {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: $spacing-sm;
+}
+
+.metricCard {
+  padding: $spacing-md;
+  background: rgba(255, 255, 255, 0.9);
+  border-radius: $radius-lg;
+  border: 1px solid rgba(139, 92, 246, 0.08);
+  text-align: center;
+  transition: all 0.2s ease;
+  position: relative;
+  overflow: hidden;
+
+  // 每个卡片不同的强调色 - 紫粉调色盘
+  &:nth-child(1) {
+    .metricValue { color: #6366f1; }
+    .metricLabel svg { color: #6366f1; }
+    &::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, #6366f1, #818cf8);
+    }
+  }
+
+  &:nth-child(2) {
+    .metricValue { color: #8b5cf6; }
+    .metricLabel svg { color: #8b5cf6; }
+    &::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, #8b5cf6, #a78bfa);
+    }
+  }
+
+  &:nth-child(3) {
+    .metricValue { color: #d946ef; }
+    .metricLabel svg { color: #d946ef; }
+    &::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, #d946ef, #e879f9);
+    }
+  }
+
+  &:nth-child(4) {
+    .metricValue { color: #ec4899; }
+    .metricLabel svg { color: #ec4899; }
+    &::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, #ec4899, #f472b6);
+    }
+  }
+
+  &:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 3px 10px rgba(139, 92, 246, 0.08);
+  }
+
+  .metricValue {
+    display: block;
+    font-size: 24px;
+    font-weight: $font-weight-bold;
+    font-family: 'JetBrains Mono', monospace;
+    letter-spacing: -0.5px;
+    line-height: 1.2;
+  }
+
+  .metricLabel {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    font-size: 10px;
+    color: $text-muted;
+    margin-top: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    font-weight: $font-weight-medium;
+
+    svg {
+      opacity: 0.6;
+    }
+  }
+}

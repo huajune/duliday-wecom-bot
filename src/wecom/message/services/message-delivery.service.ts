@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { MessageSenderService } from '../../message-sender/message-sender.service';
-import { MessageType as SendMessageType } from '../../message-sender/dto/send-message.dto';
+import { SendMessageType } from '../../message-sender/dto/send-message.dto';
 import { MonitoringService } from '@/core/monitoring/monitoring.service';
 import { TypingDelayService } from './message-typing-delay.service';
 import { MessageSplitter } from '../utils/message-splitter.util';

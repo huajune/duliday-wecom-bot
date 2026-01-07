@@ -1,9 +1,9 @@
 import { createPortal } from 'react-dom';
-import { X, Loader2, Sparkles } from 'lucide-react';
+import { X, Loader2, Sparkles, AlertTriangle } from 'lucide-react';
 import { FeedbackType } from '@/services/agent-test';
-import { ERROR_TYPE_OPTIONS } from '../constants';
-import { CustomSelect } from './CustomSelect';
-import styles from '../index.module.scss';
+import { ERROR_TYPE_OPTIONS } from '../../constants';
+import { CustomSelect } from '../CustomSelect';
+import styles from './index.module.scss';
 
 export interface FeedbackModalProps {
   isOpen: boolean;
@@ -12,6 +12,7 @@ export interface FeedbackModalProps {
   remark: string;
   isSubmitting: boolean;
   chatHistoryPreview: string;
+  submitError?: string | null; // 新增：提交错误信息
   onClose: () => void;
   onErrorTypeChange: (type: string) => void;
   onRemarkChange: (remark: string) => void;
@@ -28,6 +29,7 @@ export function FeedbackModal({
   remark,
   isSubmitting,
   chatHistoryPreview,
+  submitError,
   onClose,
   onErrorTypeChange,
   onRemarkChange,
@@ -56,6 +58,14 @@ export function FeedbackModal({
         </div>
 
         <div className={styles.modalBody}>
+          {/* 错误提示 */}
+          {submitError && (
+            <div className={styles.submitError}>
+              <AlertTriangle size={14} />
+              <span>{submitError}</span>
+            </div>
+          )}
+
           {!isGoodCase && (
             <div className={styles.formGroup}>
               <label>错误类型（可选）</label>

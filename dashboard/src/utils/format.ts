@@ -93,3 +93,35 @@ export function formatRelativeTime(timestamp: string | number): string {
     minute: '2-digit',
   });
 }
+
+// ==================== JSON 格式化工具 ====================
+
+/**
+ * 格式化 JSON 对象为美化字符串
+ */
+export function formatJson(obj: unknown): string {
+  try {
+    return JSON.stringify(obj, null, 2);
+  } catch {
+    return String(obj);
+  }
+}
+
+/**
+ * 格式化工具调用的返回结果
+ * 处理 Agent API 返回的各种格式：纯字符串、{type: 'text', text: '...'} 等
+ */
+export function formatToolResult(result: unknown): string {
+  if (typeof result === 'string') {
+    return result.replace(/\\n/g, '\n');
+  }
+  if (typeof result === 'object' && result !== null) {
+    const obj = result as Record<string, unknown>;
+    // 处理 {type: 'text', text: '...'} 格式
+    if (obj.type === 'text' && typeof obj.text === 'string') {
+      return obj.text.replace(/\\n/g, '\n');
+    }
+    return formatJson(result);
+  }
+  return String(result);
+}

@@ -26,7 +26,9 @@
       "@agent": ["src/agent"],
       "@agent/*": ["src/agent/*"],
       "@wecom": ["src/wecom"],
-      "@wecom/*": ["src/wecom/*"]
+      "@wecom/*": ["src/wecom/*"],
+      "@shared": ["src/shared"],
+      "@shared/*": ["src/shared/*"]
     }
   },
   "include": ["src/**/*"],

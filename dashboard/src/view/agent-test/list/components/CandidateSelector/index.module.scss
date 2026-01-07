@@ -1,0 +1,271 @@
+// CandidateSelector 组件样式
+@use '@/assets/styles/variables' as *;
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes dropdownSlide {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.candidateSelector {
+  position: relative;
+  margin-left: auto;
+}
+
+.selectorTrigger {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border: 1px solid rgba(139, 92, 246, 0.2);
+  border-radius: $radius-full;
+  background: rgba(139, 92, 246, 0.06);
+  color: #8b5cf6;
+  font-size: $font-size-xs;
+  font-weight: $font-weight-medium;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+
+  &:hover:not(:disabled) {
+    background: rgba(139, 92, 246, 0.12);
+    border-color: rgba(139, 92, 246, 0.3);
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .rotated {
+    transform: rotate(180deg);
+  }
+
+  svg {
+    transition: transform 0.2s ease;
+  }
+}
+
+.spinning {
+  animation: spin 1s linear infinite;
+}
+
+.selectorBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 99998; // 高于圣诞装饰，低于 modal
+}
+
+.selectorDropdown {
+  position: fixed;
+  width: 380px;
+  max-height: 420px;
+  z-index: 99999; // 高于圣诞装饰，低于 modal
+  background: $bg-primary;
+  border: 1px solid rgba(139, 92, 246, 0.12);
+  border-radius: $radius-xl;
+  box-shadow:
+    0 10px 40px rgba(0, 0, 0, 0.12),
+    0 0 0 1px rgba(0, 0, 0, 0.03);
+  overflow: hidden;
+  animation: dropdownSlide 0.2s ease-out;
+}
+
+.dropdownHeader {
+  display: flex;
+  align-items: center;
+  gap: $spacing-sm;
+  padding: $spacing-md;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  background: rgba(139, 92, 246, 0.02);
+}
+
+.searchBox {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: $spacing-sm;
+  padding: 8px 12px;
+  background: $bg-primary;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: $radius-lg;
+  transition: all 0.2s;
+
+  &:focus-within {
+    border-color: $primary;
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+  }
+
+  svg {
+    color: $text-muted;
+    flex-shrink: 0;
+  }
+
+  input {
+    flex: 1;
+    border: none;
+    background: transparent;
+    font-size: $font-size-sm;
+    color: $text-primary;
+    outline: none;
+
+    &::placeholder {
+      color: $text-muted;
+    }
+  }
+}
+
+.dateRange {
+  font-size: $font-size-xs;
+  color: $text-muted;
+  background: $bg-secondary;
+  padding: 4px 10px;
+  border-radius: $radius-full;
+  white-space: nowrap;
+}
+
+.sessionList {
+  max-height: 340px;
+  overflow-y: auto;
+  padding: $spacing-sm;
+
+  &::-webkit-scrollbar {
+    width: 5px;
+  }
+  &::-webkit-scrollbar-thumb {
+    background: rgba(148, 163, 184, 0.3);
+    border-radius: 3px;
+  }
+}
+
+.emptyList {
+  padding: $spacing-xl;
+  text-align: center;
+  color: $text-muted;
+  font-size: $font-size-sm;
+}
+
+.sessionItem {
+  display: flex;
+  align-items: center;
+  gap: $spacing-md;
+  width: 100%;
+  padding: $spacing-sm $spacing-md;
+  border: 1px solid transparent;
+  border-radius: $radius-lg;
+  background: transparent;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-align: left;
+
+  &:hover:not(:disabled) {
+    background: rgba(139, 92, 246, 0.04);
+    border-color: rgba(139, 92, 246, 0.1);
+  }
+
+  &:disabled {
+    opacity: 0.7;
+    cursor: wait;
+  }
+}
+
+.sessionAvatar {
+  width: 40px;
+  height: 40px;
+  border-radius: $radius-lg;
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.1), rgba(236, 72, 153, 0.1));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  overflow: hidden;
+
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  svg {
+    color: #8b5cf6;
+    opacity: 0.6;
+  }
+}
+
+.sessionInfo {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.sessionName {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: $font-size-sm;
+  font-weight: $font-weight-medium;
+  color: $text-primary;
+  white-space: nowrap;
+  overflow: hidden;
+
+  > span:first-child {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+
+.managerBadge {
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: $font-weight-normal;
+  color: $text-muted;
+  background: rgba(0, 0, 0, 0.04);
+  padding: 2px 6px;
+  border-radius: $radius-sm;
+  white-space: nowrap;
+}
+
+.sessionPreview {
+  font-size: $font-size-xs;
+  color: $text-muted;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 2px;
+}
+
+.sessionMeta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.sessionTime,
+.sessionCount {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  color: $text-muted;
+  white-space: nowrap;
+
+  svg {
+    opacity: 0.6;
+  }
+}
+
+.sessionCount {
+  color: #8b5cf6;
+  font-weight: $font-weight-medium;
+}

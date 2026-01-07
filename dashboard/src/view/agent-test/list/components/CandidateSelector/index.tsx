@@ -7,7 +7,7 @@ import {
   type ChatSession,
   type ChatMessage,
 } from '@/hooks/monitoring/useChatRecords';
-import styles from '../index.module.scss';
+import styles from './index.module.scss';
 
 export interface CandidateSelectorProps {
   onSelectHistory: (historyText: string) => void;

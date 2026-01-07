@@ -1,14 +1,23 @@
-import { IsString, IsOptional, IsArray, IsBoolean, ValidateNested } from 'class-validator';
+import { IsString, IsOptional, IsArray, IsBoolean, ValidateNested, IsEnum } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import {
+  ExecutionStatus,
+  ReviewStatus,
+  BatchSource,
+  FailureReason,
+  FeishuTestStatus,
+  MessageRole,
+  FeedbackType,
+} from '../enums';
 
 /**
  * 简单消息结构（用于对话历史）
  */
 export class SimpleMessageDto {
-  @ApiProperty({ description: '角色', enum: ['user', 'assistant', 'system'] })
-  @IsString()
-  role: 'user' | 'assistant' | 'system';
+  @ApiProperty({ description: '角色', enum: MessageRole })
+  @IsEnum(MessageRole)
+  role: MessageRole;
 
   @ApiProperty({ description: '消息内容' })
   @IsString()
@@ -37,9 +46,9 @@ export class UIMessageDto {
   @IsString()
   id: string;
 
-  @ApiProperty({ description: '角色', enum: ['user', 'assistant', 'system'] })
-  @IsString()
-  role: 'user' | 'assistant' | 'system';
+  @ApiProperty({ description: '角色', enum: MessageRole })
+  @IsEnum(MessageRole)
+  role: MessageRole;
 
   @ApiProperty({ description: '消息部件数组', type: [UIMessagePartDto] })
   @IsArray()
@@ -150,10 +159,10 @@ export class CreateBatchRequestDto {
   @IsString()
   name: string;
 
-  @ApiPropertyOptional({ description: '来源', enum: ['manual', 'feishu'], default: 'manual' })
+  @ApiPropertyOptional({ description: '来源', enum: BatchSource, default: BatchSource.MANUAL })
   @IsOptional()
-  @IsString()
-  source?: 'manual' | 'feishu';
+  @IsEnum(BatchSource)
+  source?: BatchSource;
 
   @ApiPropertyOptional({ description: '飞书表格 app_token' })
   @IsOptional()
@@ -170,30 +179,19 @@ export class CreateBatchRequestDto {
  * 更新评审状态请求 DTO
  */
 export class UpdateReviewRequestDto {
-  @ApiProperty({ description: '评审状态', enum: ['passed', 'failed', 'skipped'] })
-  @IsString()
-  reviewStatus: 'passed' | 'failed' | 'skipped';
+  @ApiProperty({ description: '评审状态', enum: ReviewStatus })
+  @IsEnum(ReviewStatus)
+  reviewStatus: ReviewStatus;
 
   @ApiPropertyOptional({ description: '评审备注' })
   @IsOptional()
   @IsString()
   reviewComment?: string;
 
-  @ApiPropertyOptional({
-    description: '失败原因',
-    enum: [
-      'wrong_answer',
-      'incomplete',
-      'hallucination',
-      'tool_error',
-      'format_issue',
-      'tone_issue',
-      'other',
-    ],
-  })
+  @ApiPropertyOptional({ description: '失败原因', enum: FailureReason })
   @IsOptional()
-  @IsString()
-  failureReason?: string;
+  @IsEnum(FailureReason)
+  failureReason?: FailureReason;
 
   @ApiPropertyOptional({ description: '评审人' })
   @IsOptional()
@@ -210,20 +208,20 @@ export interface TestChatResponse {
 
   // 结果
   actualOutput: string;
-  status: 'success' | 'failure' | 'timeout';
+  status: ExecutionStatus;
 
   // 请求详情
   request: {
     url: string;
     method: string;
-    body: any;
+    body: unknown;
   };
 
   // 响应详情
   response: {
     statusCode: number;
-    body: any;
-    toolCalls?: any[];
+    body: unknown;
+    toolCalls?: unknown[];
   };
 
   // 指标
@@ -309,13 +307,18 @@ export interface ImportResult {
  * 提交反馈请求 DTO
  */
 export class SubmitFeedbackRequestDto {
-  @ApiProperty({ description: '反馈类型', enum: ['badcase', 'goodcase'] })
-  @IsString()
-  type: 'badcase' | 'goodcase';
+  @ApiProperty({ description: '反馈类型', enum: FeedbackType })
+  @IsEnum(FeedbackType)
+  type: FeedbackType;
 
   @ApiProperty({ description: '格式化的聊天记录' })
   @IsString()
   chatHistory: string;
+
+  @ApiPropertyOptional({ description: '用户消息（最后一条用户输入）' })
+  @IsOptional()
+  @IsString()
+  userMessage?: string;
 
   @ApiPropertyOptional({ description: '错误类型（仅 badcase）' })
   @IsOptional()
@@ -331,4 +334,47 @@ export class SubmitFeedbackRequestDto {
   @IsOptional()
   @IsString()
   chatId?: string;
+}
+
+/**
+ * 一键创建批量测试请求 DTO
+ * 自动从预配置的飞书测试集表导入并执行
+ */
+export class QuickCreateBatchRequestDto {
+  @ApiPropertyOptional({ description: '批次名称（可选，默认自动生成）' })
+  @IsOptional()
+  @IsString()
+  batchName?: string;
+
+  @ApiPropertyOptional({ description: '是否并行执行', default: false })
+  @IsOptional()
+  @IsBoolean()
+  parallel?: boolean;
+}
+
+/**
+ * 回写飞书测试结果请求 DTO
+ */
+export class WriteBackFeishuRequestDto {
+  @ApiProperty({ description: '执行记录 ID' })
+  @IsString()
+  executionId: string;
+
+  @ApiProperty({ description: '测试状态', enum: FeishuTestStatus })
+  @IsEnum(FeishuTestStatus)
+  testStatus: FeishuTestStatus;
+
+  @ApiPropertyOptional({ description: '失败原因分类（失败时必填）' })
+  @IsOptional()
+  @IsString()
+  failureCategory?: string;
+}
+
+/**
+ * 回写结果
+ */
+export interface WriteBackResult {
+  success: boolean;
+  recordId?: string;
+  error?: string;
 }

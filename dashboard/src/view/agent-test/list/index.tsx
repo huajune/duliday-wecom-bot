@@ -1,4 +1,3 @@
-import { FlaskConical } from 'lucide-react';
 import ChatTester from './components/ChatTester';
 import styles from './styles/index.module.scss';
 
@@ -8,7 +7,6 @@ export default function AgentTest() {
       {/* 页面标题 */}
       <div className={styles.pageHeader}>
         <h1>
-          <FlaskConical size={22} className={styles.headerIcon} />
           Agent 对话测试
         </h1>
         <p className={styles.subtitle}>

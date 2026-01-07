@@ -323,7 +323,22 @@
       "Bash(ENABLE_BULL_QUEUE=false timeout 30 pnpm run start:dev:*)",
       "Bash(API_KEY=\"f4174f.nEA0MYE3Vz-U0O2w4HawdA.QH1lUahJwLpKnvm6\")",
       "Bash(pnpm exec eslint:*)",
-      "Bash(timeout 10 pnpm run dev:*)"
+      "Bash(timeout 10 pnpm run dev:*)",
+      "Bash(TOKEN=\"t-g10415c4PQCSEFCBSLPOYKAZMJNB4QDTX3TUMEYY\")",
+      "Bash(APP_TOKEN=\"WXQgb98iPauYsHsSYzMckqHcnbb\":*)",
+      "Bash(__NEW_LINE__ echo \"=== 1. 每日消息 表格字段 ===\")",
+      "Bash(__NEW_LINE__ echo \"=== 测试集 表格数据 ===\")",
+      "Bash(TOKEN=\"t-g10415dK2Q4LIZJQQOZ64V66G7OG5GD2FDYOH3BB\")",
+      "Bash(TABLE_ID=\"tblCRHFQqqJDJeSx\")",
+      "Bash(__NEW_LINE__ echo \"=== 测试集表格最新字段 ===\")",
+      "Bash(__NEW_LINE__ echo \"=== 获取所有表格列表 ===\")",
+      "Bash(TOKEN=\"t-g10415dK2Q4LIZJQQOZ64V66G7OG5GD2FDYOH3BB\" echo \"=== BadCase 表格字段 ===\" /usr/bin/curl -s \"https://open.feishu.cn/open-apis/bitable/v1/apps/WXQgb98iPauYsHsSYzMckqHcnbb/tables/tbllFuw1BVwpvyrI/fields\" -H \"Authorization: Bearer $TOKEN\" cat /tmp/badcase_fields.json)",
+      "Bash(__NEW_LINE__ jq '.data.items[] | {field_name: .field_name, type: .type}' /tmp/badcase_fields.json)",
+      "Bash(__NEW_LINE__ jq '.data.items[] | {field_name: .field_name, type: .type}' /tmp/goodcase_fields.json)",
+      "Bash(TOKEN=\"t-g10416aIFI3ZY6BRUJBDI2GYMFJH75K7R6DTSDMD\")",
+      "Bash(__NEW_LINE__ echo \"=== BadCase 表格字段 ===\")",
+      "Bash(ENABLE_BULL_QUEUE=true timeout 20 pnpm run start:dev:*)",
+      "Bash(API_KEY=\"$SUPABASE_SERVICE_ROLE_KEY\" curl -s \"https://uvmbxcilpteaiizplcyp.supabase.co/rest/v1/test_executions?select=id,case_name,agent_response,tool_calls&execution_status=eq.success&limit=3\" -H \"apikey: $API_KEY\" -H \"Authorization: Bearer $API_KEY\")"
     ],
     "deny": [
       "Bash(git restore:*)",

@@ -11,6 +11,7 @@ import {
   ScenarioType,
   AgentError,
   AgentInvocationException,
+  SimpleMessage,
 } from '@agent';
 import { MonitoringService } from '@/core/monitoring/monitoring.service';
 import { AgentInvokeResult, AgentReply, FallbackMessageOptions } from '../types';
@@ -213,7 +214,7 @@ export class AgentGatewayService {
   async invoke(params: {
     conversationId: string;
     userMessage: string;
-    historyMessages: Array<{ role: 'user' | 'assistant'; content: string }>;
+    historyMessages: SimpleMessage[];
     scenario?: ScenarioType;
     messageId?: string; // 可选，用于监控埋点
     recordMonitoring?: boolean; // 是否记录监控（默认 true）

@@ -15,6 +15,7 @@ import {
 import { ApiTags, ApiOperation, ApiQuery, ApiParam } from '@nestjs/swagger';
 import { Response } from 'express';
 import { AgentTestService } from './agent-test.service';
+import { AgentTestProcessor } from './agent-test.processor';
 import {
   TestChatRequestDto,
   BatchTestRequestDto,
@@ -23,7 +24,10 @@ import {
   ImportFromFeishuRequestDto,
   VercelAIChatRequestDto,
   SubmitFeedbackRequestDto,
+  QuickCreateBatchRequestDto,
+  WriteBackFeishuRequestDto,
 } from './dto/test-chat.dto';
+import { BatchSource, BatchStatus, ExecutionStatus, MessageRole, ReviewStatus } from './enums';
 import {
   FeishuBitableSyncService,
   AgentTestFeedback,
@@ -37,6 +41,7 @@ export class AgentTestController {
   constructor(
     private readonly testService: AgentTestService,
     private readonly feishuBitableService: FeishuBitableSyncService,
+    private readonly testProcessor: AgentTestProcessor,
   ) {}
 
   // ==================== 单条测试 ====================
@@ -313,7 +318,7 @@ export class AgentTestController {
             .map((p) => p.text)
             .join('') || '';
         return {
-          role: msg.role as 'user' | 'assistant' | 'system',
+          role: msg.role as MessageRole,
           content: textContent,
         };
       });
@@ -408,7 +413,7 @@ export class AgentTestController {
       if (request.batchName) {
         const batch = await this.testService.createBatch({
           name: request.batchName,
-          source: 'manual',
+          source: BatchSource.MANUAL,
         });
         batchId = batch.id;
       }
@@ -420,8 +425,8 @@ export class AgentTestController {
         data: {
           batchId,
           totalCases: results.length,
-          successCount: results.filter((r) => r.status === 'success').length,
-          failureCount: results.filter((r) => r.status === 'failure').length,
+          successCount: results.filter((r) => r.status === ExecutionStatus.SUCCESS).length,
+          failureCount: results.filter((r) => r.status === ExecutionStatus.FAILURE).length,
           results,
         },
       };
@@ -497,6 +502,39 @@ export class AgentTestController {
   }
 
   /**
+   * 一键创建批量测试（从预配置的飞书测试集表导入并执行）
+   * POST /agent/test/batches/quick-create
+   */
+  @Post('batches/quick-create')
+  @ApiOperation({
+    summary: '一键创建批量测试',
+    description: '从预配置的飞书测试集表自动导入用例并执行测试',
+  })
+  async quickCreateBatch(@Body() request: QuickCreateBatchRequestDto) {
+    this.logger.log(`一键创建批量测试: batchName=${request.batchName || '自动生成'}`);
+
+    try {
+      const result = await this.testService.quickCreateBatch({
+        batchName: request.batchName,
+        parallel: request.parallel,
+      });
+      return {
+        success: true,
+        data: result,
+      };
+    } catch (error: any) {
+      this.logger.error(`一键创建批量测试失败: ${error.message}`, error.stack);
+      throw new HttpException(
+        {
+          success: false,
+          error: error.message,
+        },
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  /**
    * 获取批次列表
    * GET /agent/test/batches
    */
@@ -546,6 +584,76 @@ export class AgentTestController {
   }
 
   /**
+   * 获取批次执行进度（实时）
+   * GET /agent/test/batches/:id/progress
+   */
+  @Get('batches/:id/progress')
+  @ApiOperation({
+    summary: '获取批次执行进度',
+    description: '获取批次的实时执行进度，包括完成数、成功率、预估剩余时间等',
+  })
+  @ApiParam({ name: 'id', description: '批次ID' })
+  async getBatchProgress(@Param('id') id: string) {
+    try {
+      const progress = await this.testProcessor.getBatchProgress(id);
+      return {
+        success: true,
+        data: progress,
+      };
+    } catch (error: any) {
+      this.logger.error(`获取批次进度失败: ${error.message}`, error.stack);
+      throw new HttpException(
+        {
+          success: false,
+          error: error.message,
+        },
+        HttpStatus.NOT_FOUND,
+      );
+    }
+  }
+
+  /**
+   * 取消批次执行
+   * POST /agent/test/batches/:id/cancel
+   */
+  @Post('batches/:id/cancel')
+  @ApiOperation({
+    summary: '取消批次执行',
+    description:
+      '取消批次中所有任务（等待中、延迟中、执行中）。执行中的任务会被标记为丢弃，完成后不更新统计。',
+  })
+  @ApiParam({ name: 'id', description: '批次ID' })
+  async cancelBatch(@Param('id') id: string) {
+    this.logger.log(`取消批次执行: ${id}`);
+
+    try {
+      const cancelled = await this.testProcessor.cancelBatchJobs(id);
+      await this.testService.updateBatchStatusPublic(id, BatchStatus.CANCELLED);
+
+      const totalCancelled = cancelled.waiting + cancelled.delayed + cancelled.active;
+
+      return {
+        success: true,
+        data: {
+          batchId: id,
+          cancelled,
+          totalCancelled,
+          message: `已取消 ${totalCancelled} 个任务（等待=${cancelled.waiting}, 延迟=${cancelled.delayed}, 执行中=${cancelled.active}）`,
+        },
+      };
+    } catch (error: any) {
+      this.logger.error(`取消批次失败: ${error.message}`, error.stack);
+      throw new HttpException(
+        {
+          success: false,
+          error: error.message,
+        },
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  /**
    * 获取批次分类统计
    * GET /agent/test/batches/:id/category-stats
    */
@@ -584,13 +692,13 @@ export class AgentTestController {
   @Get('batches/:id/executions')
   @ApiOperation({ summary: '获取批次的执行记录' })
   @ApiParam({ name: 'id', description: '批次ID' })
-  @ApiQuery({ name: 'reviewStatus', required: false })
-  @ApiQuery({ name: 'executionStatus', required: false })
+  @ApiQuery({ name: 'reviewStatus', required: false, enum: ReviewStatus })
+  @ApiQuery({ name: 'executionStatus', required: false, enum: ExecutionStatus })
   @ApiQuery({ name: 'category', required: false })
   async getBatchExecutions(
     @Param('id') id: string,
-    @Query('reviewStatus') reviewStatus?: string,
-    @Query('executionStatus') executionStatus?: string,
+    @Query('reviewStatus') reviewStatus?: ReviewStatus,
+    @Query('executionStatus') executionStatus?: ExecutionStatus,
     @Query('category') category?: string,
   ) {
     const executions = await this.testService.getBatchExecutions(id, {
@@ -697,6 +805,146 @@ export class AgentTestController {
     }
   }
 
+  /**
+   * 回写测试结果到飞书
+   * POST /agent/test/executions/:id/write-back
+   */
+  @Post('executions/:id/write-back')
+  @ApiOperation({
+    summary: '回写测试结果到飞书',
+    description: '将测试执行结果回写到飞书测试集表',
+  })
+  @ApiParam({ name: 'id', description: '执行记录ID' })
+  async writeBackToFeishu(@Param('id') id: string, @Body() request: WriteBackFeishuRequestDto) {
+    this.logger.log(`回写测试结果到飞书: executionId=${id}, status=${request.testStatus}`);
+
+    try {
+      // 确保 executionId 匹配
+      if (request.executionId && request.executionId !== id) {
+        throw new Error('执行记录ID不匹配');
+      }
+
+      const result = await this.testService.writeBackToFeishu(
+        id,
+        request.testStatus,
+        request.failureCategory,
+      );
+
+      return {
+        success: result.success,
+        data: result,
+      };
+    } catch (error: any) {
+      this.logger.error(`回写飞书失败: ${error.message}`, error.stack);
+      throw new HttpException(
+        {
+          success: false,
+          error: error.message,
+        },
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  /**
+   * 批量回写测试结果到飞书
+   * POST /agent/test/executions/batch-write-back
+   */
+  @Post('executions/batch-write-back')
+  @ApiOperation({
+    summary: '批量回写测试结果到飞书',
+    description: '将多个测试执行结果批量回写到飞书测试集表',
+  })
+  async batchWriteBackToFeishu(@Body() body: { items: WriteBackFeishuRequestDto[] }) {
+    this.logger.log(`批量回写测试结果到飞书: ${body.items.length} 条记录`);
+
+    try {
+      const results = await this.testService.batchWriteBackToFeishu(body.items);
+
+      return {
+        success: true,
+        data: {
+          totalCount: body.items.length,
+          successCount: results.success,
+          failureCount: results.failed,
+          errors: results.errors,
+        },
+      };
+    } catch (error: any) {
+      this.logger.error(`批量回写飞书失败: ${error.message}`, error.stack);
+      throw new HttpException(
+        {
+          success: false,
+          error: error.message,
+        },
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  // ==================== 队列管理 ====================
+
+  /**
+   * 获取测试队列状态
+   * GET /agent/test/queue/status
+   */
+  @Get('queue/status')
+  @ApiOperation({
+    summary: '获取测试队列状态',
+    description: '获取 Bull Queue 中任务的状态统计',
+  })
+  async getQueueStatus() {
+    try {
+      const status = await this.testProcessor.getQueueStatus();
+      return {
+        success: true,
+        data: status,
+      };
+    } catch (error: any) {
+      this.logger.error(`获取队列状态失败: ${error.message}`, error.stack);
+      throw new HttpException(
+        {
+          success: false,
+          error: error.message,
+        },
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  /**
+   * 清理失败的任务
+   * POST /agent/test/queue/clean-failed
+   */
+  @Post('queue/clean-failed')
+  @ApiOperation({
+    summary: '清理失败的任务',
+    description: '从队列中移除所有失败的任务',
+  })
+  async cleanFailedJobs() {
+    this.logger.log('清理失败的任务');
+
+    try {
+      const removedCount = await this.testProcessor.cleanFailedJobs();
+      return {
+        success: true,
+        data: {
+          removedCount,
+          message: `已清理 ${removedCount} 个失败任务`,
+        },
+      };
+    } catch (error: any) {
+      this.logger.error(`清理失败任务失败: ${error.message}`, error.stack);
+      throw new HttpException(
+        {
+          success: false,
+          error: error.message,
+        },
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
   // ==================== 反馈管理 ====================
 
   /**
@@ -715,6 +963,7 @@ export class AgentTestController {
       const feedback: AgentTestFeedback = {
         type: request.type,
         chatHistory: request.chatHistory,
+        userMessage: request.userMessage,
         errorType: request.errorType,
         remark: request.remark,
         chatId: request.chatId,

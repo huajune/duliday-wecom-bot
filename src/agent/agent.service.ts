@@ -8,7 +8,9 @@ import {
   SimpleMessage,
   AgentResult,
   RawHttpResponseInfo,
+  ContextStrategy,
 } from './utils/agent-types';
+import { MessageRole } from '@shared/enums';
 import {
   AgentApiException,
   AgentConfigException,
@@ -79,7 +81,7 @@ export class AgentService {
     allowedTools?: string[];
     context?: any;
     toolContext?: any;
-    contextStrategy?: 'error' | 'skip' | 'report';
+    contextStrategy?: ContextStrategy;
     prune?: boolean;
     pruneOptions?: {
       maxOutputTokens?: number;
@@ -270,12 +272,12 @@ export class AgentService {
     allowedTools?: string[];
     context?: any;
     toolContext?: any;
-    contextStrategy?: 'error' | 'skip' | 'report';
+    contextStrategy?: ContextStrategy;
     prune?: boolean;
     pruneOptions?: any;
     validateOnly?: boolean;
   }): ChatRequest {
-    const userMsg: SimpleMessage = { role: 'user', content: params.userMessage };
+    const userMsg: SimpleMessage = { role: MessageRole.USER, content: params.userMessage };
     const chatRequest: ChatRequest = {
       model: params.model,
       messages: [...params.messages, userMsg], // 历史消息 + 当前用户消息
@@ -451,7 +453,7 @@ export class AgentService {
     return {
       messages: [
         {
-          role: 'assistant',
+          role: MessageRole.ASSISTANT,
           parts: [
             {
               type: 'text',

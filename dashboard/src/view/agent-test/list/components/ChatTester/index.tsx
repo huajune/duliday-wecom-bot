@@ -1,3 +1,4 @@
+import TextareaAutosize from 'react-textarea-autosize';
 import {
   Trash2,
   Check,
@@ -12,10 +13,13 @@ import {
   FileJson,
 } from 'lucide-react';
 import { TestChatResponse } from '@/services/agent-test';
-import { MessagePartsAdapter } from './MessagePartsAdapter';
-import { useChatTest, useFeedback } from './hooks';
-import { FeedbackModal, MetricsRow, FeedbackButtons, CandidateSelector } from './components';
-import { HISTORY_PLACEHOLDER } from './constants';
+import { MessagePartsAdapter } from '../MessagePartsAdapter';
+import { useChatTest, useFeedback } from '../../hooks';
+import { FeedbackModal } from '../FeedbackModal';
+import { MetricsRow } from '../MetricsRow';
+import { FeedbackButtons } from '../FeedbackButtons';
+import { CandidateSelector } from '../CandidateSelector';
+import { HISTORY_PLACEHOLDER } from '../../constants';
 import styles from './index.module.scss';
 
 interface ChatTesterProps {
@@ -55,9 +59,29 @@ export default function ChatTester({ onTestComplete }: ChatTesterProps) {
     feedback.clearSuccess();
   };
 
+  // 提取最后一条用户消息
+  const extractLastUserMessage = (text: string): string | undefined => {
+    if (!text.trim()) return undefined;
+    const lines = text.split('\n').filter((l) => l.trim());
+    // 从后往前找用户消息（格式: [日期时间 候选人] 消息内容）
+    for (let i = lines.length - 1; i >= 0; i--) {
+      const line = lines[i];
+      const match = line.match(/^\[[\d/]+ [\d:]+ ([^\]]+)\]\s*(.*)$/);
+      if (match) {
+        const userName = match[1].trim();
+        // 招募经理是 AI 回复，其他都视为用户消息
+        if (userName !== '招募经理' && userName !== '经理') {
+          return match[2];
+        }
+      }
+    }
+    return undefined;
+  };
+
   // 提交反馈
   const handleSubmitFeedback = () => {
-    feedback.submit(historyText);
+    const userMessage = extractLastUserMessage(historyText);
+    feedback.submit(historyText, userMessage);
   };
 
   return (
@@ -94,12 +118,14 @@ export default function ChatTester({ onTestComplete }: ChatTesterProps) {
                 )}
               </div>
               <div className={styles.historyInputWrapper}>
-                <textarea
+                <TextareaAutosize
                   value={historyText}
                   onChange={(e) => setHistoryText(e.target.value)}
                   placeholder={HISTORY_PLACEHOLDER}
                   disabled={isLoading}
                   className={`${styles.historyInput} ${historyStatus === 'invalid' ? styles.inputError : ''}`}
+                  minRows={6}
+                  maxRows={15}
                 />
                 <div className={styles.candidateSelectorOverlay}>
                   <CandidateSelector onSelectHistory={setHistoryText} />
@@ -265,6 +291,7 @@ export default function ChatTester({ onTestComplete }: ChatTesterProps) {
         remark={feedback.remark}
         isSubmitting={feedback.isSubmitting}
         chatHistoryPreview={historyText.trim()}
+        submitError={feedback.submitError}
         onClose={feedback.closeModal}
         onErrorTypeChange={feedback.setErrorType}
         onRemarkChange={feedback.setRemark}

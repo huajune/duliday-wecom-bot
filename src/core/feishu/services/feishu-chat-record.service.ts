@@ -1,18 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { ConfigService } from '@nestjs/config';
-import axios, { AxiosInstance } from 'axios';
 import { SupabaseService } from '@core/supabase';
-import { feishuBitableConfig } from '../constants/feishu-bitable.config';
-
-interface FeishuTokenCache {
-  token: string;
-  expireAt: number;
-}
-
-interface FeishuRecordPayload {
-  fields: Record<string, any>;
-}
+import { FeishuBitableApiService, BatchCreateRequest } from './feishu-bitable-api.service';
 
 /**
  * 增强的消息历史记录项（用于飞书同步）
@@ -29,21 +18,24 @@ interface EnhancedMessageHistoryItem {
 
 /**
  * 聊天记录同步服务
- * 每日 0 点将前一天的聊天记录从 Supabase 同步到飞书多维表格
+ *
+ * 职责：
+ * - 每日 0 点将前一天的聊天记录从 Supabase 同步到飞书多维表格
+ * - 支持手动触发同步和指定时间范围同步
+ *
+ * 重构说明：
+ * - 使用 FeishuBitableApiService 进行 API 调用
+ * - 移除重复的 Token 管理和配置加载代码
+ * - 去重通过 chatId 字段实现（唯一标识）
  */
 @Injectable()
 export class ChatRecordSyncService {
   private readonly logger = new Logger(ChatRecordSyncService.name);
-  private readonly apiBase = 'https://open.feishu.cn/open-apis';
-  private readonly http: AxiosInstance;
-  private tokenCache?: FeishuTokenCache;
 
   constructor(
     private readonly supabaseService: SupabaseService,
-    private readonly configService: ConfigService,
-  ) {
-    this.http = axios.create({ timeout: 10000 });
-  }
+    private readonly bitableApi: FeishuBitableApiService,
+  ) {}
 
   /**
    * 每日 0 点同步前一日的聊天记录
@@ -52,25 +44,19 @@ export class ChatRecordSyncService {
   async syncYesterdayChatRecords(): Promise<void> {
     this.logger.log('[ChatRecordSync] 开始同步前一日聊天记录到飞书多维表格...');
 
-    // 加载飞书配置
-    const { appId, appSecret, tables } = this.loadConfig();
-    if (!appId || !appSecret || !tables.chat?.appToken || !tables.chat?.tableId) {
-      this.logger.warn(
-        '[ChatRecordSync] 未配置完整的飞书表格参数（appId/appSecret/appToken/tableId），跳过同步',
-      );
+    const chatConfig = this.bitableApi.getTableConfig('chat');
+    if (!chatConfig.appToken || !chatConfig.tableId) {
+      this.logger.warn('[ChatRecordSync] 未配置完整的飞书表格参数，跳过同步');
       return;
     }
 
     try {
-      // 获取昨天的时间范围
       const { start, end } = this.getYesterdayWindow();
       this.logger.log(
         `[ChatRecordSync] 时间范围: ${new Date(start).toISOString()} ~ ${new Date(end).toISOString()}`,
       );
 
-      // 从 Supabase 获取昨天的所有聊天记录
       const chatRecords = await this.getChatRecordsByTimeRange(start, end);
-
       if (chatRecords.length === 0) {
         this.logger.log('[ChatRecordSync] 前一日无聊天记录，跳过同步');
         return;
@@ -78,26 +64,21 @@ export class ChatRecordSyncService {
 
       this.logger.log(`[ChatRecordSync] 找到 ${chatRecords.length} 个会话，开始转换数据...`);
 
-      // 转换为飞书多维表格格式（按会话聚合）
       const feishuRecords = this.convertToFeishuRecords(chatRecords);
-
       if (feishuRecords.length === 0) {
         this.logger.log('[ChatRecordSync] 无有效数据，跳过同步');
         return;
       }
 
-      this.logger.log(`[ChatRecordSync] 准备写入 ${feishuRecords.length} 条记录到飞书...`);
-
-      // 查询已存在的 chatId（去重）
+      // 查询已存在的 chatId（用于去重）
       const existingChatIds = await this.getExistingChatIds(
-        tables.chat.appToken,
-        tables.chat.tableId,
-        appId,
-        appSecret,
+        chatConfig.appToken,
+        chatConfig.tableId,
       );
-
-      // 过滤掉已存在的记录
-      const newRecords = feishuRecords.filter((r) => !existingChatIds.has(r.fields.chatId));
+      const newRecords = feishuRecords.filter((r) => {
+        const chatId = r.fields.chatId as string;
+        return !existingChatIds.has(chatId);
+      });
 
       if (newRecords.length === 0) {
         this.logger.log('[ChatRecordSync] 所有记录均已存在，跳过写入');
@@ -108,60 +89,170 @@ export class ChatRecordSyncService {
         `[ChatRecordSync] 过滤后剩余 ${newRecords.length} 条新记录（已过滤 ${feishuRecords.length - newRecords.length} 条重复）`,
       );
 
-      // 批量写入飞书多维表格
-      await this.pushInBatches(
+      const result = await this.bitableApi.batchCreateRecords(
+        chatConfig.appToken,
+        chatConfig.tableId,
         newRecords,
-        tables.chat.appToken,
-        tables.chat.tableId,
-        appId,
-        appSecret,
+        100,
       );
 
-      this.logger.log(`[ChatRecordSync] ✓ 同步完成，本次写入 ${newRecords.length} 条记录`);
-    } catch (error: any) {
-      this.logger.error(`[ChatRecordSync] ✗ 同步失败: ${error?.message ?? error}`, error?.stack);
+      this.logger.log(
+        `[ChatRecordSync] ✓ 同步完成，成功: ${result.created}，失败: ${result.failed}`,
+      );
+    } catch (error: unknown) {
+      const err = error as { message?: string; stack?: string };
+      this.logger.error(`[ChatRecordSync] ✗ 同步失败: ${err?.message ?? error}`, err?.stack);
     }
   }
 
   /**
+   * 手动触发同步（用于测试）
+   */
+  async manualSync(): Promise<{ success: boolean; message: string; recordCount?: number }> {
+    try {
+      await this.syncYesterdayChatRecords();
+      return { success: true, message: '手动同步完成' };
+    } catch (error: unknown) {
+      const err = error as { message?: string };
+      return { success: false, message: `同步失败: ${err?.message}` };
+    }
+  }
+
+  /**
+   * 同步指定时间范围的数据（仅用于测试）
+   */
+  async syncByTimeRange(
+    startTime: number,
+    endTime: number,
+  ): Promise<{
+    success: boolean;
+    message: string;
+    recordCount?: number;
+    error?: string;
+  }> {
+    this.logger.log('[ChatRecordSync] 开始同步指定时间范围的聊天记录...');
+
+    const chatConfig = this.bitableApi.getTableConfig('chat');
+    if (!chatConfig.appToken || !chatConfig.tableId) {
+      return { success: false, message: '未配置完整的飞书表格参数' };
+    }
+
+    try {
+      this.logger.log(
+        `[ChatRecordSync] 时间范围: ${new Date(startTime).toISOString()} ~ ${new Date(endTime).toISOString()}`,
+      );
+
+      const chatRecords = await this.getChatRecordsByTimeRange(startTime, endTime);
+      if (chatRecords.length === 0) {
+        return { success: true, message: '指定时间范围内无聊天记录', recordCount: 0 };
+      }
+
+      const feishuRecords = this.convertToFeishuRecords(chatRecords);
+      if (feishuRecords.length === 0) {
+        return { success: true, message: '无有效数据', recordCount: 0 };
+      }
+
+      // 查询已存在的 chatId（用于去重）
+      const existingChatIds = await this.getExistingChatIds(
+        chatConfig.appToken,
+        chatConfig.tableId,
+      );
+      const newRecords = feishuRecords.filter((r) => {
+        const chatId = r.fields.chatId as string;
+        return !existingChatIds.has(chatId);
+      });
+
+      if (newRecords.length === 0) {
+        return { success: true, message: '所有记录均已存在', recordCount: 0 };
+      }
+
+      const result = await this.bitableApi.batchCreateRecords(
+        chatConfig.appToken,
+        chatConfig.tableId,
+        newRecords,
+        100,
+      );
+
+      return {
+        success: true,
+        message: `同步完成，成功: ${result.created}，失败: ${result.failed}`,
+        recordCount: result.created,
+      };
+    } catch (error: unknown) {
+      const err = error as { message?: string; stack?: string };
+      this.logger.error(`[ChatRecordSync] ✗ 同步失败: ${err?.message ?? error}`, err?.stack);
+      return { success: false, message: `同步失败: ${err?.message}`, error: err?.stack };
+    }
+  }
+
+  // ==================== 私有方法 ====================
+
+  /**
+   * 查询飞书多维表格中已存在的 chatId（用于去重）
+   */
+  private async getExistingChatIds(appToken: string, tableId: string): Promise<Set<string>> {
+    const existingChatIds = new Set<string>();
+
+    try {
+      // 获取所有记录
+      const records = await this.bitableApi.getAllRecords(appToken, tableId);
+
+      for (const record of records) {
+        const chatId = record.fields?.chatId;
+        if (chatId && typeof chatId === 'string') {
+          existingChatIds.add(chatId);
+        }
+      }
+
+      this.logger.log(`[ChatRecordSync] 查询到 ${existingChatIds.size} 条已存在的记录`);
+    } catch (error: unknown) {
+      const err = error as { message?: string };
+      this.logger.warn(`[ChatRecordSync] 查询已存在记录失败: ${err?.message}，将跳过去重`);
+    }
+
+    return existingChatIds;
+  }
+
+  /**
    * 转换聊天记录为飞书多维表格格式
-   * 每个会话生成一条记录，包含：候选人昵称、招募经理昵称、咨询时间、聊天记录
    */
   private convertToFeishuRecords(
     chatRecords: Array<{ chatId: string; messages: EnhancedMessageHistoryItem[] }>,
-  ): FeishuRecordPayload[] {
-    const records: FeishuRecordPayload[] = [];
+  ): BatchCreateRequest[] {
+    const records: BatchCreateRequest[] = [];
 
-    for (const { chatId: _chatId, messages } of chatRecords) {
+    for (const { chatId, messages } of chatRecords) {
       if (messages.length === 0) continue;
 
-      // 提取候选人昵称：从所有 user 消息中查找第一个有效昵称（过滤空值和纯空格）
+      // 提取候选人昵称
       const candidateName =
         messages
           .filter((m) => m.role === 'user' && m.candidateName && m.candidateName.trim())
           .map((m) => m.candidateName)[0] || '未知候选人';
 
-      // 提取招募经理昵称：统一从 managerName 字段获取（已修复 assistant 消息使用 botUserId）
+      // 提取招募经理昵称
       const managerName =
         messages.find((m) => m.managerName && m.managerName.trim())?.managerName || '未知招募经理';
 
-      // 咨询时间：第一条消息的时间（飞书 DateTime 字段需要毫秒时间戳）
+      // 咨询时间：第一条消息的时间
       const firstMessage = messages[0];
       const consultTimestamp = new Date(firstMessage.timestamp).getTime();
 
-      // 聊天记录：所有消息的完整对话
+      // 聊天记录
       const chatLog = this.formatChatLog(messages);
 
-      // 构造飞书记录
+      // 提取用户的第一条消息作为"用户消息"
+      const userMessage = messages.find((m) => m.role === 'user')?.content || '';
 
       records.push({
         fields: {
-          chatId: _chatId, // 会话唯一标识，用于去重
+          chatId,
           候选人微信昵称: candidateName,
           招募经理姓名: managerName,
-          咨询时间: consultTimestamp, // 飞书 DateTime 字段需要毫秒时间戳
-          聊天记录: this.truncate(chatLog, 5000), // 飞书多维表格富文本字段限制
-          标记为测试集: false, // 默认标记为非测试数据
+          咨询时间: consultTimestamp,
+          聊天记录: this.bitableApi.truncateText(chatLog, 5000),
+          用户消息: this.bitableApi.truncateText(userMessage, 1000),
+          标记为测试集: false,
         },
       });
     }
@@ -171,9 +262,6 @@ export class ChatRecordSyncService {
 
   /**
    * 格式化聊天记录为文本格式
-   * 示例：
-   * [用户 张三] 你好，有什么岗位？
-   * [机器人] 您好！我们目前有以下岗位...
    */
   private formatChatLog(messages: EnhancedMessageHistoryItem[]): string {
     return messages
@@ -191,300 +279,18 @@ export class ChatRecordSyncService {
   }
 
   /**
-   * 批量写入飞书多维表格
-   */
-  private async pushInBatches(
-    records: FeishuRecordPayload[],
-    appToken: string,
-    tableId: string,
-    appId: string,
-    appSecret: string,
-    batchSize = 100, // 飞书 API 限制：单次最多 500 条，这里设置为 100 更安全
-  ): Promise<void> {
-    const token = await this.getTenantToken(appId, appSecret);
-
-    for (let i = 0; i < records.length; i += batchSize) {
-      const chunk = records.slice(i, i + batchSize);
-
-      try {
-        await this.http.post(
-          `${this.apiBase}/bitable/v1/apps/${appToken}/tables/${tableId}/records/batch_create`,
-          { records: chunk },
-          {
-            headers: { Authorization: `Bearer ${token}` },
-          },
-        );
-
-        this.logger.log(`[ChatRecordSync] 已写入 ${i + chunk.length}/${records.length} 条`);
-      } catch (error: any) {
-        const errorData = error?.response?.data;
-        this.logger.error(
-          `[ChatRecordSync] 批次写入失败 (${i}-${i + chunk.length}): ${error?.message}`,
-        );
-        this.logger.error(
-          `[ChatRecordSync] 飞书 API 错误详情: ${JSON.stringify(errorData, null, 2)}`,
-        );
-        this.logger.error(
-          `[ChatRecordSync] 发送的数据: ${JSON.stringify(chunk[0]?.fields, null, 2)}`,
-        );
-        // 继续处理下一批次，不中断整个同步流程
-      }
-    }
-  }
-
-  /**
-   * 查询飞书多维表格中已存在的 chatId（用于去重）
-   */
-  private async getExistingChatIds(
-    appToken: string,
-    tableId: string,
-    appId: string,
-    appSecret: string,
-  ): Promise<Set<string>> {
-    const token = await this.getTenantToken(appId, appSecret);
-    const existingIds = new Set<string>();
-
-    try {
-      // 飞书 API 支持分页查询，每页最多 500 条
-      let hasMore = true;
-      let pageToken: string | undefined;
-
-      while (hasMore) {
-        const params: Record<string, any> = {
-          page_size: 500,
-          field_names: JSON.stringify(['chatId']), // 只查询 chatId 字段
-        };
-
-        if (pageToken) {
-          params.page_token = pageToken;
-        }
-
-        const response = await this.http.get(
-          `${this.apiBase}/bitable/v1/apps/${appToken}/tables/${tableId}/records`,
-          {
-            headers: { Authorization: `Bearer ${token}` },
-            params,
-          },
-        );
-
-        const { items = [], has_more, page_token } = response.data.data || {};
-
-        for (const item of items) {
-          const chatId = item.fields?.chatId;
-          if (chatId) {
-            existingIds.add(chatId);
-          }
-        }
-
-        hasMore = has_more;
-        pageToken = page_token;
-      }
-
-      this.logger.log(`[ChatRecordSync] 查询到 ${existingIds.size} 条已存在的 chatId`);
-    } catch (error: any) {
-      this.logger.warn(`[ChatRecordSync] 查询已存在 chatId 失败: ${error?.message}，将跳过去重`);
-      // 查询失败时返回空集合，不影响同步流程（但可能会产生重复记录）
-    }
-
-    return existingIds;
-  }
-
-  /**
-   * 获取飞书 tenant_access_token（带缓存）
-   */
-  private async getTenantToken(appId: string, appSecret: string): Promise<string> {
-    const now = Date.now();
-    if (this.tokenCache && this.tokenCache.expireAt > now + 60_000) {
-      return this.tokenCache.token;
-    }
-
-    const resp = await this.http.post(`${this.apiBase}/auth/v3/tenant_access_token/internal`, {
-      app_id: appId,
-      app_secret: appSecret,
-    });
-
-    const { tenant_access_token, expire } = resp.data;
-    this.tokenCache = {
-      token: tenant_access_token,
-      expireAt: now + (expire ? expire * 1000 : 90 * 60 * 1000),
-    };
-
-    return tenant_access_token;
-  }
-
-  /**
-   * 加载飞书配置（代码配置优先，兼容环境变量）
-   */
-  private loadConfig() {
-    const appId =
-      feishuBitableConfig.appId && feishuBitableConfig.appId !== 'PLEASE_SET_APP_ID'
-        ? feishuBitableConfig.appId
-        : this.configService.get<string>('FEISHU_APP_ID') || '';
-
-    const appSecret =
-      feishuBitableConfig.appSecret && feishuBitableConfig.appSecret !== 'PLEASE_SET_APP_SECRET'
-        ? feishuBitableConfig.appSecret
-        : this.configService.get<string>('FEISHU_APP_SECRET') || '';
-
-    const chatConfig = feishuBitableConfig.tables.chat;
-    const appToken =
-      chatConfig.appToken && chatConfig.appToken !== 'PLEASE_SET_APP_TOKEN'
-        ? chatConfig.appToken
-        : this.configService.get<string>('FEISHU_BTABLE_APP_TOKEN') || '';
-
-    const tableId =
-      chatConfig.tableId && chatConfig.tableId !== 'PLEASE_SET_TABLE_ID'
-        ? chatConfig.tableId
-        : this.configService.get<string>('FEISHU_BTABLE_TABLE_ID_CHAT') || '';
-
-    return {
-      appId,
-      appSecret,
-      tables: {
-        chat: { appToken, tableId },
-      },
-    };
-  }
-
-  /**
    * 获取昨天的时间窗口
-   * 返回昨天 00:00:00 ~ 今天 00:00:00 的时间戳
    */
   private getYesterdayWindow(): { start: number; end: number } {
     const end = new Date();
-    end.setHours(0, 0, 0, 0); // 今天 00:00:00
-
+    end.setHours(0, 0, 0, 0);
     const start = new Date(end);
-    start.setDate(start.getDate() - 1); // 昨天 00:00:00
-
+    start.setDate(start.getDate() - 1);
     return { start: start.getTime(), end: end.getTime() };
   }
 
   /**
-   * 截断文本到指定长度
-   */
-  private truncate(text: string, max = 5000): string {
-    if (!text) return '';
-    return text.length > max ? `${text.slice(0, max)}...(内容过长已截断)` : text;
-  }
-
-  /**
-   * 手动触发同步（用于测试）
-   */
-  async manualSync(): Promise<{ success: boolean; message: string; recordCount?: number }> {
-    try {
-      await this.syncYesterdayChatRecords();
-      return { success: true, message: '手动同步完成' };
-    } catch (error: any) {
-      return { success: false, message: `同步失败: ${error?.message}` };
-    }
-  }
-
-  /**
-   * 同步指定时间范围的数据（仅用于测试）
-   */
-  async syncByTimeRange(
-    startTime: number,
-    endTime: number,
-  ): Promise<{
-    success: boolean;
-    message: string;
-    recordCount?: number;
-    error?: string;
-  }> {
-    this.logger.log('[ChatRecordSync] 开始同步指定时间范围的聊天记录到飞书多维表格...');
-
-    const { appId, appSecret, tables } = this.loadConfig();
-    if (!appId || !appSecret || !tables.chat?.appToken || !tables.chat?.tableId) {
-      return {
-        success: false,
-        message: '未配置完整的飞书表格参数',
-      };
-    }
-
-    try {
-      this.logger.log(
-        `[ChatRecordSync] 时间范围: ${new Date(startTime).toISOString()} ~ ${new Date(endTime).toISOString()}`,
-      );
-
-      const chatRecords = await this.getChatRecordsByTimeRange(startTime, endTime);
-
-      if (chatRecords.length === 0) {
-        return {
-          success: true,
-          message: '指定时间范围内无聊天记录',
-          recordCount: 0,
-        };
-      }
-
-      this.logger.log(`[ChatRecordSync] 找到 ${chatRecords.length} 个会话，开始转换数据...`);
-
-      const feishuRecords = this.convertToFeishuRecords(chatRecords);
-
-      if (feishuRecords.length === 0) {
-        return {
-          success: true,
-          message: '无有效数据',
-          recordCount: 0,
-        };
-      }
-
-      this.logger.log(`[ChatRecordSync] 准备写入 ${feishuRecords.length} 条记录到飞书...`);
-
-      // 查询已存在的 chatId（去重）
-      const existingChatIds = await this.getExistingChatIds(
-        tables.chat.appToken,
-        tables.chat.tableId,
-        appId,
-        appSecret,
-      );
-
-      // 过滤掉已存在的记录
-      const newRecords = feishuRecords.filter((r) => !existingChatIds.has(r.fields.chatId));
-
-      if (newRecords.length === 0) {
-        this.logger.log('[ChatRecordSync] 所有记录均已存在，跳过写入');
-        return {
-          success: true,
-          message: '所有记录均已存在',
-          recordCount: 0,
-        };
-      }
-
-      this.logger.log(
-        `[ChatRecordSync] 过滤后剩余 ${newRecords.length} 条新记录（已过滤 ${feishuRecords.length - newRecords.length} 条重复）`,
-      );
-
-      await this.pushInBatches(
-        newRecords,
-        tables.chat.appToken,
-        tables.chat.tableId,
-        appId,
-        appSecret,
-      );
-
-      this.logger.log(`[ChatRecordSync] ✓ 同步完成，本次写入 ${newRecords.length} 条记录`);
-
-      return {
-        success: true,
-        message: '同步完成',
-        recordCount: newRecords.length,
-      };
-    } catch (error: any) {
-      this.logger.error(`[ChatRecordSync] ✗ 同步失败: ${error?.message ?? error}`, error?.stack);
-      return {
-        success: false,
-        message: `同步失败: ${error?.message}`,
-        error: error?.stack,
-      };
-    }
-  }
-
-  /**
-   * 获取指定时间范围内的所有聊天记录（直接从 Supabase 获取）
-   * @param startTime 开始时间（毫秒时间戳）
-   * @param endTime 结束时间（毫秒时间戳）
-   * @returns 所有会话的聊天记录列表
+   * 获取指定时间范围内的所有聊天记录
    */
   private async getChatRecordsByTimeRange(
     startTime: number,
@@ -496,7 +302,6 @@ export class ChatRecordSyncService {
 
     const records = await this.supabaseService.getChatMessagesByTimeRange(startTime, endTime);
 
-    // 转换为 EnhancedMessageHistoryItem 格式
     const result = records.map(({ chatId, messages }) => ({
       chatId,
       messages: messages.map((m) => ({

@@ -6,7 +6,8 @@
 // ========== 基础布局 ==========
 .container {
   position: relative;
-  z-index: 1;
+  // 注意：不设置 z-index，避免创建层叠上下文
+  // 否则内部的 fixed 弹窗无法覆盖外部的圣诞装饰等元素
   max-width: 100%;
   width: 100%;
   margin: 0;

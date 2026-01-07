@@ -4,7 +4,7 @@ import { readFile } from 'fs/promises';
 import { existsSync } from 'fs';
 import { join } from 'path';
 import { AgentProfile } from '../utils/agent-types';
-import { ScenarioType } from '../utils/agent-enums';
+import { ScenarioType, ContextStrategy } from '../utils/agent-enums';
 import { AgentRegistryService } from './agent-registry.service';
 
 /**
@@ -252,7 +252,7 @@ export class ProfileLoaderService implements OnModuleInit {
       description: '候选人私聊咨询服务',
       model,
       allowedTools,
-      contextStrategy: 'skip',
+      contextStrategy: ContextStrategy.SKIP,
       systemPrompt,
       context: {
         dulidayToken,

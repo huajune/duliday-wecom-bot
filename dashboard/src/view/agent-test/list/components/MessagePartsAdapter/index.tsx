@@ -9,48 +9,8 @@ import {
   ChevronRight,
   ChevronDown,
 } from 'lucide-react';
+import { formatJson, formatToolResult } from '@/utils/format';
 import styles from './index.module.scss';
-
-/**
- * 格式化 JSON 输出
- */
-const formatJson = (obj: unknown): string => {
-  try {
-    return JSON.stringify(obj, null, 2);
-  } catch {
-    return String(obj);
-  }
-};
-
-/**
- * 格式化工具返回结果，提升可读性
- * - 如果是 { type: 'text', text: '...' } 格式，提取 text 内容
- * - 将 \n 转换为真正的换行
- * - 其他情况格式化为 JSON
- */
-const formatToolResult = (result: unknown): string => {
-  // 处理字符串类型
-  if (typeof result === 'string') {
-    // 将字面量 \n 转换为真正的换行
-    return result.replace(/\\n/g, '\n');
-  }
-
-  // 处理对象类型
-  if (typeof result === 'object' && result !== null) {
-    const obj = result as Record<string, unknown>;
-
-    // 检查是否是 { type: 'text', text: '...' } 格式
-    if (obj.type === 'text' && typeof obj.text === 'string') {
-      // 提取 text 内容并转换换行符
-      return obj.text.replace(/\\n/g, '\n');
-    }
-
-    // 其他对象格式化为 JSON
-    return formatJson(result);
-  }
-
-  return String(result);
-};
 
 /**
  * 工具调用组件（可展开收起）
@@ -199,11 +159,6 @@ interface MessagePartsAdapterProps {
 function MessagePartsAdapterComponent({ message, isStreaming }: MessagePartsAdapterProps) {
   const parts = message.parts;
 
-  // 调试：打印 message parts 信息
-  console.log('[MessagePartsAdapter] message.id:', message.id);
-  console.log('[MessagePartsAdapter] parts count:', parts?.length || 0);
-  console.log('[MessagePartsAdapter] parts types:', parts?.map(p => p.type).join(', ') || 'none');
-
   // 如果没有 parts，显示空状态
   if (!parts || parts.length === 0) {
     return (
@@ -216,7 +171,6 @@ function MessagePartsAdapterComponent({ message, isStreaming }: MessagePartsAdap
 
   // 提取工具调用
   const toolInvocations = extractToolCalls(parts);
-  console.log('[MessagePartsAdapter] toolInvocations count:', toolInvocations.length);
 
   // 提取文本内容
   const textParts: string[] = [];

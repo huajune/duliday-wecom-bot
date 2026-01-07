@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Inject, forwardRef } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AgentService } from '../agent.service';
 import { ProfileLoaderService } from '../services/agent-profile-loader.service';
@@ -13,59 +13,24 @@ import {
   ImportFromFeishuRequestDto,
   ImportResult,
 } from './dto/test-chat.dto';
-import { HttpClientFactory } from '@core/client-http';
-import { AxiosInstance } from 'axios';
-import { feishuBitableConfig } from '@core/feishu/constants/feishu-bitable.config';
-
-/**
- * 测试执行记录（数据库格式）
- */
-export interface TestExecution {
-  id: string;
-  batch_id: string | null;
-  case_id: string | null;
-  case_name: string | null;
-  category: string | null;
-  test_input: any;
-  expected_output: string | null;
-  agent_request: any;
-  agent_response: any;
-  actual_output: string | null;
-  tool_calls: any;
-  execution_status: 'pending' | 'running' | 'success' | 'failure' | 'timeout';
-  duration_ms: number | null;
-  token_usage: any;
-  error_message: string | null;
-  review_status: 'pending' | 'passed' | 'failed' | 'skipped';
-  review_comment: string | null;
-  reviewed_by: string | null;
-  reviewed_at: string | null;
-  failure_reason: string | null;
-  created_at: string;
-}
-
-/**
- * 测试批次（数据库格式）
- */
-export interface TestBatch {
-  id: string;
-  name: string;
-  source: 'manual' | 'feishu';
-  feishu_app_token: string | null;
-  feishu_table_id: string | null;
-  total_cases: number;
-  executed_count: number;
-  passed_count: number;
-  failed_count: number;
-  pending_review_count: number;
-  pass_rate: number | null;
-  avg_duration_ms: number | null;
-  avg_token_usage: number | null;
-  status: 'created' | 'running' | 'completed' | 'reviewing';
-  created_by: string | null;
-  created_at: string;
-  completed_at: string | null;
-}
+import { FeishuBitableApiService } from '@core/feishu/services/feishu-bitable-api.service';
+import { AgentTestProcessor } from './agent-test.processor';
+import { FeishuTestSyncService } from './services/feishu-test-sync.service';
+import { TestStatsService } from './services/test-stats.service';
+import {
+  TestBatchRepository,
+  TestExecutionRepository,
+  TestBatch,
+  TestExecution,
+} from './repositories';
+import {
+  BatchStatus,
+  BatchSource,
+  ExecutionStatus,
+  FeishuTestStatus,
+  ReviewStatus,
+  MessageRole,
+} from './enums';
 
 /**
  * Agent 测试服务
@@ -74,35 +39,21 @@ export interface TestBatch {
 @Injectable()
 export class AgentTestService {
   private readonly logger = new Logger(AgentTestService.name);
-  private readonly supabaseClient: AxiosInstance;
-  private readonly supabaseUrl: string;
-
-  // 飞书 Token 缓存
-  private feishuTokenCache: { token: string; expireAt: number } | null = null;
 
   constructor(
     private readonly configService: ConfigService,
     private readonly agentService: AgentService,
     private readonly profileLoader: ProfileLoaderService,
     private readonly brandConfig: BrandConfigService,
-    private readonly httpClientFactory: HttpClientFactory,
     private readonly apiClient: AgentApiClientService,
+    @Inject(forwardRef(() => AgentTestProcessor))
+    private readonly testProcessor: AgentTestProcessor,
+    private readonly feishuSyncService: FeishuTestSyncService,
+    private readonly feishuBitableApi: FeishuBitableApiService,
+    private readonly statsService: TestStatsService,
+    private readonly batchRepository: TestBatchRepository,
+    private readonly executionRepository: TestExecutionRepository,
   ) {
-    // 初始化 Supabase HTTP 客户端
-    this.supabaseUrl = this.configService.get<string>('NEXT_PUBLIC_SUPABASE_URL')!;
-    const supabaseKey = this.configService.get<string>('SUPABASE_SERVICE_ROLE_KEY')!;
-
-    this.supabaseClient = this.httpClientFactory.create({
-      baseURL: `${this.supabaseUrl}/rest/v1`,
-      timeout: 30000,
-      headers: {
-        apikey: supabaseKey,
-        Authorization: `Bearer ${supabaseKey}`,
-        'Content-Type': 'application/json',
-        Prefer: 'return=representation',
-      },
-    });
-
     this.logger.log('AgentTestService 初始化完成');
   }
 
@@ -133,7 +84,7 @@ export class AgentTestService {
     this.logger.log(`执行测试: ${request.caseName || request.message.substring(0, 50)}...`);
 
     let result: any;
-    let executionStatus: 'success' | 'failure' | 'timeout' = 'success';
+    let executionStatus: ExecutionStatus = ExecutionStatus.SUCCESS;
     let errorMessage: string | null = null;
 
     try {
@@ -154,11 +105,13 @@ export class AgentTestService {
       });
 
       if (result.status === 'error') {
-        executionStatus = 'failure';
+        executionStatus = ExecutionStatus.FAILURE;
         errorMessage = result.error?.message || '未知错误';
       }
     } catch (error: any) {
-      executionStatus = error.message?.includes('timeout') ? 'timeout' : 'failure';
+      executionStatus = error.message?.includes('timeout')
+        ? ExecutionStatus.TIMEOUT
+        : ExecutionStatus.FAILURE;
       errorMessage = error.message;
       result = { status: 'error', error: { message: error.message } };
     }
@@ -188,7 +141,7 @@ export class AgentTestService {
         body: (result as any).requestBody || null,
       },
       response: {
-        statusCode: executionStatus === 'success' ? 200 : 500,
+        statusCode: executionStatus === ExecutionStatus.SUCCESS ? 200 : 500,
         body: result.data || result.fallback || result.error,
         toolCalls,
       },
@@ -272,7 +225,7 @@ export class AgentTestService {
     // 构建消息历史，将当前消息添加到历史末尾
     const messages = [
       ...(request.history || []),
-      { role: 'user' as const, content: request.message },
+      { role: MessageRole.USER, content: request.message },
     ];
 
     // 构建请求参数（符合 ChatRequest 接口）
@@ -320,7 +273,7 @@ export class AgentTestService {
 
     // 更新批次状态为 running
     if (batchId) {
-      await this.updateBatchStatus(batchId, 'running');
+      await this.updateBatchStatus(batchId, BatchStatus.RUNNING);
     }
 
     const results: TestChatResponse[] = [];
@@ -346,7 +299,7 @@ export class AgentTestService {
     // 更新批次状态和统计
     if (batchId) {
       await this.updateBatchStats(batchId);
-      await this.updateBatchStatus(batchId, 'reviewing');
+      await this.updateBatchStatus(batchId, BatchStatus.REVIEWING);
     }
 
     return results;
@@ -356,43 +309,26 @@ export class AgentTestService {
    * 创建测试批次
    */
   async createBatch(request: CreateBatchRequestDto): Promise<TestBatch> {
-    const response = await this.supabaseClient.post<TestBatch[]>('/test_batches', {
+    return this.batchRepository.create({
       name: request.name,
-      source: request.source || 'manual',
-      feishu_app_token: request.feishuAppToken || null,
-      feishu_table_id: request.feishuTableId || null,
-      status: 'created',
+      source: request.source,
+      feishuAppToken: request.feishuAppToken,
+      feishuTableId: request.feishuTableId,
     });
-
-    const batch = response.data[0];
-    this.logger.log(`创建测试批次: ${batch.id} - ${batch.name}`);
-    return batch;
   }
 
   /**
    * 获取测试批次列表
    */
   async getBatches(limit = 20, offset = 0): Promise<TestBatch[]> {
-    const response = await this.supabaseClient.get<TestBatch[]>('/test_batches', {
-      params: {
-        order: 'created_at.desc',
-        limit,
-        offset,
-      },
-    });
-    return response.data;
+    return this.batchRepository.findMany(limit, offset);
   }
 
   /**
    * 获取批次详情
    */
   async getBatch(batchId: string): Promise<TestBatch | null> {
-    const response = await this.supabaseClient.get<TestBatch[]>('/test_batches', {
-      params: {
-        id: `eq.${batchId}`,
-      },
-    });
-    return response.data[0] || null;
+    return this.batchRepository.findById(batchId);
   }
 
   /**
@@ -401,78 +337,78 @@ export class AgentTestService {
   async getBatchExecutions(
     batchId: string,
     filters?: {
-      reviewStatus?: string;
-      executionStatus?: string;
+      reviewStatus?: ReviewStatus;
+      executionStatus?: ExecutionStatus;
       category?: string;
     },
   ): Promise<TestExecution[]> {
-    const params: any = {
-      batch_id: `eq.${batchId}`,
-      order: 'created_at.asc',
-    };
-
-    if (filters?.reviewStatus) {
-      params.review_status = `eq.${filters.reviewStatus}`;
-    }
-    if (filters?.executionStatus) {
-      params.execution_status = `eq.${filters.executionStatus}`;
-    }
-    if (filters?.category) {
-      params.category = `eq.${filters.category}`;
-    }
-
-    const response = await this.supabaseClient.get<TestExecution[]>('/test_executions', {
-      params,
-    });
-    return response.data;
+    return this.executionRepository.findByBatchId(batchId, filters);
   }
 
   /**
    * 获取执行记录详情
    */
   async getExecution(executionId: string): Promise<TestExecution | null> {
-    const response = await this.supabaseClient.get<TestExecution[]>('/test_executions', {
-      params: {
-        id: `eq.${executionId}`,
-      },
-    });
-    return response.data[0] || null;
+    return this.executionRepository.findById(executionId);
   }
 
   /**
    * 获取执行记录列表（不关联批次）
    */
   async getExecutions(limit = 50, offset = 0): Promise<TestExecution[]> {
-    const response = await this.supabaseClient.get<TestExecution[]>('/test_executions', {
-      params: {
-        order: 'created_at.desc',
-        limit,
-        offset,
-      },
-    });
-    return response.data;
+    return this.executionRepository.findMany(limit, offset);
   }
 
   /**
    * 更新评审状态
    */
   async updateReview(executionId: string, review: UpdateReviewRequestDto): Promise<TestExecution> {
-    const response = await this.supabaseClient.patch<TestExecution[]>(
-      `/test_executions?id=eq.${executionId}`,
-      {
-        review_status: review.reviewStatus,
-        review_comment: review.reviewComment || null,
-        failure_reason: review.failureReason || null,
-        reviewed_by: review.reviewedBy || null,
-        reviewed_at: new Date().toISOString(),
-      },
-    );
-
-    const execution = response.data[0];
+    const execution = await this.executionRepository.updateReview(executionId, {
+      reviewStatus: review.reviewStatus,
+      reviewComment: review.reviewComment,
+      failureReason: review.failureReason,
+      reviewedBy: review.reviewedBy,
+    });
 
     // 更新批次统计
     if (execution.batch_id) {
       await this.updateBatchStats(execution.batch_id);
+
+      // 检查是否所有用例都已评审完成，如果是则更新批次状态为 completed
+      const stats = await this.getBatchStats(execution.batch_id);
+      if (stats.pendingReviewCount === 0 && stats.totalCases > 0) {
+        await this.updateBatchStatus(execution.batch_id, BatchStatus.COMPLETED);
+        this.logger.log(`批次 ${execution.batch_id} 所有用例评审完成，状态更新为 completed`);
+      }
+    }
+
+    // 回写飞书（如果有 case_id）
+    if (execution.case_id && review.reviewStatus !== ReviewStatus.PENDING) {
+      const feishuStatus =
+        review.reviewStatus === ReviewStatus.PASSED
+          ? FeishuTestStatus.PASSED
+          : review.reviewStatus === ReviewStatus.FAILED
+            ? FeishuTestStatus.FAILED
+            : FeishuTestStatus.SKIPPED;
+
+      // 异步回写，不阻塞响应
+      this.feishuSyncService
+        .writeBackResult(
+          execution.case_id,
+          feishuStatus,
+          execution.batch_id || undefined,
+          review.failureReason,
+        )
+        .then((result) => {
+          if (result.success) {
+            this.logger.log(`飞书回写成功: ${execution.case_id} -> ${feishuStatus}`);
+          } else {
+            this.logger.warn(`飞书回写失败: ${execution.case_id} - ${result.error}`);
+          }
+        })
+        .catch((error) => {
+          this.logger.error(`飞书回写异常: ${execution.case_id}`, error);
+        });
     }
 
     this.logger.log(`更新评审状态: ${executionId} -> ${review.reviewStatus}`);
@@ -483,122 +419,50 @@ export class AgentTestService {
    * 批量更新评审状态
    */
   async batchUpdateReview(executionIds: string[], review: UpdateReviewRequestDto): Promise<number> {
-    // 使用 IN 查询更新
-    const response = await this.supabaseClient.patch<TestExecution[]>(
-      `/test_executions?id=in.(${executionIds.join(',')})`,
-      {
-        review_status: review.reviewStatus,
-        review_comment: review.reviewComment || null,
-        failure_reason: review.failureReason || null,
-        reviewed_by: review.reviewedBy || null,
-        reviewed_at: new Date().toISOString(),
-      },
-    );
+    const updatedExecutions = await this.executionRepository.batchUpdateReview(executionIds, {
+      reviewStatus: review.reviewStatus,
+      reviewComment: review.reviewComment,
+      failureReason: review.failureReason,
+      reviewedBy: review.reviewedBy,
+    });
 
     // 获取涉及的批次并更新统计
-    const batchIds = new Set(response.data.map((e) => e.batch_id).filter(Boolean));
+    const batchIds = new Set(
+      updatedExecutions.map((e: TestExecution) => e.batch_id).filter(Boolean),
+    );
     for (const batchId of batchIds) {
-      await this.updateBatchStats(batchId!);
+      await this.updateBatchStats(batchId as string);
     }
 
-    return response.data.length;
+    return updatedExecutions.length;
   }
 
   /**
    * 获取批次统计信息
+   * 委托给 TestStatsService 处理
    */
   async getBatchStats(batchId: string): Promise<BatchStats> {
-    const executions = await this.getBatchExecutions(batchId);
-
-    const totalCases = executions.length;
-    const executedCount = executions.filter((e) => e.execution_status !== 'pending').length;
-    const passedCount = executions.filter((e) => e.review_status === 'passed').length;
-    const failedCount = executions.filter((e) => e.review_status === 'failed').length;
-    const pendingReviewCount = executions.filter((e) => e.review_status === 'pending').length;
-
-    const reviewedCount = passedCount + failedCount;
-    const passRate = reviewedCount > 0 ? (passedCount / reviewedCount) * 100 : null;
-
-    const completedExecutions = executions.filter(
-      (e) => e.execution_status === 'success' && e.duration_ms,
-    );
-    const avgDurationMs =
-      completedExecutions.length > 0
-        ? Math.round(
-            completedExecutions.reduce((sum, e) => sum + (e.duration_ms || 0), 0) /
-              completedExecutions.length,
-          )
-        : null;
-
-    const executionsWithTokens = executions.filter((e) => e.token_usage?.totalTokens);
-    const avgTokenUsage =
-      executionsWithTokens.length > 0
-        ? Math.round(
-            executionsWithTokens.reduce((sum, e) => sum + (e.token_usage?.totalTokens || 0), 0) /
-              executionsWithTokens.length,
-          )
-        : null;
-
-    return {
-      totalCases,
-      executedCount,
-      passedCount,
-      failedCount,
-      pendingReviewCount,
-      passRate,
-      avgDurationMs,
-      avgTokenUsage,
-    };
+    return this.statsService.calculateBatchStats(batchId);
   }
 
   /**
    * 获取分类统计
+   * 委托给 TestStatsService 处理
    */
   async getCategoryStats(
     batchId: string,
   ): Promise<Array<{ category: string; total: number; passed: number; failed: number }>> {
-    const executions = await this.getBatchExecutions(batchId);
-
-    const categoryMap = new Map<string, { total: number; passed: number; failed: number }>();
-
-    for (const execution of executions) {
-      const category = execution.category || '未分类';
-      const stats = categoryMap.get(category) || { total: 0, passed: 0, failed: 0 };
-      stats.total++;
-      if (execution.review_status === 'passed') stats.passed++;
-      if (execution.review_status === 'failed') stats.failed++;
-      categoryMap.set(category, stats);
-    }
-
-    return Array.from(categoryMap.entries()).map(([category, stats]) => ({
-      category,
-      ...stats,
-    }));
+    return this.statsService.calculateCategoryStats(batchId);
   }
 
   /**
    * 获取失败原因统计
+   * 委托给 TestStatsService 处理
    */
   async getFailureReasonStats(
     batchId: string,
   ): Promise<Array<{ reason: string; count: number; percentage: number }>> {
-    const executions = await this.getBatchExecutions(batchId, { reviewStatus: 'failed' });
-
-    const reasonMap = new Map<string, number>();
-
-    for (const execution of executions) {
-      const reason = execution.failure_reason || 'other';
-      reasonMap.set(reason, (reasonMap.get(reason) || 0) + 1);
-    }
-
-    const total = executions.length;
-    return Array.from(reasonMap.entries())
-      .map(([reason, count]) => ({
-        reason,
-        count,
-        percentage: total > 0 ? Math.round((count / total) * 100) : 0,
-      }))
-      .sort((a, b) => b.count - a.count);
+    return this.statsService.calculateFailureReasonStats(batchId);
   }
 
   // ========== 私有方法 ==========
@@ -617,44 +481,20 @@ export class AgentTestService {
     agentResponse: any;
     actualOutput: string;
     toolCalls: any[];
-    executionStatus: string;
+    executionStatus: ExecutionStatus;
     durationMs: number;
     tokenUsage: any;
     errorMessage: string | null;
   }): Promise<TestExecution> {
-    const response = await this.supabaseClient.post<TestExecution[]>('/test_executions', {
-      batch_id: data.batchId || null,
-      case_id: data.caseId || null,
-      case_name: data.caseName || null,
-      category: data.category || null,
-      test_input: data.testInput,
-      expected_output: data.expectedOutput || null,
-      agent_request: data.agentRequest,
-      agent_response: data.agentResponse,
-      actual_output: data.actualOutput,
-      tool_calls: data.toolCalls,
-      execution_status: data.executionStatus,
-      duration_ms: data.durationMs,
-      token_usage: data.tokenUsage,
-      error_message: data.errorMessage,
-    });
-
-    return response.data[0];
+    return this.executionRepository.create(data);
   }
 
   /**
-   * 更新批次状态
+   * 更新批次状态（带状态机验证）
+   * 状态机逻辑已移至 TestBatchRepository
    */
-  private async updateBatchStatus(
-    batchId: string,
-    status: 'created' | 'running' | 'completed' | 'reviewing',
-  ): Promise<void> {
-    const updateData: any = { status };
-    if (status === 'completed') {
-      updateData.completed_at = new Date().toISOString();
-    }
-
-    await this.supabaseClient.patch(`/test_batches?id=eq.${batchId}`, updateData);
+  private async updateBatchStatus(batchId: string, newStatus: BatchStatus): Promise<void> {
+    await this.batchRepository.updateStatus(batchId, newStatus);
   }
 
   /**
@@ -662,17 +502,7 @@ export class AgentTestService {
    */
   private async updateBatchStats(batchId: string): Promise<void> {
     const stats = await this.getBatchStats(batchId);
-
-    await this.supabaseClient.patch(`/test_batches?id=eq.${batchId}`, {
-      total_cases: stats.totalCases,
-      executed_count: stats.executedCount,
-      passed_count: stats.passedCount,
-      failed_count: stats.failedCount,
-      pending_review_count: stats.pendingReviewCount,
-      pass_rate: stats.passRate,
-      avg_duration_ms: stats.avgDurationMs,
-      avg_token_usage: stats.avgTokenUsage,
-    });
+    await this.batchRepository.updateStats(batchId, stats);
   }
 
   /**
@@ -728,41 +558,31 @@ export class AgentTestService {
 
   /**
    * 从飞书多维表格导入测试用例
+   * 使用 FeishuTestSyncService 处理飞书 API 交互
    */
   async importFromFeishu(request: ImportFromFeishuRequestDto): Promise<ImportResult> {
     this.logger.log(`从飞书导入测试用例: appToken=${request.appToken}, tableId=${request.tableId}`);
 
-    // 1. 获取飞书 Token
-    const token = await this.getFeishuToken();
+    // 1. 使用 FeishuTestSyncService 获取测试用例
+    const cases = await this.feishuSyncService.getTestCases(request.appToken, request.tableId);
+    this.logger.log(`从飞书获取 ${cases.length} 个有效测试用例`);
 
-    // 2. 获取表格字段列表（用于确定字段映射）
-    const fields = await this.getFeishuTableFields(token, request.appToken, request.tableId);
-    this.logger.log(`表格字段: ${fields.map((f: any) => f.field_name).join(', ')}`);
-
-    // 3. 获取所有记录
-    const records = await this.getFeishuTableRecords(token, request.appToken, request.tableId);
-    this.logger.log(`获取到 ${records.length} 条记录`);
-
-    if (records.length === 0) {
+    if (cases.length === 0) {
       throw new Error('飞书表格中没有数据');
     }
 
-    // 4. 创建批次
+    // 2. 创建批次
     const batchName =
       request.batchName ||
       `飞书导入 ${new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })}`;
     const batch = await this.createBatch({
       name: batchName,
-      source: 'feishu',
+      source: BatchSource.FEISHU,
       feishuAppToken: request.appToken,
       feishuTableId: request.tableId,
     });
 
-    // 5. 解析记录并转换为测试用例
-    const cases = this.parseFeishuRecords(records, fields);
-    this.logger.log(`解析得到 ${cases.length} 个有效测试用例`);
-
-    // 6. 保存测试用例（不执行）
+    // 3. 保存测试用例（不执行）
     const savedCases: ImportResult['cases'] = [];
     for (const testCase of cases) {
       const execution = await this.saveExecution({
@@ -780,7 +600,7 @@ export class AgentTestService {
         agentResponse: null,
         actualOutput: '',
         toolCalls: [],
-        executionStatus: 'pending',
+        executionStatus: ExecutionStatus.PENDING,
         durationMs: 0,
         tokenUsage: null,
         errorMessage: null,
@@ -794,15 +614,19 @@ export class AgentTestService {
       });
     }
 
-    // 7. 更新批次统计
+    // 4. 更新批次统计
     await this.updateBatchStats(batch.id);
 
-    // 8. 如果需要立即执行
+    // 5. 如果需要立即执行，使用任务队列
     if (request.executeImmediately) {
-      this.logger.log('开始执行测试用例...');
-      // 异步执行，不阻塞返回
-      this.executeImportedCases(batch.id, cases, request.parallel || false).catch((err) => {
-        this.logger.error(`批量执行失败: ${err.message}`, err.stack);
+      this.logger.log('将测试用例添加到任务队列...');
+
+      // 更新批次状态为 running
+      await this.updateBatchStatus(batch.id, BatchStatus.RUNNING);
+
+      // 通过任务队列执行（异步，不阻塞返回）
+      this.testProcessor.addBatchTestJobs(batch.id, cases).catch((err) => {
+        this.logger.error(`添加任务到队列失败: ${err.message}`, err.stack);
       });
     }
 
@@ -814,320 +638,162 @@ export class AgentTestService {
     };
   }
 
+  // ========== 供 Processor 调用的公开方法 ==========
+
   /**
-   * 执行已导入的测试用例
+   * 更新批次状态（公开方法，供 Processor 调用）
    */
-  private async executeImportedCases(
-    batchId: string,
-    cases: Array<{
-      caseId: string;
-      caseName: string;
-      category?: string;
-      message: string;
-      history?: any[];
-      expectedOutput?: string;
-    }>,
-    parallel: boolean,
-  ): Promise<void> {
-    const testCases: TestChatRequestDto[] = cases.map((c) => ({
-      message: c.message,
-      history: c.history,
-      caseId: c.caseId,
-      caseName: c.caseName,
-      category: c.category,
-      expectedOutput: c.expectedOutput,
-      batchId,
-      saveExecution: false, // 已经保存过了，这里只更新
-    }));
-
-    await this.updateBatchStatus(batchId, 'running');
-
-    // 执行单个测试用例的函数
-    const executeOne = async (testCase: TestChatRequestDto) => {
-      try {
-        const result = await this.executeTest({ ...testCase, saveExecution: false });
-
-        // 更新执行记录
-        await this.supabaseClient.patch(
-          `/test_executions?batch_id=eq.${batchId}&case_id=eq.${testCase.caseId}`,
-          {
-            agent_request: result.request.body,
-            agent_response: result.response.body,
-            actual_output: result.actualOutput,
-            tool_calls: result.response.toolCalls || [],
-            execution_status: result.status,
-            duration_ms: result.metrics.durationMs,
-            token_usage: result.metrics.tokenUsage,
-          },
-        );
-      } catch (error: any) {
-        this.logger.error(`执行测试用例失败: ${testCase.caseName}`, error.stack);
-        await this.supabaseClient.patch(
-          `/test_executions?batch_id=eq.${batchId}&case_id=eq.${testCase.caseId}`,
-          {
-            execution_status: 'failure',
-            error_message: error.message,
-          },
-        );
-      }
-    };
-
-    // 根据 parallel 参数决定执行方式
-    if (parallel) {
-      // 并行执行（但限制并发数为 5）
-      const concurrencyLimit = 5;
-      for (let i = 0; i < testCases.length; i += concurrencyLimit) {
-        const batch = testCases.slice(i, i + concurrencyLimit);
-        await Promise.all(batch.map(executeOne));
-      }
-    } else {
-      // 串行执行
-      for (const testCase of testCases) {
-        await executeOne(testCase);
-      }
-    }
-
-    await this.updateBatchStats(batchId);
-    await this.updateBatchStatus(batchId, 'reviewing');
+  async updateBatchStatusPublic(batchId: string, status: BatchStatus): Promise<void> {
+    return this.updateBatchStatus(batchId, status);
   }
 
   /**
-   * 获取飞书 Tenant Access Token
+   * 更新批次统计信息（公开方法，供 Processor 调用）
    */
-  private async getFeishuToken(): Promise<string> {
-    const now = Date.now();
-
-    // 检查缓存
-    if (this.feishuTokenCache && this.feishuTokenCache.expireAt > now + 60_000) {
-      return this.feishuTokenCache.token;
-    }
-
-    const { appId, appSecret } = feishuBitableConfig;
-    const client = this.httpClientFactory.create({
-      baseURL: 'https://open.feishu.cn/open-apis',
-      timeout: 10000,
-    });
-
-    const response = await client.post('/auth/v3/tenant_access_token/internal', {
-      app_id: appId,
-      app_secret: appSecret,
-    });
-
-    if (response.data.code !== 0) {
-      throw new Error(`获取飞书 Token 失败: ${response.data.msg}`);
-    }
-
-    const token = response.data.tenant_access_token;
-    const expireAt = now + response.data.expire * 1000;
-
-    this.feishuTokenCache = { token, expireAt };
-    this.logger.log('获取飞书 Token 成功');
-
-    return token;
+  async updateBatchStatsPublic(batchId: string): Promise<void> {
+    return this.updateBatchStats(batchId);
   }
 
   /**
-   * 获取飞书表格字段列表
+   * 统计批次中已完成的执行记录数量（公开方法，供 Processor 调用）
    */
-  private async getFeishuTableFields(
-    token: string,
-    appToken: string,
-    tableId: string,
-  ): Promise<any[]> {
-    const client = this.httpClientFactory.create({
-      baseURL: 'https://open.feishu.cn/open-apis',
-      timeout: 10000,
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
-
-    const response = await client.get(`/bitable/v1/apps/${appToken}/tables/${tableId}/fields`);
-
-    if (response.data.code !== 0) {
-      throw new Error(`获取表格字段失败: ${response.data.msg}`);
-    }
-
-    return response.data.data.items || [];
-  }
-
-  /**
-   * 获取飞书表格所有记录（支持分页）
-   */
-  private async getFeishuTableRecords(
-    token: string,
-    appToken: string,
-    tableId: string,
-  ): Promise<any[]> {
-    const client = this.httpClientFactory.create({
-      baseURL: 'https://open.feishu.cn/open-apis',
-      timeout: 30000,
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
-
-    const allRecords: any[] = [];
-    let pageToken: string | undefined;
-
-    do {
-      const params: any = { page_size: 500 };
-      if (pageToken) {
-        params.page_token = pageToken;
-      }
-
-      const response = await client.get(`/bitable/v1/apps/${appToken}/tables/${tableId}/records`, {
-        params,
-      });
-
-      if (response.data.code !== 0) {
-        throw new Error(`获取表格记录失败: ${response.data.msg}`);
-      }
-
-      const items = response.data.data.items || [];
-      allRecords.push(...items);
-
-      pageToken = response.data.data.has_more ? response.data.data.page_token : undefined;
-    } while (pageToken);
-
-    return allRecords;
-  }
-
-  /**
-   * 解析飞书记录为测试用例
-   * 自动识别字段映射
-   */
-  private parseFeishuRecords(
-    records: any[],
-    fields: any[],
-  ): Array<{
-    caseId: string;
-    caseName: string;
-    category?: string;
-    message: string;
-    history?: any[];
-    expectedOutput?: string;
+  async countCompletedExecutions(batchId: string): Promise<{
+    total: number;
+    success: number;
+    failure: number;
+    timeout: number;
   }> {
-    // 字段名映射（支持多种常见命名）
-    const fieldMappings = {
-      caseName: ['用例名称', '名称', 'case_name', 'name', '测试用例', '标题'],
-      category: ['分类', '类别', 'category', '场景', '标签', 'tag'],
-      message: ['用户消息', '消息', 'message', '输入', 'input', '问题', 'question'],
-      history: ['历史记录', '对话历史', 'history', '上下文', 'context'],
-      expectedOutput: ['预期输出', '预期答案', 'expected', 'expected_output', '答案', 'answer'],
-    };
+    return this.executionRepository.countCompletedByBatchId(batchId);
+  }
 
-    // 查找字段 ID
-    const findFieldId = (mappings: string[]): string | null => {
-      for (const mapping of mappings) {
-        const field = fields.find((f) => f.field_name.toLowerCase() === mapping.toLowerCase());
-        if (field) return field.field_id;
-      }
-      return null;
-    };
+  /**
+   * 根据 batchId 和 caseId 更新执行记录
+   * 供 Processor 在任务完成后调用
+   */
+  async updateExecutionByBatchAndCase(
+    batchId: string,
+    caseId: string,
+    data: {
+      agentRequest?: unknown;
+      agentResponse?: unknown;
+      actualOutput?: string;
+      toolCalls?: unknown[];
+      executionStatus: ExecutionStatus;
+      durationMs: number;
+      tokenUsage?: unknown;
+      errorMessage?: string;
+    },
+  ): Promise<void> {
+    try {
+      await this.executionRepository.updateByBatchAndCase(batchId, caseId, data);
+    } catch (error: any) {
+      this.logger.error(`更新执行记录失败: ${error.message}`);
+      throw error;
+    }
+  }
 
-    const caseNameFieldId = findFieldId(fieldMappings.caseName);
-    const categoryFieldId = findFieldId(fieldMappings.category);
-    const messageFieldId = findFieldId(fieldMappings.message);
-    const historyFieldId = findFieldId(fieldMappings.history);
-    const expectedOutputFieldId = findFieldId(fieldMappings.expectedOutput);
+  // ========== 一键导入执行相关方法 ==========
 
-    if (!messageFieldId) {
-      throw new Error(
-        '未找到消息字段，请确保表格中包含以下字段之一: ' + fieldMappings.message.join(', '),
-      );
+  /**
+   * 一键从预配置的测试集表导入并执行
+   * 使用 FeishuBitableApiService.getTableConfig('testSuite') 获取配置
+   */
+  async quickCreateBatch(options?: {
+    batchName?: string;
+    parallel?: boolean;
+  }): Promise<ImportResult> {
+    const { appToken, tableId } = this.feishuBitableApi.getTableConfig('testSuite');
+
+    this.logger.log(`一键创建批量测试: 从测试集表 ${tableId} 导入`);
+
+    return this.importFromFeishu({
+      appToken,
+      tableId,
+      batchName:
+        options?.batchName ||
+        `批量测试 ${new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })}`,
+      executeImmediately: true,
+      parallel: options?.parallel || false,
+    });
+  }
+
+  /**
+   * 回写测试结果到飞书测试集表
+   * 使用 FeishuTestSyncService 处理飞书 API 交互
+   */
+  async writeBackToFeishu(
+    executionId: string,
+    testStatus: FeishuTestStatus,
+    failureCategory?: string,
+  ): Promise<{ success: boolean; error?: string }> {
+    // 1. 获取执行记录
+    const execution = await this.getExecution(executionId);
+    if (!execution) {
+      return { success: false, error: '执行记录不存在' };
     }
 
-    const cases: Array<{
-      caseId: string;
-      caseName: string;
-      category?: string;
-      message: string;
-      history?: any[];
-      expectedOutput?: string;
+    // case_id 是飞书记录的 record_id
+    const recordId = execution.case_id;
+    if (!recordId) {
+      return { success: false, error: '执行记录缺少飞书记录 ID' };
+    }
+
+    // 2. 使用 FeishuTestSyncService 回写结果
+    return this.feishuSyncService.writeBackResult(
+      recordId,
+      testStatus,
+      execution.batch_id || undefined,
+      failureCategory,
+    );
+  }
+
+  /**
+   * 批量回写测试结果到飞书
+   * 使用 FeishuTestSyncService 处理飞书 API 交互
+   */
+  async batchWriteBackToFeishu(
+    items: Array<{
+      executionId: string;
+      testStatus: FeishuTestStatus;
+      failureCategory?: string;
+    }>,
+  ): Promise<{ success: number; failed: number; errors: string[] }> {
+    // 先获取所有执行记录的 recordId
+    const writeBackItems: Array<{
+      recordId: string;
+      testStatus: FeishuTestStatus;
+      batchId?: string;
+      failureCategory?: string;
     }> = [];
 
-    for (const record of records) {
-      const recordFields = record.fields || {};
+    const errors: string[] = [];
 
-      // 提取消息内容
-      const messageValue = this.extractFieldValue(recordFields[messageFieldId]);
-      if (!messageValue) continue; // 跳过空消息
-
-      // 解析历史记录
-      let history: any[] | undefined;
-      if (historyFieldId && recordFields[historyFieldId]) {
-        const historyText = this.extractFieldValue(recordFields[historyFieldId]);
-        if (historyText) {
-          try {
-            history = JSON.parse(historyText);
-          } catch {
-            // 不是 JSON，尝试按行解析
-            history = this.parseHistoryText(historyText);
-          }
-        }
+    for (const item of items) {
+      const execution = await this.getExecution(item.executionId);
+      if (!execution) {
+        errors.push(`${item.executionId}: 执行记录不存在`);
+        continue;
+      }
+      if (!execution.case_id) {
+        errors.push(`${item.executionId}: 执行记录缺少飞书记录 ID`);
+        continue;
       }
 
-      cases.push({
-        caseId: record.record_id,
-        caseName: caseNameFieldId
-          ? this.extractFieldValue(recordFields[caseNameFieldId]) || `用例 ${record.record_id}`
-          : `用例 ${record.record_id}`,
-        category: categoryFieldId
-          ? this.extractFieldValue(recordFields[categoryFieldId])
-          : undefined,
-        message: messageValue,
-        history,
-        expectedOutput: expectedOutputFieldId
-          ? this.extractFieldValue(recordFields[expectedOutputFieldId])
-          : undefined,
+      writeBackItems.push({
+        recordId: execution.case_id,
+        testStatus: item.testStatus,
+        batchId: execution.batch_id || undefined,
+        failureCategory: item.failureCategory,
       });
     }
 
-    return cases;
-  }
+    // 使用 FeishuTestSyncService 批量回写
+    const result = await this.feishuSyncService.batchWriteBackResults(writeBackItems);
 
-  /**
-   * 提取飞书字段值
-   */
-  private extractFieldValue(field: any): string | undefined {
-    if (!field) return undefined;
-
-    // 文本字段
-    if (typeof field === 'string') return field;
-
-    // 富文本数组
-    if (Array.isArray(field)) {
-      return field
-        .map((item) => {
-          if (typeof item === 'string') return item;
-          if (item.text) return item.text;
-          return '';
-        })
-        .join('');
-    }
-
-    // 对象类型
-    if (typeof field === 'object') {
-      if (field.text) return field.text;
-      if (field.value) return String(field.value);
-    }
-
-    return String(field);
-  }
-
-  /**
-   * 按行解析历史记录文本
-   */
-  private parseHistoryText(text: string): any[] {
-    const lines = text.split('\n').filter((l) => l.trim());
-    return lines.map((line) => {
-      if (line.startsWith('用户:') || line.startsWith('user:')) {
-        return { role: 'user', content: line.replace(/^(用户|user):\s*/i, '') };
-      } else if (line.startsWith('AI:') || line.startsWith('assistant:')) {
-        return { role: 'assistant', content: line.replace(/^(AI|assistant):\s*/i, '') };
-      }
-      return { role: 'user', content: line };
-    });
+    return {
+      success: result.success,
+      failed: result.failed + errors.length,
+      errors: [...errors, ...result.errors],
+    };
   }
 }

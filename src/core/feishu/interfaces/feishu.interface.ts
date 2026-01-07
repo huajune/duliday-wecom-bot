@@ -30,29 +30,6 @@ export enum AlertLevel {
 }
 
 /**
- * 告警错误类型
- */
-export enum AlertErrorType {
-  AGENT_TIMEOUT = 'agent_timeout',
-  AGENT_AUTH_ERROR = 'agent_auth_error',
-  AGENT_RATE_LIMIT = 'agent_rate_limit',
-  MESSAGE_DELIVERY_ERROR = 'message_delivery_error',
-  SYSTEM_ERROR = 'system_error',
-}
-
-/**
- * 告警上下文（简化版，完整版在 feishu-alert.service.ts）
- */
-export interface SimpleAlertContext {
-  errorType: AlertErrorType;
-  level?: AlertLevel;
-  title?: string;
-  message: string;
-  details?: Record<string, unknown>;
-  timestamp?: string;
-}
-
-/**
  * 面试预约信息
  */
 export interface InterviewBookingInfo {

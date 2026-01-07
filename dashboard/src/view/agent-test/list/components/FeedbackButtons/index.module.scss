@@ -1,0 +1,64 @@
+// FeedbackButtons 组件样式
+@use '@/assets/styles/variables' as *;
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.feedbackBtns {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+// 右下角定位的反馈按钮容器
+.feedbackBtnsRight {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: $spacing-xs;
+  margin-top: $spacing-sm;
+}
+
+.feedbackBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: $radius-sm;
+  background: transparent;
+  color: rgba(0, 0, 0, 0.2);
+  cursor: pointer;
+  transition: all 0.15s ease;
+
+  &:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+  }
+
+  &.thumbsUp:hover:not(:disabled) {
+    color: $success;
+    background: rgba(16, 185, 129, 0.08);
+  }
+
+  &.thumbsDown:hover:not(:disabled) {
+    color: $danger;
+    background: rgba(239, 68, 68, 0.08);
+  }
+}
+
+.feedbackSuccess {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  background: $success-soft;
+  color: $success;
+  border-radius: $radius-full;
+  font-size: $font-size-xs;
+  font-weight: $font-weight-medium;
+  animation: fadeIn 0.3s ease-out;
+}

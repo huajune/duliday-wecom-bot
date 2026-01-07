@@ -1,6 +1,6 @@
 import { Clock, Zap } from 'lucide-react';
 import { TokenUsage } from '@/services/agent-test';
-import styles from '../index.module.scss';
+import styles from './index.module.scss';
 
 export interface MetricsRowProps {
   durationMs: number;

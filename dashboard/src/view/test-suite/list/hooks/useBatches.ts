@@ -1,0 +1,118 @@
+import { useState, useEffect, useCallback } from 'react';
+import toast from 'react-hot-toast';
+import {
+  getBatches,
+  getBatchExecutions,
+  getBatchStats,
+  quickCreateBatch,
+  TestBatch,
+  TestExecution,
+  BatchStats,
+} from '@/services/agent-test';
+
+/**
+ * 批次数据管理 Hook
+ */
+export function useBatches() {
+  // 批次列表
+  const [batches, setBatches] = useState<TestBatch[]>([]);
+  const [selectedBatch, setSelectedBatch] = useState<TestBatch | null>(null);
+  const [batchStats, setBatchStats] = useState<BatchStats | null>(null);
+
+  // 执行记录
+  const [executions, setExecutions] = useState<TestExecution[]>([]);
+
+  // 加载状态
+  const [loading, setLoading] = useState(false);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [quickCreating, setQuickCreating] = useState(false);
+
+  // 加载批次列表
+  const loadBatches = useCallback(async () => {
+    try {
+      setLoading(true);
+      const data = await getBatches(50, 0);
+      setBatches(data);
+    } catch (err: unknown) {
+      const error = err as { message?: string };
+      toast.error(error.message || '加载批次失败');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // 加载批次详情
+  const loadBatchData = useCallback(async (batch: TestBatch) => {
+    try {
+      setDetailLoading(true);
+      const [stats, execs] = await Promise.all([
+        getBatchStats(batch.id),
+        getBatchExecutions(batch.id),
+      ]);
+      setBatchStats(stats);
+      setExecutions(execs);
+    } catch (err: unknown) {
+      const error = err as { message?: string };
+      toast.error(error.message || '加载数据失败');
+    } finally {
+      setDetailLoading(false);
+    }
+  }, []);
+
+  // 刷新批次统计
+  const refreshBatchStats = useCallback(async () => {
+    if (!selectedBatch) return;
+    try {
+      const stats = await getBatchStats(selectedBatch.id);
+      setBatchStats(stats);
+    } catch (err: unknown) {
+      console.warn('刷新统计失败:', err);
+    }
+  }, [selectedBatch]);
+
+  // 一键创建批量测试
+  const handleQuickCreate = useCallback(async () => {
+    try {
+      setQuickCreating(true);
+      const result = await quickCreateBatch();
+      toast.success(`成功导入 ${result.totalImported} 条测试用例`);
+      await loadBatches();
+    } catch (err: unknown) {
+      const error = err as { response?: { data?: { error?: string } }; message?: string };
+      toast.error(error.response?.data?.error || error.message || '创建失败');
+    } finally {
+      setQuickCreating(false);
+    }
+  }, [loadBatches]);
+
+  // 初始加载
+  useEffect(() => {
+    loadBatches();
+  }, [loadBatches]);
+
+  // 选中批次时加载详情
+  useEffect(() => {
+    if (selectedBatch) {
+      loadBatchData(selectedBatch);
+    }
+  }, [selectedBatch, loadBatchData]);
+
+  return {
+    // 状态
+    batches,
+    selectedBatch,
+    batchStats,
+    executions,
+    loading,
+    detailLoading,
+    quickCreating,
+
+    // 操作
+    setSelectedBatch,
+    setExecutions,
+    loadBatches,
+    loadBatchData,
+    refreshBatchStats,
+    handleQuickCreate,
+  };
+}

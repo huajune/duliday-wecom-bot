@@ -1,0 +1,403 @@
+@use '@/assets/styles/variables' as *;
+
+// ==================== 动画 ====================
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+// ==================== 混合宏 ====================
+@mixin glass-panel {
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid $border;
+  box-shadow: $shadow-sm;
+  border-radius: $radius-xl;
+}
+
+// ==================== 评审弹窗 ====================
+.reviewModal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(15, 23, 42, 0.6);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100000;
+  animation: fadeIn 0.2s ease;
+}
+
+.reviewContent {
+  background: #ffffff;
+  width: 1100px;
+  max-width: 95vw;
+  height: 85vh;
+  max-height: 900px;
+  display: flex;
+  flex-direction: column;
+  animation: slideUp 0.3s ease;
+  border-radius: 20px;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(139, 92, 246, 0.15);
+  position: relative;
+  overflow: hidden;
+}
+
+.reviewHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: $spacing-md $spacing-lg;
+  border-bottom: 1px solid rgba(139, 92, 246, 0.1);
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.08) 0%, rgba(236, 72, 153, 0.04) 100%);
+  flex-shrink: 0;
+  position: relative;
+  overflow: hidden;
+
+  // shimmer 效果
+  &::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+    animation: shimmer 4s ease-in-out infinite;
+  }
+
+  @keyframes shimmer {
+    0% { left: -100%; }
+    100% { left: 100%; }
+  }
+
+  h3 {
+    font-size: $font-size-base;
+    font-weight: $font-weight-semibold;
+    color: $text-primary;
+    margin: 0;
+    position: relative;
+    z-index: 1;
+  }
+
+  .closeBtn {
+    width: 32px;
+    height: 32px;
+    border-radius: 10px;
+    border: none;
+    background: transparent;
+    color: $text-muted;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    position: relative;
+    z-index: 1;
+
+    &:hover {
+      background: rgba(239, 68, 68, 0.1);
+      color: $danger;
+    }
+  }
+}
+
+.reviewBody {
+  flex: 1;
+  overflow-y: auto;
+  padding: $spacing-lg;
+
+  &::-webkit-scrollbar {
+    width: 6px;
+  }
+  &::-webkit-scrollbar-thumb {
+    background: rgba(148, 163, 184, 0.3);
+    border-radius: 3px;
+  }
+}
+
+.reviewFooter {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 24px;
+  border-top: 1px solid rgba(139, 92, 246, 0.1);
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.04) 0%, rgba(236, 72, 153, 0.02) 100%);
+  flex-shrink: 0;
+  position: relative;
+  z-index: 10;
+}
+
+.reviewNav {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+
+  button {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: none;
+    background: linear-gradient(135deg, rgba(139, 92, 246, 0.1) 0%, rgba(168, 85, 247, 0.06) 100%);
+    color: #8b5cf6;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    &:hover:not(:disabled) {
+      background: linear-gradient(135deg, rgba(139, 92, 246, 0.2) 0%, rgba(168, 85, 247, 0.12) 100%);
+      transform: scale(1.1);
+      box-shadow: 0 2px 8px rgba(139, 92, 246, 0.2);
+    }
+
+    &:disabled {
+      opacity: 0.25;
+      cursor: not-allowed;
+    }
+  }
+
+  span {
+    font-size: 12px;
+    font-weight: 500;
+    color: #8b5cf6;
+    min-width: 50px;
+    text-align: center;
+  }
+}
+
+.reviewActions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+// ==================== 加载状态 ====================
+.loadingState {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 24px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.08) 0%, rgba(236, 72, 153, 0.05) 100%);
+  color: #8b5cf6;
+  font-size: $font-size-sm;
+  font-weight: $font-weight-medium;
+}
+
+.spinner {
+  animation: spin 1s linear infinite;
+}
+
+// ==================== 操作按钮 ====================
+.passBtn, .failBtn {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  font-size: 0;
+
+  svg {
+    width: 24px;
+    height: 24px;
+    transition: all 0.3s ease;
+  }
+
+  &::after {
+    content: attr(data-tip);
+    position: absolute;
+    bottom: calc(100% + 10px);
+    left: 50%;
+    transform: translateX(-50%) translateY(4px);
+    padding: 6px 14px;
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: 600;
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+    transition: all 0.25s ease;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    z-index: 100;
+  }
+
+  &:hover::after {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+.passBtn {
+  background: linear-gradient(145deg, #ecfdf5, #d1fae5);
+  color: #10b981;
+  border-color: rgba(16, 185, 129, 0.3);
+  box-shadow:
+    0 4px 15px rgba(16, 185, 129, 0.2),
+    inset 0 -2px 4px rgba(0, 0, 0, 0.03),
+    inset 0 2px 4px rgba(255, 255, 255, 0.9);
+
+  &::after {
+    background: linear-gradient(135deg, #10b981, #34d399);
+    color: white;
+  }
+
+  &:hover {
+    transform: scale(1.18) rotate(8deg);
+    background: linear-gradient(145deg, #d1fae5, #a7f3d0);
+    border-color: rgba(16, 185, 129, 0.5);
+    box-shadow:
+      0 8px 25px rgba(16, 185, 129, 0.35),
+      inset 0 -2px 4px rgba(0, 0, 0, 0.03),
+      inset 0 2px 4px rgba(255, 255, 255, 0.9);
+
+    svg {
+      transform: scale(1.15) rotate(-8deg);
+    }
+  }
+
+  &:active {
+    transform: scale(0.92);
+  }
+}
+
+.failBtn {
+  background: linear-gradient(145deg, #fce7f3, #fbcfe8);
+  color: #db2777;
+  border-color: rgba(236, 72, 153, 0.2);
+  box-shadow:
+    0 4px 15px rgba(236, 72, 153, 0.2),
+    inset 0 -2px 4px rgba(0, 0, 0, 0.05),
+    inset 0 2px 4px rgba(255, 255, 255, 0.9);
+
+  &::after {
+    background: linear-gradient(135deg, #db2777, #ec4899);
+    color: white;
+  }
+
+  &:hover {
+    transform: scale(1.18) rotate(-8deg);
+    background: linear-gradient(145deg, #fbcfe8, #f9a8d4);
+    border-color: rgba(236, 72, 153, 0.4);
+    box-shadow:
+      0 8px 25px rgba(236, 72, 153, 0.3),
+      inset 0 -2px 4px rgba(0, 0, 0, 0.05),
+      inset 0 2px 4px rgba(255, 255, 255, 0.9);
+
+    svg {
+      transform: scale(1.15) rotate(8deg);
+    }
+  }
+
+  &:active {
+    transform: scale(0.92);
+  }
+}
+
+.reviewedTag {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: 12px;
+  background: $bg-secondary;
+  color: $text-secondary;
+  font-size: $font-size-sm;
+  font-weight: $font-weight-medium;
+
+  .failureReasonText {
+    color: $text-muted;
+    font-size: $font-size-xs;
+    font-weight: $font-weight-normal;
+  }
+}
+
+// ==================== 失败原因选择 ====================
+.failureOptions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.failureLabel {
+  font-size: $font-size-xs;
+  color: $text-muted;
+  font-weight: $font-weight-medium;
+}
+
+.failureReasonBtn {
+  padding: 6px 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  background: rgba(239, 68, 68, 0.05);
+  color: $danger;
+  font-size: $font-size-xs;
+  cursor: pointer;
+  transition: all 0.2s;
+
+  &:hover {
+    background: rgba(239, 68, 68, 0.1);
+    border-color: rgba(239, 68, 68, 0.3);
+  }
+}
+
+.cancelFailBtn {
+  padding: 6px 14px;
+  border-radius: 10px;
+  border: 1px solid $border;
+  background: $bg-primary;
+  color: $text-muted;
+  font-size: $font-size-xs;
+  cursor: pointer;
+  transition: all 0.2s;
+
+  &:hover {
+    border-color: $text-muted;
+    color: $text-secondary;
+  }
+}
+
+// ==================== 响应式适配 ====================
+@media (max-width: 640px) {
+  .reviewFooter {
+    padding: 12px 16px;
+  }
+
+  .reviewContent {
+    width: 98vw;
+    height: 95vh;
+    max-height: none;
+    border-radius: 16px;
+  }
+
+  .passBtn, .failBtn {
+    width: 50px;
+    height: 50px;
+
+    svg {
+      width: 22px;
+      height: 22px;
+    }
+  }
+}

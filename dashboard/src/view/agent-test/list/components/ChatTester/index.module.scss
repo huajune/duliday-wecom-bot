@@ -21,9 +21,14 @@
   50% { transform: translateY(-4px); }
 }
 
-@keyframes glow {
-  0%, 100% { box-shadow: 0 0 5px rgba($primary, 0.3); }
-  50% { box-shadow: 0 0 15px rgba($primary, 0.5); }
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
 }
 
 // ==================== 混合宏 ====================
@@ -67,19 +72,20 @@
 
 // ==================== 主容器 ====================
 .chatTester {
-  height: 100%;
+  flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   animation: fadeIn 0.5s ease-out;
-  padding: $spacing-sm;
-  overflow: hidden; // 防止外层滚动
+  overflow: hidden;
 }
 
 .mainContent {
   display: flex;
   gap: $spacing-lg;
   flex: 1;
-  min-height: 0; // 关键：允许 flex 子元素收缩，支持内部滚动
+  min-height: 0;
+  align-items: stretch;
 
   @include respond-to(lg) {
     flex-direction: column;
@@ -111,7 +117,6 @@
   position: relative;
   overflow: hidden;
 
-  // 装饰性光线效果
   &::before {
     content: '';
     position: absolute;
@@ -144,11 +149,10 @@
 .inputPanel {
   flex: 0 0 42%;
   min-width: 400px;
-  max-height: 100%;
+  min-height: 0;
   overflow: hidden;
   position: relative;
 
-  // 左侧面板装饰 - 与右侧平衡
   &::before {
     content: '';
     position: absolute;
@@ -232,9 +236,6 @@
     font-size: $font-size-xs;
     color: $success;
     font-weight: $font-weight-medium;
-    background: $success-soft;
-    padding: 2px 8px;
-    border-radius: $radius-full;
     flex-shrink: 0;
   }
 
@@ -245,33 +246,7 @@
     font-size: $font-size-xs;
     color: $danger;
     font-weight: $font-weight-medium;
-    background: $danger-soft;
-    padding: 2px 8px;
-    border-radius: $radius-full;
     flex-shrink: 0;
-  }
-
-  .exampleBtn {
-    margin-left: auto;
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    padding: 5px 12px;
-    border: 1px solid rgba(217, 70, 239, 0.15);
-    border-radius: $radius-full;
-    background: rgba(217, 70, 239, 0.06);
-    color: #d946ef;
-    font-size: $font-size-xs;
-    font-weight: $font-weight-medium;
-    cursor: pointer;
-    transition: all 0.2s ease;
-
-    &:hover {
-      background: rgba(236, 72, 153, 0.12);
-      border-color: rgba(236, 72, 153, 0.25);
-      transform: translateY(-1px);
-      box-shadow: 0 3px 8px rgba(236, 72, 153, 0.15);
-    }
   }
 }
 
@@ -280,8 +255,8 @@
 
   .historyInput {
     @include input-style;
-    min-height: 180px;
-    padding-top: 14px; // 正常顶部内边距
+    padding-top: 14px;
+    resize: none;
 
     &.inputError {
       border-color: $danger;
@@ -293,12 +268,13 @@
     }
   }
 
-  // 候选人选择器定位到右上角
   .candidateSelectorOverlay {
     position: absolute;
     top: 10px;
     right: 10px;
     z-index: 10;
+    background: $bg-secondary;
+    border-radius: $radius-md;
   }
 }
 
@@ -307,7 +283,7 @@
 
   .messageInput {
     @include input-style;
-    min-height: 100px;
+    min-height: 80px;
     padding-right: 48px;
   }
 
@@ -315,33 +291,34 @@
     position: absolute;
     bottom: 12px;
     right: 12px;
-    width: 36px;
-    height: 36px;
+    width: 32px;
+    height: 32px;
     display: flex;
     align-items: center;
     justify-content: center;
-    border-radius: $radius-lg;
+    border-radius: $radius-md;
     border: none;
     background: linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%);
     color: $text-on-primary;
     cursor: pointer;
     transition: all 0.2s ease;
-    box-shadow: 0 3px 10px rgba(236, 72, 153, 0.25);
+    box-shadow: 0 2px 6px rgba(139, 92, 246, 0.3);
 
     &:hover:not(:disabled) {
-      transform: scale(1.05);
-      box-shadow: 0 5px 14px rgba(236, 72, 153, 0.35);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(139, 92, 246, 0.4);
     }
 
     &:active:not(:disabled) {
-      transform: scale(0.95);
+      transform: translateY(0);
+      box-shadow: 0 2px 6px rgba(139, 92, 246, 0.3);
     }
 
     &:disabled {
-      background: $border;
+      background: rgba(0, 0, 0, 0.08);
+      color: $text-muted;
       cursor: not-allowed;
       box-shadow: none;
-      transform: none;
     }
 
     svg {
@@ -377,27 +354,26 @@
 
 // ==================== 清空按钮 ====================
 .clearBtn {
-  padding: 6px 14px;
-  border-radius: $radius-full;
-  border: 1px solid rgba($danger, 0.2);
-  background: rgba($danger, 0.05);
-  color: $danger;
+  padding: 6px 12px;
+  border-radius: $radius-md;
+  border: none;
+  background: transparent;
+  color: $text-muted;
   font-size: $font-size-xs;
   font-weight: $font-weight-medium;
   cursor: pointer;
-  transition: all 0.3s ease;
+  transition: all 0.2s ease;
   display: flex;
   align-items: center;
   gap: 5px;
 
   svg {
-    transition: transform 0.3s ease;
+    transition: transform 0.2s ease;
   }
 
   &:hover:not(:disabled) {
-    border-color: $danger;
-    background: rgba($danger, 0.1);
-    box-shadow: 0 2px 8px rgba($danger, 0.15);
+    color: $danger;
+    background: rgba(239, 68, 68, 0.08);
 
     svg {
       transform: rotate(90deg);
@@ -405,7 +381,7 @@
   }
 
   &:disabled {
-    opacity: 0.5;
+    opacity: 0.4;
     cursor: not-allowed;
   }
 }
@@ -416,20 +392,18 @@
   min-width: 450px;
   display: flex;
   flex-direction: column;
-  min-height: 0; // 重要：允许 flex 子元素收缩
-  max-height: 100%; // 限制最大高度
-  overflow: hidden; // 面板本身不滚动
+  min-height: 0;
+  overflow: hidden;
 
   .panelHeader {
-    flex-shrink: 0; // 头部不收缩
+    flex-shrink: 0;
   }
 }
 
-// 可滚动的内容区域
 .scrollableContent {
   flex: 1;
   overflow-y: auto;
-  min-height: 0; // 允许收缩
+  min-height: 0;
   padding: $spacing-lg;
 
   &::-webkit-scrollbar {
@@ -448,28 +422,20 @@
   .statusTag {
     display: flex;
     align-items: center;
-    gap: 6px;
-    padding: 4px 12px;
-    border-radius: $radius-full;
+    gap: 4px;
     font-size: $font-size-xs;
-    font-weight: $font-weight-semibold;
+    font-weight: $font-weight-medium;
 
     &.success {
-      background: $success-soft;
       color: $success;
-      border: 1px solid rgba($success, 0.2);
     }
 
     &.failure {
-      background: $danger-soft;
       color: $danger;
-      border: 1px solid rgba($danger, 0.2);
     }
 
     &.timeout {
-      background: $warning-soft;
       color: $warning;
-      border: 1px solid rgba($warning, 0.2);
     }
   }
 }
@@ -478,112 +444,6 @@
   display: flex;
   flex-direction: column;
   gap: $spacing-lg;
-}
-
-// ==================== 指标卡片 ====================
-.metricsRow {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: $spacing-sm;
-}
-
-.metricCard {
-  padding: $spacing-md;
-  background: rgba(255, 255, 255, 0.9);
-  border-radius: $radius-lg;
-  border: 1px solid rgba(139, 92, 246, 0.08);
-  text-align: center;
-  transition: all 0.2s ease;
-  position: relative;
-  overflow: hidden;
-
-  // 每个卡片不同的强调色 - 紫粉调色盘
-  &:nth-child(1) {
-    .metricValue { color: #6366f1; }
-    .metricLabel svg { color: #6366f1; }
-    &::before {
-      content: '';
-      position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
-      height: 2px;
-      background: linear-gradient(90deg, #6366f1, #818cf8);
-    }
-  }
-
-  &:nth-child(2) {
-    .metricValue { color: #8b5cf6; }
-    .metricLabel svg { color: #8b5cf6; }
-    &::before {
-      content: '';
-      position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
-      height: 2px;
-      background: linear-gradient(90deg, #8b5cf6, #a78bfa);
-    }
-  }
-
-  &:nth-child(3) {
-    .metricValue { color: #d946ef; }
-    .metricLabel svg { color: #d946ef; }
-    &::before {
-      content: '';
-      position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
-      height: 2px;
-      background: linear-gradient(90deg, #d946ef, #e879f9);
-    }
-  }
-
-  &:nth-child(4) {
-    .metricValue { color: #ec4899; }
-    .metricLabel svg { color: #ec4899; }
-    &::before {
-      content: '';
-      position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
-      height: 2px;
-      background: linear-gradient(90deg, #ec4899, #f472b6);
-    }
-  }
-
-  &:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 3px 10px rgba(139, 92, 246, 0.08);
-  }
-
-  .metricValue {
-    display: block;
-    font-size: 24px;
-    font-weight: $font-weight-bold;
-    font-family: 'JetBrains Mono', monospace;
-    letter-spacing: -0.5px;
-    line-height: 1.2;
-  }
-
-  .metricLabel {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 4px;
-    font-size: 10px;
-    color: $text-muted;
-    margin-top: 6px;
-    text-transform: uppercase;
-    letter-spacing: 0.3px;
-    font-weight: $font-weight-medium;
-
-    svg {
-      opacity: 0.6;
-    }
-  }
 }
 
 // ==================== AI 回复 ====================
@@ -615,27 +475,6 @@
       svg {
         color: #8b5cf6;
         opacity: 0.7;
-      }
-    }
-
-    .copyBtn {
-      display: flex;
-      align-items: center;
-      gap: 5px;
-      padding: 5px 12px;
-      border: 1px solid rgba(139, 92, 246, 0.12);
-      border-radius: $radius-full;
-      background: rgba(255, 255, 255, 0.8);
-      color: $text-secondary;
-      font-size: 11px;
-      font-weight: $font-weight-medium;
-      cursor: pointer;
-      transition: all 0.2s;
-
-      &:hover {
-        border-color: rgba(139, 92, 246, 0.25);
-        color: #8b5cf6;
-        background: rgba(139, 92, 246, 0.05);
       }
     }
   }
@@ -681,12 +520,6 @@
         color: #8b5cf6;
         opacity: 0.7;
       }
-    }
-
-    .toggleIcon {
-      color: #d946ef;
-      display: flex;
-      transition: transform 0.2s ease;
     }
   }
 }
@@ -836,45 +669,15 @@
       border-radius: 2px;
     }
   }
-
-  .toolOutputPreview {
-    position: relative;
-
-    .expandBtn {
-      position: absolute;
-      bottom: 8px;
-      right: 8px;
-      display: flex;
-      align-items: center;
-      gap: 4px;
-      padding: 4px 8px;
-      background: rgba(255, 255, 255, 0.1);
-      border: none;
-      border-radius: $radius-sm;
-      color: #94a3b8;
-      font-size: 10px;
-      cursor: pointer;
-      transition: all 0.2s;
-
-      &:hover {
-        background: rgba(255, 255, 255, 0.2);
-        color: #fff;
-      }
-    }
-  }
 }
 
-.jsonViewer {
-  margin: 0;
-  padding: $spacing-md;
-  background: #0f172a;
-  color: #e2e8f0;
-  font-size: 11px;
-  font-family: 'JetBrains Mono', 'Fira Code', monospace;
-  overflow-x: auto;
-  max-height: 400px;
-  overflow-y: auto;
-  line-height: 1.6;
+.toolCalling {
+  border-color: rgba(139, 92, 246, 0.2) !important;
+  background: rgba(139, 92, 246, 0.04) !important;
+}
+
+.toolSpinnerIcon {
+  animation: spin 1s linear infinite;
 }
 
 // ==================== MessagePartsAdapter 容器 ====================
@@ -897,22 +700,12 @@
   animation: pulse 1.5s ease-in-out infinite;
 }
 
-@keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.4; }
-}
-
 .streamCursor {
   display: inline-block;
   color: #ec4899;
   font-weight: bold;
   animation: blink 1s step-end infinite;
   margin-left: 2px;
-}
-
-@keyframes blink {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0; }
 }
 
 .streamingPlaceholder {
@@ -938,26 +731,6 @@
     background: rgba($danger, 0.15);
     border-color: $danger;
   }
-}
-
-.toolCalling {
-  border-color: rgba(139, 92, 246, 0.2) !important;
-  background: rgba(139, 92, 246, 0.04) !important;
-}
-
-.toolSpinner {
-  display: inline-block;
-  width: 12px;
-  height: 12px;
-  border: 2px solid rgba(139, 92, 246, 0.2);
-  border-top-color: #8b5cf6;
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-  margin-right: 6px;
-}
-
-.toolSpinnerIcon {
-  animation: spin 1s linear infinite;
 }
 
 // ==================== 错误与空状态 ====================
@@ -1005,7 +778,6 @@
   padding: $spacing-2xl;
   position: relative;
 
-  // 装饰性背景圆圈
   &::before {
     content: '';
     position: absolute;
@@ -1045,38 +817,7 @@
   }
 }
 
-// ==================== 发送按钮增强 ====================
-.sendIconBtn {
-  &::after {
-    content: '';
-    position: absolute;
-    inset: -2px;
-    border-radius: inherit;
-    background: linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%);
-    z-index: -1;
-    opacity: 0;
-    transition: opacity 0.3s ease;
-  }
-
-  &:hover:not(:disabled)::after {
-    opacity: 0.4;
-  }
-}
-
-// ==================== 反馈按钮和 Modal ====================
-.headerActions {
-  display: flex;
-  align-items: center;
-  gap: $spacing-sm;
-}
-
-.feedbackBtns {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-}
-
-// 右下角定位的反馈按钮容器
+// ==================== 反馈按钮容器（引用子组件样式） ====================
 .feedbackBtnsRight {
   display: flex;
   justify-content: flex-end;
@@ -1085,730 +826,8 @@
   margin-top: $spacing-sm;
 }
 
-.feedbackBtn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border: none;
-  border-radius: $radius-sm;
-  background: transparent;
-  color: rgba(0, 0, 0, 0.2);
-  cursor: pointer;
-  transition: all 0.15s ease;
-
-  &:disabled {
-    opacity: 0.3;
-    cursor: not-allowed;
-  }
-
-  &.thumbsUp:hover:not(:disabled) {
-    color: $success;
-    background: rgba(16, 185, 129, 0.08);
-  }
-
-  &.thumbsDown:hover:not(:disabled) {
-    color: $danger;
-    background: rgba(239, 68, 68, 0.08);
-  }
-}
-
-.feedbackSuccess {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 4px 10px;
-  background: $success-soft;
-  color: $success;
-  border-radius: $radius-full;
-  font-size: $font-size-xs;
-  font-weight: $font-weight-medium;
-  animation: fadeIn 0.3s ease-out;
-}
-
-// Modal 覆盖层
-.modalOverlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.4);
-  backdrop-filter: blur(8px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 99999; // 确保最高层级
-  animation: fadeIn 0.2s ease-out;
-}
-
-// Modal 容器
-.modal {
-  position: relative;
-  background: $bg-primary;
-  border-radius: 20px;
-  box-shadow:
-    0 25px 50px -12px rgba(0, 0, 0, 0.25),
-    0 0 0 1px rgba(0, 0, 0, 0.05);
-  width: 90%;
-  max-width: 560px;
-  max-height: 85vh;
-  display: flex;
-  flex-direction: column;
-  animation: modalSlideUp 0.3s ease-out;
-  overflow: hidden;
-}
-
-// 装饰元素容器
-.modalDecor {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 120px;
-  overflow: hidden;
-  pointer-events: none;
-  z-index: 0;
-
-  .decorCircle1 {
-    position: absolute;
-    top: -60px;
-    right: -30px;
-    width: 150px;
-    height: 150px;
-    border-radius: 50%;
-    background: linear-gradient(135deg, rgba(99, 102, 241, 0.15), rgba(168, 85, 247, 0.1));
-    filter: blur(20px);
-  }
-
-  .decorCircle2 {
-    position: absolute;
-    top: -20px;
-    left: -40px;
-    width: 100px;
-    height: 100px;
-    border-radius: 50%;
-    background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(99, 102, 241, 0.08));
-    filter: blur(15px);
-  }
-}
-
-
-@keyframes modalSlideUp {
-  from {
-    opacity: 0;
-    transform: translateY(30px) scale(0.96);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-}
-
-@keyframes slideUp {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.modalHeader {
-  position: relative;
-  z-index: 1;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: $spacing-md $spacing-xl;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
-
-  h3 {
-    display: flex;
-    align-items: center;
-    font-size: 16px;
-    font-weight: 600;
-    color: $text-primary;
-    margin: 0;
-  }
-
-  .modalClose {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 32px;
-    height: 32px;
-    border: none;
-    background: rgba(0, 0, 0, 0.04);
-    color: $text-muted;
-    cursor: pointer;
-    border-radius: 8px;
-    transition: all 0.2s;
-
-    &:hover {
-      background: rgba(0, 0, 0, 0.08);
-      color: $text-primary;
-    }
-  }
-}
-
-.modalBody {
-  position: relative;
-  z-index: 1;
-  padding: $spacing-md $spacing-xl;
-  flex: 1;
-  min-height: 0; // 允许 flex 子项收缩
-
-  .formGroup {
-    margin-bottom: $spacing-md;
-
-    label {
-      display: block;
-      font-size: 13px;
-      font-weight: 500;
-      color: $text-secondary;
-      margin-bottom: $spacing-sm;
-    }
-  }
-
-  // 自定义下拉选择组件
-  .customSelect {
-    position: relative;
-    width: 100%;
-  }
-
-  .selectTrigger {
-    width: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 11px 14px;
-    border: 1px solid rgba(0, 0, 0, 0.06);
-    border-radius: 10px;
-    background: $bg-primary;
-    font-size: 14px;
-    color: $text-primary;
-    cursor: pointer;
-    transition: all 0.2s ease;
-
-    &:hover {
-      border-color: rgba(99, 102, 241, 0.3);
-      background: rgba(99, 102, 241, 0.02);
-    }
-
-    &.open {
-      border-color: $primary;
-      box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.08);
-    }
-
-    .selectedText {
-      font-weight: 500;
-    }
-
-    .placeholderText {
-      color: $text-muted;
-    }
-
-    .selectArrow {
-      color: $text-muted;
-      transition: transform 0.2s ease;
-
-      &.rotated {
-        transform: rotate(180deg);
-      }
-    }
-  }
-
-  .selectDropdown {
-    position: absolute;
-    top: calc(100% + 6px);
-    left: 0;
-    right: 0;
-    background: $bg-primary;
-    border: 1px solid rgba(0, 0, 0, 0.06);
-    border-radius: 12px;
-    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.12), 0 2px 10px rgba(0, 0, 0, 0.08);
-    padding: 6px;
-    z-index: 100;
-    animation: dropdownFadeIn 0.15s ease;
-    max-height: 280px;
-    overflow-y: auto;
-    @include custom-scrollbar;
-  }
-
-  @keyframes dropdownFadeIn {
-    from {
-      opacity: 0;
-      transform: translateY(-8px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
-  }
-
-  .selectOption {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    width: 100%;
-    padding: 10px 12px;
-    border: none;
-    border-radius: 8px;
-    background: transparent;
-    font-size: 14px;
-    color: $text-primary;
-    cursor: pointer;
-    transition: all 0.15s ease;
-    text-align: left;
-
-    &:hover {
-      background: linear-gradient(135deg, rgba(99, 102, 241, 0.08), rgba(139, 92, 246, 0.05));
-    }
-
-    &.selected {
-      background: linear-gradient(135deg, rgba(99, 102, 241, 0.12), rgba(139, 92, 246, 0.08));
-      color: $primary;
-      font-weight: 500;
-    }
-
-    .checkIcon {
-      color: $primary;
-    }
-  }
-
-  .formTextarea {
-    @include input-style;
-    min-height: 60px;
-    max-height: 80px;
-    border-radius: 10px;
-    padding: 10px 12px;
-    font-size: 14px;
-    resize: none;
-    border: 1px solid rgba(0, 0, 0, 0.08);
-    background: rgba(0, 0, 0, 0.02);
-
-    &:hover {
-      border-color: rgba(0, 0, 0, 0.15);
-    }
-
-    &:focus {
-      border-color: $primary;
-      box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
-      background: $bg-primary;
-    }
-  }
-
-  .chatPreview {
-    margin-top: $spacing-sm;
-    padding: $spacing-sm $spacing-md;
-    background: linear-gradient(135deg, rgba(99, 102, 241, 0.04), rgba(168, 85, 247, 0.02));
-    border-radius: 10px;
-    border: 1px dashed rgba(99, 102, 241, 0.2);
-
-    label {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      font-size: 12px;
-      color: $primary;
-      font-weight: 500;
-      margin-bottom: $spacing-xs;
-
-      svg {
-        opacity: 0.8;
-      }
-    }
-
-    .charCount {
-      margin-left: auto;
-      font-size: 11px;
-      font-weight: 400;
-      color: $text-muted;
-      background: rgba(99, 102, 241, 0.08);
-      padding: 2px 8px;
-      border-radius: $radius-full;
-    }
-
-    pre {
-      margin: 0;
-      font-size: 12px;
-      font-family: $font-family-mono;
-      color: $text-secondary;
-      white-space: pre-wrap;
-      word-break: break-word;
-      line-height: 1.5;
-      max-height: 120px;
-      overflow-y: auto;
-      padding: $spacing-xs $spacing-sm;
-      background: rgba(0, 0, 0, 0.02);
-      border-radius: $radius-sm;
-
-      &::-webkit-scrollbar {
-        width: 5px;
-      }
-      &::-webkit-scrollbar-thumb {
-        background: rgba(99, 102, 241, 0.2);
-        border-radius: 3px;
-      }
-    }
-  }
-}
-
-.modalFooter {
-  display: flex;
-  justify-content: flex-end;
-  gap: $spacing-md;
-  padding: $spacing-sm $spacing-xl $spacing-md;
-  background: transparent;
-
-  .cancelBtn {
-    padding: 10px 20px;
-    border: 1px solid rgba(0, 0, 0, 0.08);
-    border-radius: 20px;
-    background: $bg-primary;
-    color: $text-secondary;
-    font-size: 14px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
-
-    &:hover {
-      background: $bg-secondary;
-      border-color: rgba(0, 0, 0, 0.12);
-      transform: translateY(-1px);
-      box-shadow: 0 3px 8px rgba(0, 0, 0, 0.08);
-    }
-
-    &:active {
-      transform: translateY(0);
-      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
-    }
-  }
-
-  .submitBtn {
-    display: flex;
-    align-items: center;
-    gap: $spacing-xs;
-    padding: 10px 28px;
-    border: none;
-    border-radius: 20px;
-    background: linear-gradient(135deg, $primary 0%, #8b5cf6 100%);
-    color: $text-on-primary;
-    font-size: 14px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-    box-shadow: 0 2px 8px rgba(99, 102, 241, 0.35);
-    position: relative;
-    overflow: hidden;
-
-    // 光泽效果
-    &::before {
-      content: '';
-      position: absolute;
-      top: 0;
-      left: -100%;
-      width: 100%;
-      height: 100%;
-      background: linear-gradient(
-        90deg,
-        transparent,
-        rgba(255, 255, 255, 0.2),
-        transparent
-      );
-      transition: left 0.5s ease;
-    }
-
-    &:hover:not(:disabled) {
-      transform: translateY(-2px);
-      box-shadow: 0 6px 20px rgba(99, 102, 241, 0.4);
-
-      &::before {
-        left: 100%;
-      }
-    }
-
-    &:active:not(:disabled) {
-      transform: translateY(0);
-      box-shadow: 0 2px 8px rgba(99, 102, 241, 0.35);
-    }
-
-    &:disabled {
-      opacity: 0.6;
-      cursor: not-allowed;
-      background: linear-gradient(135deg, #9ca3af 0%, #6b7280 100%);
-      box-shadow: none;
-    }
-
-    .spinning {
-      animation: spin 1s linear infinite;
-    }
-  }
-}
-
-// ==================== 候选人选择器 ====================
-.candidateSelector {
-  position: relative;
-  margin-left: auto;
-}
-
-.selectorTrigger {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 5px 12px;
-  border: 1px solid rgba(139, 92, 246, 0.25);
-  border-radius: $radius-full;
-  background: linear-gradient(135deg, #f5f3ff 0%, #fdf4ff 100%);
-  color: #8b5cf6;
-  font-size: $font-size-xs;
-  font-weight: $font-weight-medium;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  white-space: nowrap;
-
-  &:hover:not(:disabled) {
-    background: rgba(139, 92, 246, 0.12);
-    border-color: rgba(139, 92, 246, 0.25);
-    transform: translateY(-1px);
-    box-shadow: 0 3px 8px rgba(139, 92, 246, 0.15);
-  }
-
-  &:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-  }
-
-  .rotated {
-    transform: rotate(180deg);
-  }
-
-  svg {
-    transition: transform 0.2s ease;
-  }
-}
-
-.selectorBackdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 9998;
-}
-
-.selectorDropdown {
-  position: fixed;
-  width: 380px;
-  max-height: 420px;
-  z-index: 9999;
-  background: $bg-primary;
-  border: 1px solid rgba(139, 92, 246, 0.12);
-  border-radius: $radius-xl;
-  box-shadow:
-    0 10px 40px rgba(0, 0, 0, 0.12),
-    0 0 0 1px rgba(0, 0, 0, 0.03);
-  overflow: hidden;
-  animation: dropdownSlide 0.2s ease-out;
-}
-
-@keyframes dropdownSlide {
-  from {
-    opacity: 0;
-    transform: translateY(-8px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.dropdownHeader {
+.headerActions {
   display: flex;
   align-items: center;
   gap: $spacing-sm;
-  padding: $spacing-md;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
-  background: rgba(139, 92, 246, 0.02);
 }
-
-.searchBox {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  gap: $spacing-sm;
-  padding: 8px 12px;
-  background: $bg-primary;
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  border-radius: $radius-lg;
-  transition: all 0.2s;
-
-  &:focus-within {
-    border-color: $primary;
-    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
-  }
-
-  svg {
-    color: $text-muted;
-    flex-shrink: 0;
-  }
-
-  input {
-    flex: 1;
-    border: none;
-    background: transparent;
-    font-size: $font-size-sm;
-    color: $text-primary;
-    outline: none;
-
-    &::placeholder {
-      color: $text-muted;
-    }
-  }
-}
-
-.dateRange {
-  font-size: $font-size-xs;
-  color: $text-muted;
-  background: $bg-secondary;
-  padding: 4px 10px;
-  border-radius: $radius-full;
-  white-space: nowrap;
-}
-
-.sessionList {
-  max-height: 340px;
-  overflow-y: auto;
-  padding: $spacing-sm;
-
-  &::-webkit-scrollbar {
-    width: 5px;
-  }
-  &::-webkit-scrollbar-thumb {
-    background: rgba(148, 163, 184, 0.3);
-    border-radius: 3px;
-  }
-}
-
-.emptyList {
-  padding: $spacing-xl;
-  text-align: center;
-  color: $text-muted;
-  font-size: $font-size-sm;
-}
-
-.sessionItem {
-  display: flex;
-  align-items: center;
-  gap: $spacing-md;
-  width: 100%;
-  padding: $spacing-sm $spacing-md;
-  border: 1px solid transparent;
-  border-radius: $radius-lg;
-  background: transparent;
-  cursor: pointer;
-  transition: all 0.15s ease;
-  text-align: left;
-
-  &:hover:not(:disabled) {
-    background: rgba(139, 92, 246, 0.04);
-    border-color: rgba(139, 92, 246, 0.1);
-  }
-
-  &:disabled {
-    opacity: 0.7;
-    cursor: wait;
-  }
-}
-
-.sessionAvatar {
-  width: 40px;
-  height: 40px;
-  border-radius: $radius-lg;
-  background: linear-gradient(135deg, rgba(139, 92, 246, 0.1), rgba(236, 72, 153, 0.1));
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  overflow: hidden;
-
-  img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-  }
-
-  svg {
-    color: #8b5cf6;
-    opacity: 0.6;
-  }
-}
-
-.sessionInfo {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-}
-
-.sessionName {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: $font-size-sm;
-  font-weight: $font-weight-medium;
-  color: $text-primary;
-  white-space: nowrap;
-  overflow: hidden;
-
-  > span:first-child {
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-}
-
-.managerBadge {
-  flex-shrink: 0;
-  font-size: 10px;
-  font-weight: $font-weight-normal;
-  color: $text-muted;
-  background: rgba(0, 0, 0, 0.04);
-  padding: 2px 6px;
-  border-radius: $radius-sm;
-  white-space: nowrap;
-}
-
-.sessionPreview {
-  font-size: $font-size-xs;
-  color: $text-muted;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin-top: 2px;
-}
-
-.sessionMeta {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 4px;
-  flex-shrink: 0;
-}
-
-.sessionTime,
-.sessionCount {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 10px;
-  color: $text-muted;
-  white-space: nowrap;
-
-  svg {
-    opacity: 0.6;
-  }
-}
-
-.sessionCount {
-  color: #8b5cf6;
-  font-weight: $font-weight-medium;
-}
-

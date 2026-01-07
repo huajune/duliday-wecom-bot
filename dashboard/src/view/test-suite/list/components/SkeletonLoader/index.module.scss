@@ -1,0 +1,150 @@
+@use '@/assets/styles/variables' as *;
+
+// ==================== 动画 ====================
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+// ==================== 加载状态 ====================
+.loadingState {
+  display: flex;
+  flex-direction: column;
+  padding: $spacing-lg;
+  gap: $spacing-md;
+  flex: 1;
+}
+
+// ==================== 骨架屏基础样式 ====================
+.skeleton {
+  background: linear-gradient(90deg,
+    rgba(139, 92, 246, 0.06) 0%,
+    rgba(139, 92, 246, 0.12) 50%,
+    rgba(139, 92, 246, 0.06) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+  border-radius: $radius-md;
+  position: relative;
+  overflow: hidden;
+}
+
+// ==================== 统计卡片骨架屏 ====================
+.skeletonStats {
+  display: flex;
+  gap: $spacing-sm;
+  padding: $spacing-md;
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.02) 0%, rgba(236, 72, 153, 0.01) 100%);
+  border: 1px solid rgba(139, 92, 246, 0.06);
+  border-radius: $radius-lg;
+  animation: fadeIn 0.3s ease;
+
+  .skeletonStatItem {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: $spacing-xs;
+    padding: $spacing-xs $spacing-sm;
+
+    .skeletonValue {
+      width: 40px;
+      height: 24px;
+      @extend .skeleton;
+    }
+
+    .skeletonLabel {
+      width: 32px;
+      height: 12px;
+      @extend .skeleton;
+    }
+  }
+}
+
+// ==================== 头部骨架屏 ====================
+.skeletonHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: $spacing-sm;
+  animation: fadeIn 0.3s ease 0.05s both;
+
+  .skeletonTitle {
+    width: 100px;
+    height: 18px;
+    @extend .skeleton;
+  }
+
+  .skeletonBadge {
+    width: 60px;
+    height: 14px;
+    @extend .skeleton;
+  }
+}
+
+// ==================== 用例列表骨架屏 ====================
+.skeletonCaseList {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border: 1px solid rgba(139, 92, 246, 0.08);
+  border-radius: $radius-lg;
+  overflow: hidden;
+  animation: fadeIn 0.3s ease 0.1s both;
+}
+
+.skeletonCaseItem {
+  display: flex;
+  align-items: center;
+  gap: $spacing-sm;
+  padding: $spacing-sm $spacing-md;
+  background: rgba(255, 255, 255, 0.5);
+  border-bottom: 1px solid rgba(139, 92, 246, 0.04);
+
+  &:last-child {
+    border-bottom: none;
+  }
+
+  .skeletonIndex {
+    width: 26px;
+    height: 26px;
+    border-radius: $radius-md;
+    @extend .skeleton;
+  }
+
+  .skeletonContent {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+
+    .skeletonTitleBar {
+      width: 60%;
+      height: 14px;
+      @extend .skeleton;
+    }
+
+    .skeletonDesc {
+      width: 80%;
+      height: 10px;
+      @extend .skeleton;
+    }
+  }
+
+  .skeletonStatus {
+    display: flex;
+    gap: 6px;
+
+    .skeletonBadge {
+      width: 24px;
+      height: 24px;
+      border-radius: $radius-md;
+      @extend .skeleton;
+    }
+  }
+}

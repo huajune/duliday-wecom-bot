@@ -1,19 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import axios, { AxiosInstance } from 'axios';
 import { MonitoringDatabaseService } from '@core/monitoring/monitoring-database.service';
 import { MessageProcessingRecord } from '@core/monitoring/interfaces/monitoring.interface';
-import { feishuBitableConfig } from '../constants/feishu-bitable.config';
-import { ConfigService } from '@nestjs/config';
-
-interface FeishuTokenCache {
-  token: string;
-  expireAt: number;
-}
-
-interface FeishuRecordPayload {
-  fields: Record<string, any>;
-}
+import { FeishuBitableApiService, BatchCreateRequest } from './feishu-bitable-api.service';
 
 /**
  * Agent 测试反馈数据
@@ -21,43 +10,45 @@ interface FeishuRecordPayload {
 export interface AgentTestFeedback {
   type: 'badcase' | 'goodcase';
   chatHistory: string; // 格式化的聊天记录
+  userMessage?: string; // 用户消息（最后一条用户输入）
   errorType?: string; // 错误类型（仅 badcase）
   remark?: string; // 备注
   chatId?: string; // 会话 ID
 }
 
 /**
- * 每日将上一日聊天记录写入飞书多维表格（使用代码内配置为主）
+ * 飞书多维表格同步服务
+ *
+ * 职责：
+ * - 每日同步聊天记录到飞书
+ * - 写入 Agent 测试反馈
+ *
+ * 重构说明：
+ * - 使用 FeishuBitableApiService 进行 API 调用
+ * - 移除重复的 Token 管理和配置加载代码
  */
 @Injectable()
 export class FeishuBitableSyncService {
   private readonly logger = new Logger(FeishuBitableSyncService.name);
-  private readonly apiBase = 'https://open.feishu.cn/open-apis';
-  private readonly http: AxiosInstance;
-  private tokenCache?: FeishuTokenCache;
 
   constructor(
     private readonly databaseService: MonitoringDatabaseService,
-    private readonly configService: ConfigService,
-  ) {
-    this.http = axios.create({ timeout: 5000 });
-  }
+    private readonly bitableApi: FeishuBitableApiService,
+  ) {}
 
   /**
    * 每日 0 点同步前一日数据
    */
   @Cron(CronExpression.EVERY_DAY_AT_MIDNIGHT)
   async syncYesterday(): Promise<void> {
-    const { appId, appSecret, tables } = this.loadConfig();
-    if (!appId || !appSecret || !tables.chat?.appToken || !tables.chat?.tableId) {
-      this.logger.warn(
-        '[FeishuSync] 未配置完整的飞书表格参数（appId/appSecret/appToken/tableId），跳过同步',
-      );
+    const chatConfig = this.bitableApi.getTableConfig('chat');
+    if (!chatConfig.appToken || !chatConfig.tableId) {
+      this.logger.warn('[FeishuSync] 未配置完整的飞书表格参数，跳过同步');
       return;
     }
 
     // 从数据库读取昨天的记录
-    const allRecords = await this.databaseService.getRecentDetailRecords(1000); // 获取最近1000条
+    const allRecords = await this.databaseService.getRecentDetailRecords(1000);
     if (!allRecords || allRecords.length === 0) {
       this.logger.warn('[FeishuSync] 未找到记录，跳过同步');
       return;
@@ -67,161 +58,55 @@ export class FeishuBitableSyncService {
     const rows = (allRecords || [])
       .filter((r) => r.receivedAt >= window.start && r.receivedAt < window.end)
       .map((r) => this.buildFeishuRecord(r))
-      .filter((item): item is FeishuRecordPayload => !!item);
+      .filter((item): item is BatchCreateRequest => !!item);
 
     if (rows.length === 0) {
       this.logger.log(
-        `[FeishuSync] 前一日无可同步数据 (${new Date(window.start).toISOString()} ~ ${new Date(
-          window.end,
-        ).toISOString()})`,
+        `[FeishuSync] 前一日无可同步数据 (${new Date(window.start).toISOString()} ~ ${new Date(window.end).toISOString()})`,
       );
       return;
     }
 
     try {
-      await this.pushInBatches(rows, tables.chat.appToken, tables.chat.tableId, appId, appSecret);
-      this.logger.log(`[FeishuSync] 同步完成，本次写入 ${rows.length} 条`);
+      const result = await this.bitableApi.batchCreateRecords(
+        chatConfig.appToken,
+        chatConfig.tableId,
+        rows,
+      );
+      this.logger.log(`[FeishuSync] 同步完成，成功: ${result.created}，失败: ${result.failed}`);
     } catch (error: any) {
       this.logger.error(`[FeishuSync] 同步失败: ${error?.message ?? error}`);
     }
   }
 
-  private buildFeishuRecord(record: MessageProcessingRecord): FeishuRecordPayload | null {
-    const userName = record.userName || record.userId;
-    if (!userName) {
-      return null;
-    }
-
-    const chatLogParts: string[] = [];
-    if (record.messagePreview) chatLogParts.push(`[用户] ${record.messagePreview}`);
-    if (record.replyPreview) chatLogParts.push(`[机器人] ${record.replyPreview}`);
-    const chatLog = this.truncate(chatLogParts.join('\n'), 2000);
-
-    return {
-      fields: {
-        候选人微信昵称: userName,
-        招募经理姓名: record.managerName || '未知招募经理',
-        咨询时间: new Date(record.receivedAt).toISOString(),
-        聊天记录: chatLog || '[空消息]',
-        message_id: record.messageId, // 隐藏列去重用（若表中存在）
-      },
-    };
-  }
-
-  private async pushInBatches(
-    records: FeishuRecordPayload[],
-    appToken: string,
-    tableId: string,
-    appId: string,
-    appSecret: string,
-    batchSize = 200,
-  ): Promise<void> {
-    const token = await this.getTenantToken(appId, appSecret);
-
-    for (let i = 0; i < records.length; i += batchSize) {
-      const chunk = records.slice(i, i + batchSize);
-      await this.http.post(
-        `${this.apiBase}/bitable/v1/apps/${appToken}/tables/${tableId}/records/batch_create`,
-        { records: chunk },
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        },
-      );
-      this.logger.log(`[FeishuSync] 已写入 ${i + chunk.length}/${records.length}`);
-    }
-  }
-
-  private async getTenantToken(appId: string, appSecret: string): Promise<string> {
-    const now = Date.now();
-    if (this.tokenCache && this.tokenCache.expireAt > now + 60_000) {
-      return this.tokenCache.token;
-    }
-
-    const resp = await this.http.post(`${this.apiBase}/auth/v3/tenant_access_token/internal`, {
-      app_id: appId,
-      app_secret: appSecret,
-    });
-
-    const { tenant_access_token, expire } = resp.data;
-    this.tokenCache = {
-      token: tenant_access_token,
-      expireAt: now + (expire ? expire * 1000 : 90 * 60 * 1000),
-    };
-    return tenant_access_token;
-  }
-
-  private loadConfig() {
-    // 代码配置优先，其次兼容环境变量
-    const appId =
-      feishuBitableConfig.appId && feishuBitableConfig.appId !== 'PLEASE_SET_APP_ID'
-        ? feishuBitableConfig.appId
-        : this.configService.get<string>('FEISHU_APP_ID') || '';
-    const appSecret =
-      feishuBitableConfig.appSecret && feishuBitableConfig.appSecret !== 'PLEASE_SET_APP_SECRET'
-        ? feishuBitableConfig.appSecret
-        : this.configService.get<string>('FEISHU_APP_SECRET') || '';
-
-    const chatConfig = feishuBitableConfig.tables.chat;
-    const appToken =
-      chatConfig.appToken && chatConfig.appToken !== 'PLEASE_SET_APP_TOKEN'
-        ? chatConfig.appToken
-        : this.configService.get<string>('FEISHU_BTABLE_APP_TOKEN') || '';
-    const tableId =
-      chatConfig.tableId && chatConfig.tableId !== 'PLEASE_SET_TABLE_ID'
-        ? chatConfig.tableId
-        : this.configService.get<string>('FEISHU_BTABLE_TABLE_ID_CHAT') || '';
-
-    return {
-      appId,
-      appSecret,
-      tables: {
-        chat: { appToken, tableId },
-      },
-    };
-  }
-
-  private truncate(text: string, max = 2000): string {
-    if (!text) return '';
-    return text.length > max ? `${text.slice(0, max)}...(truncated)` : text;
-  }
-
-  private getYesterdayWindow(): { start: number; end: number } {
-    const end = new Date();
-    end.setHours(0, 0, 0, 0);
-    const start = new Date(end);
-    start.setDate(start.getDate() - 1);
-    return { start: start.getTime(), end: end.getTime() };
-  }
-
   /**
    * 写入 Agent 测试反馈到飞书多维表格
-   * @param feedback 反馈数据
-   * @returns 写入结果
    */
   async writeAgentTestFeedback(
     feedback: AgentTestFeedback,
   ): Promise<{ success: boolean; recordId?: string; error?: string }> {
-    const { appId, appSecret, tables } = this.loadFeedbackConfig();
-
-    if (!appId || !appSecret) {
-      return { success: false, error: '飞书应用凭证未配置' };
-    }
-
-    const tableConfig = feedback.type === 'badcase' ? tables.badcase : tables.goodcase;
+    const tableConfig = this.bitableApi.getTableConfig(feedback.type);
     if (!tableConfig?.appToken || !tableConfig?.tableId) {
       return { success: false, error: `${feedback.type} 表配置不完整` };
     }
 
     try {
-      const token = await this.getTenantToken(appId, appSecret);
-
       // 构建记录数据
       const fields: Record<string, unknown> = {
         候选人微信昵称: '测试用户',
         招募经理姓名: 'AI测试',
         咨询时间: Date.now(),
-        聊天记录: this.truncate(feedback.chatHistory, 10000),
+        聊天记录: this.bitableApi.truncateText(feedback.chatHistory, 10000),
       };
+
+      // 用户消息（最后一条用户输入）
+      if (feedback.userMessage) {
+        fields['用户消息'] = this.bitableApi.truncateText(feedback.userMessage, 1000);
+      }
+
+      // 用例名称：自动生成随机 ID
+      const randomId = Math.random().toString(36).substring(2, 10);
+      fields['用例名称'] = randomId;
 
       if (feedback.chatId) {
         fields.chatId = feedback.chatId;
@@ -232,24 +117,17 @@ export class FeishuBitableSyncService {
       }
 
       if (feedback.errorType) {
-        fields['错误类型'] = feedback.errorType;
+        fields['分类'] = feedback.errorType;
       }
 
-      const response = await this.http.post(
-        `${this.apiBase}/bitable/v1/apps/${tableConfig.appToken}/tables/${tableConfig.tableId}/records`,
-        { fields },
-        { headers: { Authorization: `Bearer ${token}` } },
+      const result = await this.bitableApi.createRecord(
+        tableConfig.appToken,
+        tableConfig.tableId,
+        fields,
       );
 
-      if (response.data?.code === 0) {
-        const recordId = response.data?.data?.record?.record_id;
-        this.logger.log(`[Feedback] 成功写入 ${feedback.type} 反馈, recordId: ${recordId}`);
-        return { success: true, recordId };
-      } else {
-        const errorMsg = response.data?.msg || '未知错误';
-        this.logger.error(`[Feedback] 写入失败: ${errorMsg}`);
-        return { success: false, error: errorMsg };
-      }
+      this.logger.log(`[Feedback] 成功写入 ${feedback.type} 反馈, recordId: ${result.recordId}`);
+      return { success: true, recordId: result.recordId };
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       this.logger.error(`[Feedback] 写入异常: ${errorMessage}`);
@@ -257,26 +135,35 @@ export class FeishuBitableSyncService {
     }
   }
 
-  /**
-   * 加载反馈表配置
-   */
-  private loadFeedbackConfig() {
-    const appId =
-      feishuBitableConfig.appId && feishuBitableConfig.appId !== 'PLEASE_SET_APP_ID'
-        ? feishuBitableConfig.appId
-        : this.configService.get<string>('FEISHU_APP_ID') || '';
-    const appSecret =
-      feishuBitableConfig.appSecret && feishuBitableConfig.appSecret !== 'PLEASE_SET_APP_SECRET'
-        ? feishuBitableConfig.appSecret
-        : this.configService.get<string>('FEISHU_APP_SECRET') || '';
+  // ==================== 私有方法 ====================
+
+  private buildFeishuRecord(record: MessageProcessingRecord): BatchCreateRequest | null {
+    const userName = record.userName || record.userId;
+    if (!userName) {
+      return null;
+    }
+
+    const chatLogParts: string[] = [];
+    if (record.messagePreview) chatLogParts.push(`[用户] ${record.messagePreview}`);
+    if (record.replyPreview) chatLogParts.push(`[机器人] ${record.replyPreview}`);
+    const chatLog = this.bitableApi.truncateText(chatLogParts.join('\n'), 2000);
 
     return {
-      appId,
-      appSecret,
-      tables: {
-        badcase: feishuBitableConfig.tables.badcase,
-        goodcase: feishuBitableConfig.tables.goodcase,
+      fields: {
+        候选人微信昵称: userName,
+        招募经理姓名: record.managerName || '未知招募经理',
+        咨询时间: new Date(record.receivedAt).toISOString(),
+        聊天记录: chatLog || '[空消息]',
+        message_id: record.messageId,
       },
     };
+  }
+
+  private getYesterdayWindow(): { start: number; end: number } {
+    const end = new Date();
+    end.setHours(0, 0, 0, 0);
+    const start = new Date(end);
+    start.setDate(start.getDate() - 1);
+    return { start: start.getTime(), end: end.getTime() };
   }
 }

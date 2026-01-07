@@ -194,6 +194,7 @@ export type FeedbackType = 'badcase' | 'goodcase';
 export interface SubmitFeedbackRequest {
   type: FeedbackType;
   chatHistory: string;
+  userMessage?: string;
   errorType?: string;
   remark?: string;
   chatId?: string;
@@ -471,6 +472,65 @@ export async function importFromFeishu(request: ImportFromFeishuRequest): Promis
  */
 export async function submitFeedback(request: SubmitFeedbackRequest): Promise<SubmitFeedbackResponse> {
   const { data } = await api.post('/agent/test/feedback', request);
+  return data.data;
+}
+
+// ==================== 一键测试 & 飞书回写 ====================
+
+export interface QuickCreateBatchRequest {
+  batchName?: string;
+  parallel?: boolean;
+}
+
+export interface WriteBackFeishuRequest {
+  executionId: string;
+  testStatus: '通过' | '失败' | '跳过';
+  failureCategory?: string;
+}
+
+export interface WriteBackResult {
+  success: boolean;
+  error?: string;
+}
+
+export interface BatchWriteBackResult {
+  totalCount: number;
+  successCount: number;
+  failureCount: number;
+  errors: string[];
+}
+
+/**
+ * 一键创建批量测试（从预配置的飞书测试集表导入并执行）
+ */
+export async function quickCreateBatch(request?: QuickCreateBatchRequest): Promise<ImportResult> {
+  const { data } = await api.post('/agent/test/batches/quick-create', request || {});
+  return data.data;
+}
+
+/**
+ * 回写测试结果到飞书
+ */
+export async function writeBackToFeishu(
+  executionId: string,
+  testStatus: '通过' | '失败' | '跳过',
+  failureCategory?: string,
+): Promise<WriteBackResult> {
+  const { data } = await api.post(`/agent/test/executions/${executionId}/write-back`, {
+    executionId,
+    testStatus,
+    failureCategory,
+  });
+  return data.data;
+}
+
+/**
+ * 批量回写测试结果到飞书
+ */
+export async function batchWriteBackToFeishu(
+  items: WriteBackFeishuRequest[],
+): Promise<BatchWriteBackResult> {
+  const { data } = await api.post('/agent/test/executions/batch-write-back', { items });
   return data.data;
 }
 

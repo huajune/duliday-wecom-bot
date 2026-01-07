@@ -5,12 +5,13 @@
   display: flex;
   flex-direction: column;
   height: calc(100vh - 60px);
-  overflow: hidden; // 页面不滚动
+  overflow: hidden;
+  padding: $spacing-md;
 }
 
 .pageHeader {
   margin-bottom: $spacing-md;
-  padding: 0 $spacing-sm;
+  flex-shrink: 0;
 
   h1 {
     margin: 0;

@@ -1,4 +1,5 @@
 import { Logger } from '@nestjs/common';
+import { ContextStrategy } from './agent-enums';
 
 /**
  * Agent 配置档案
@@ -10,7 +11,7 @@ export interface AgentProfile {
   allowedTools?: string[];
   context?: any;
   toolContext?: any;
-  contextStrategy?: 'error' | 'skip' | 'report';
+  contextStrategy?: ContextStrategy;
   prune?: boolean;
   pruneOptions?: any;
 }

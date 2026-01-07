@@ -6,7 +6,8 @@
  */
 
 // 导入枚举类型（用于类型引用）
-import { AgentResultStatus } from './agent-enums';
+import { AgentResultStatus, ContextStrategy } from './agent-enums';
+import { MessageRole } from '@shared/enums';
 
 // 注意：不再重新导出枚举类型，避免与 agent-enums.ts 冲突
 // 使用方应该从 './agent-enums' 或 '@agent' 直接导入枚举
@@ -24,7 +25,7 @@ export interface UIMessagePart {
 }
 
 export interface UIMessage {
-  role: 'user' | 'assistant' | 'system';
+  role: MessageRole;
   parts: UIMessagePart[];
 }
 
@@ -32,7 +33,7 @@ export interface UIMessage {
  * 简单消息格式（会在服务端转换为 UIMessage）
  */
 export interface SimpleMessage {
-  role: 'user' | 'assistant' | 'system';
+  role: MessageRole;
   content: string;
 }
 
@@ -170,10 +171,8 @@ export interface ToolContext {
     [key: string]: any;
   };
 }
-/**
- * 上下文策略
- */
-export type ContextStrategy = 'error' | 'skip' | 'report';
+// 重新导出 ContextStrategy 枚举，保持向后兼容
+export { ContextStrategy } from './agent-enums';
 
 /**
  * /api/v1/chat 请求体

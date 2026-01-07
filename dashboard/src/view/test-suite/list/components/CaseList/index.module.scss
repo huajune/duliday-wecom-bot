@@ -1,0 +1,240 @@
+@use '@/assets/styles/variables' as *;
+
+// ==================== 动画 ====================
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+// ==================== 用例列表头部 ====================
+.caseListHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: $spacing-sm;
+  flex-shrink: 0;
+
+  h4 {
+    font-size: $font-size-sm;
+    font-weight: $font-weight-semibold;
+    color: $text-primary;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: $spacing-sm;
+
+    svg {
+      color: #8b5cf6;
+      opacity: 0.7;
+    }
+  }
+
+  .caseCount {
+    font-size: $font-size-xs;
+    color: $text-muted;
+  }
+}
+
+// ==================== 用例列表 ====================
+.caseList {
+  flex: 1;
+  overflow-y: auto;
+  border: 1px solid rgba(139, 92, 246, 0.15);
+  border-radius: $radius-lg;
+  background: rgba(255, 255, 255, 0.6);
+
+  &::-webkit-scrollbar {
+    width: 6px;
+  }
+  &::-webkit-scrollbar-thumb {
+    background: rgba(139, 92, 246, 0.2);
+    border-radius: 3px;
+  }
+}
+
+.caseItem {
+  display: flex;
+  align-items: center;
+  gap: $spacing-sm;
+  padding: $spacing-sm $spacing-md;
+  border-bottom: 1px solid rgba(139, 92, 246, 0.08);
+  cursor: pointer;
+  transition: all 0.2s ease;
+
+  &:last-child {
+    border-bottom: none;
+  }
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.9);
+    box-shadow: 0 4px 12px rgba(139, 92, 246, 0.1);
+    z-index: 1;
+    position: relative;
+    border-radius: 6px;
+    border-bottom-color: transparent; // Hide separator on hover
+  }
+
+  &.reviewing {
+    background: linear-gradient(135deg, rgba(139, 92, 246, 0.12) 0%, rgba(236, 72, 153, 0.06) 100%);
+    border-radius: $radius-lg;
+    margin: 2px 4px;
+    border: 1px solid rgba(139, 92, 246, 0.3);
+    box-shadow: 0 4px 12px rgba(139, 92, 246, 0.15);
+
+    .caseIndex {
+      background: linear-gradient(135deg, #8b5cf6 0%, #a855f7 100%);
+      color: white;
+      box-shadow: 0 2px 8px rgba(139, 92, 246, 0.3);
+    }
+
+    .chevron {
+      opacity: 1;
+      color: #8b5cf6;
+    }
+  }
+
+  &.selected {
+    background: linear-gradient(135deg, rgba(139, 92, 246, 0.08) 0%, rgba(236, 72, 153, 0.04) 100%);
+    border-radius: $radius-lg;
+    margin: 2px 4px;
+    border: 1px solid rgba(139, 92, 246, 0.2);
+
+    .caseIndex {
+      background: rgba(139, 92, 246, 0.15);
+      color: #7c3aed;
+    }
+
+    .chevron {
+      opacity: 1;
+      color: #8b5cf6;
+    }
+  }
+
+  .caseIndex {
+    width: 26px;
+    height: 26px;
+    border-radius: $radius-md;
+    background: rgba(139, 92, 246, 0.08);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: $font-size-xs;
+    font-weight: $font-weight-medium;
+    color: #8b5cf6;
+    flex-shrink: 0;
+    transition: all 0.2s ease;
+  }
+
+  .caseContent {
+    flex: 1;
+    min-width: 0;
+
+    .caseName {
+      font-size: $font-size-sm;
+      font-weight: $font-weight-medium;
+      color: $text-primary;
+      margin-bottom: 2px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      transition: color 0.2s;
+    }
+
+    .caseMessage {
+      font-size: $font-size-xs;
+      color: $text-muted;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      font-family: 'JetBrains Mono', monospace; // Use mono font for data
+      opacity: 0.8;
+    }
+  }
+
+  .caseStatus {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+
+    .chevron {
+      color: $text-muted;
+      opacity: 0.5;
+      transition: opacity 0.2s;
+    }
+
+    &:hover .chevron {
+      opacity: 1;
+    }
+  }
+}
+
+// ==================== 状态组 ====================
+.statusGroup {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  cursor: help;
+}
+
+.statusLabel {
+  font-size: 10px;
+  color: $text-muted;
+  font-weight: $font-weight-medium;
+}
+
+// ==================== 状态图标 ====================
+.statusIcon {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+
+  svg {
+    width: 12px;
+    height: 12px;
+  }
+
+  // 执行状态
+  &.execSuccess {
+    background: rgba(16, 185, 129, 0.15);
+    color: #10b981;
+  }
+
+  &.execFailure {
+    background: rgba(239, 68, 68, 0.15);
+    color: #ef4444;
+  }
+
+  &.execRunning {
+    background: rgba(139, 92, 246, 0.15);
+    color: #8b5cf6;
+
+    svg {
+      animation: spin 1s linear infinite;
+    }
+  }
+
+  &.execPending {
+    background: rgba(148, 163, 184, 0.15);
+    color: #94a3b8;
+  }
+
+  // 评审状态
+  &.reviewPassed {
+    background: rgba(16, 185, 129, 0.15);
+    color: #10b981;
+  }
+
+  &.reviewFailed {
+    background: rgba(236, 72, 153, 0.15);
+    color: #ec4899;
+  }
+
+  &.reviewPending {
+    background: rgba(168, 85, 247, 0.15);
+    color: #a855f7;
+  }
+}

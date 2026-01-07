@@ -24,7 +24,8 @@ This directory contains modular guidelines for Claude Code agents. Each file foc
 
 | Document                                                       | Purpose                                | When to Use                       |
 | -------------------------------------------------------------- | -------------------------------------- | --------------------------------- |
-| **[code-standards.md](code-standards.md)**                     | TypeScript, NestJS, coding conventions | Writing or modifying code         |
+| **[code-standards.md](code-standards.md)**                     | TypeScript, NestJS, coding conventions | Writing or modifying backend code |
+| **[frontend-standards.md](frontend-standards.md)**             | React, SCSS Modules, component design  | Writing or modifying frontend code |
 | **[architecture-principles.md](architecture-principles.md)**   | SOLID, design patterns, layering       | Designing features or refactoring |
 | **[development-workflow.md](development-workflow.md)**         | Git workflow, testing, deployment      | Daily development tasks           |
 | **[performance-optimization.md](performance-optimization.md)** | Performance tuning, monitoring         | Optimizing system performance     |
@@ -36,9 +37,10 @@ This directory contains modular guidelines for Claude Code agents. Each file foc
 
 **Start with these documents in order:**
 
-1. **[code-standards.md](code-standards.md)** - Learn the coding conventions
-2. **[architecture-principles.md](architecture-principles.md)** - Understand the system design
-3. **[development-workflow.md](development-workflow.md)** - Master the workflow
+1. **[code-standards.md](code-standards.md)** - Learn the backend coding conventions
+2. **[frontend-standards.md](frontend-standards.md)** - Learn the frontend coding conventions
+3. **[architecture-principles.md](architecture-principles.md)** - Understand the system design
+4. **[development-workflow.md](development-workflow.md)** - Master the workflow
 
 ---
 
@@ -46,8 +48,9 @@ This directory contains modular guidelines for Claude Code agents. Each file foc
 
 **Quick reference by task:**
 
-- **Adding a new feature** → [development-workflow.md](development-workflow.md) + [architecture-principles.md](architecture-principles.md)
-- **Fixing a bug** → [code-standards.md](code-standards.md) + [development-workflow.md](development-workflow.md)
+- **Adding a backend feature** → [code-standards.md](code-standards.md) + [architecture-principles.md](architecture-principles.md)
+- **Adding a frontend feature** → [frontend-standards.md](frontend-standards.md) + [architecture-principles.md](architecture-principles.md)
+- **Fixing a bug** → [code-standards.md](code-standards.md) / [frontend-standards.md](frontend-standards.md)
 - **Performance issue** → [performance-optimization.md](performance-optimization.md)
 - **Code review** → [code-quality-guardian.md](code-quality-guardian.md)
 - **Refactoring** → [architecture-principles.md](architecture-principles.md)

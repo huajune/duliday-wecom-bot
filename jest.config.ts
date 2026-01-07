@@ -24,6 +24,8 @@ const config: JestConfigWithTsJest = {
             '@sponge/*': ['src/sponge/*'],
             '@analytics': ['src/analytics'],
             '@analytics/*': ['src/analytics/*'],
+            '@shared': ['src/shared'],
+            '@shared/*': ['src/shared/*'],
           },
         },
       },
@@ -47,6 +49,8 @@ const config: JestConfigWithTsJest = {
     '^@sponge/(.*)$': '<rootDir>/sponge/$1',
     '^@analytics$': '<rootDir>/analytics',
     '^@analytics/(.*)$': '<rootDir>/analytics/$1',
+    '^@shared$': '<rootDir>/shared',
+    '^@shared/(.*)$': '<rootDir>/shared/$1',
   },
 };
 

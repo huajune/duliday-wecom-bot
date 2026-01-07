@@ -3,6 +3,8 @@ import { ConfigService } from '@nestjs/config';
 import { SupabaseService } from '@core/supabase';
 import { MessageParser } from '../utils/message-parser.util';
 import { EnhancedMessageHistoryItem } from '../types';
+import { SimpleMessage } from '@agent';
+import { MessageRole } from '@shared/enums';
 
 /**
  * 消息历史管理服务
@@ -35,9 +37,7 @@ export class MessageHistoryService {
    * 获取指定会话的历史消息（用于 AI 上下文）
    * 从 Supabase 获取最新 N 条消息，并为每条消息注入时间上下文
    */
-  async getHistory(
-    chatId: string,
-  ): Promise<Array<{ role: 'user' | 'assistant'; content: string }>> {
+  async getHistory(chatId: string): Promise<SimpleMessage[]> {
     try {
       const rawHistory = await this.supabaseService.getChatHistory(
         chatId,
@@ -46,7 +46,7 @@ export class MessageHistoryService {
 
       // 为每条历史消息注入时间上下文
       return rawHistory.map((msg) => ({
-        role: msg.role,
+        role: msg.role as MessageRole,
         content: MessageParser.injectTimeContext(msg.content, msg.timestamp),
       }));
     } catch (error) {
@@ -59,10 +59,7 @@ export class MessageHistoryService {
    * 获取会话历史（用于 Agent 上下文，可排除指定消息ID）
    * 为每条历史消息注入时间上下文
    */
-  async getHistoryForContext(
-    chatId: string,
-    excludeMessageId?: string,
-  ): Promise<Array<{ role: 'user' | 'assistant'; content: string }>> {
+  async getHistoryForContext(chatId: string, excludeMessageId?: string): Promise<SimpleMessage[]> {
     try {
       const history = await this.supabaseService.getChatHistory(
         chatId,
@@ -72,7 +69,7 @@ export class MessageHistoryService {
       if (!excludeMessageId) {
         // 为每条历史消息注入时间上下文
         return history.slice(0, this.maxHistoryForContext).map((msg) => ({
-          role: msg.role,
+          role: msg.role as MessageRole,
           content: MessageParser.injectTimeContext(msg.content, msg.timestamp),
         }));
       }
@@ -85,7 +82,7 @@ export class MessageHistoryService {
 
       // 为每条历史消息注入时间上下文
       return filtered.map((item) => ({
-        role: item.role,
+        role: item.role as MessageRole,
         content: MessageParser.injectTimeContext(item.content, item.timestamp),
       }));
     } catch (error) {
