@@ -543,10 +543,11 @@ export class AgentTestController {
   @ApiQuery({ name: 'limit', required: false, type: Number })
   @ApiQuery({ name: 'offset', required: false, type: Number })
   async getBatches(@Query('limit') limit?: number, @Query('offset') offset?: number) {
-    const batches = await this.testService.getBatches(limit || 20, offset || 0);
+    const result = await this.testService.getBatches(limit || 20, offset || 0);
     return {
       success: true,
-      data: batches,
+      data: result.data,
+      total: result.total,
     };
   }
 

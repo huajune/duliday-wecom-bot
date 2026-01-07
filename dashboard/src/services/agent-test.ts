@@ -358,13 +358,21 @@ export async function createBatch(request: {
 }
 
 /**
- * 获取批次列表
+ * 批次列表分页响应
  */
-export async function getBatches(limit = 20, offset = 0): Promise<TestBatch[]> {
+export interface BatchListResponse {
+  data: TestBatch[];
+  total: number;
+}
+
+/**
+ * 获取批次列表（支持分页）
+ */
+export async function getBatches(limit = 20, offset = 0): Promise<BatchListResponse> {
   const { data } = await api.get('/agent/test/batches', {
     params: { limit, offset },
   });
-  return data.data;
+  return { data: data.data, total: data.total };
 }
 
 /**

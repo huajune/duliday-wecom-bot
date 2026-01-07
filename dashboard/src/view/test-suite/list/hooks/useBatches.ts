@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import toast from 'react-hot-toast';
 import {
   getBatches,
@@ -10,6 +10,8 @@ import {
   BatchStats,
 } from '@/services/agent-test';
 
+const PAGE_SIZE = 20;
+
 /**
  * 批次数据管理 Hook
  */
@@ -19,20 +21,30 @@ export function useBatches() {
   const [selectedBatch, setSelectedBatch] = useState<TestBatch | null>(null);
   const [batchStats, setBatchStats] = useState<BatchStats | null>(null);
 
+  // 分页状态
+  const [total, setTotal] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
+  const offsetRef = useRef(0);
+
   // 执行记录
   const [executions, setExecutions] = useState<TestExecution[]>([]);
 
   // 加载状态
   const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
   const [quickCreating, setQuickCreating] = useState(false);
 
-  // 加载批次列表
+  // 加载批次列表（首次加载/刷新）
   const loadBatches = useCallback(async () => {
     try {
       setLoading(true);
-      const data = await getBatches(50, 0);
-      setBatches(data);
+      offsetRef.current = 0;
+      const result = await getBatches(PAGE_SIZE, 0);
+      setBatches(result.data);
+      setTotal(result.total);
+      setHasMore(result.data.length < result.total);
+      offsetRef.current = result.data.length;
     } catch (err: unknown) {
       const error = err as { message?: string };
       toast.error(error.message || '加载批次失败');
@@ -40,6 +52,25 @@ export function useBatches() {
       setLoading(false);
     }
   }, []);
+
+  // 加载更多批次（无限滚动）
+  const loadMoreBatches = useCallback(async () => {
+    if (loadingMore || !hasMore) return;
+
+    try {
+      setLoadingMore(true);
+      const result = await getBatches(PAGE_SIZE, offsetRef.current);
+      setBatches((prev) => [...prev, ...result.data]);
+      setTotal(result.total);
+      offsetRef.current += result.data.length;
+      setHasMore(offsetRef.current < result.total);
+    } catch (err: unknown) {
+      const error = err as { message?: string };
+      toast.error(error.message || '加载更多失败');
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [loadingMore, hasMore]);
 
   // 加载批次详情
   const loadBatchData = useCallback(async (batch: TestBatch) => {
@@ -104,13 +135,17 @@ export function useBatches() {
     batchStats,
     executions,
     loading,
+    loadingMore,
     detailLoading,
     quickCreating,
+    total,
+    hasMore,
 
     // 操作
     setSelectedBatch,
     setExecutions,
     loadBatches,
+    loadMoreBatches,
     loadBatchData,
     refreshBatchStats,
     handleQuickCreate,

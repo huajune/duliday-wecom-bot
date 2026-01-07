@@ -318,9 +318,9 @@ export class AgentTestService {
   }
 
   /**
-   * 获取测试批次列表
+   * 获取测试批次列表（带分页）
    */
-  async getBatches(limit = 20, offset = 0): Promise<TestBatch[]> {
+  async getBatches(limit = 20, offset = 0): Promise<{ data: TestBatch[]; total: number }> {
     return this.batchRepository.findMany(limit, offset);
   }
 

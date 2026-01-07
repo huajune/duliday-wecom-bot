@@ -19,11 +19,15 @@ export default function TestSuite() {
     batchStats,
     executions,
     loading,
+    loadingMore,
     detailLoading,
     quickCreating,
+    total,
+    hasMore,
     setSelectedBatch,
     setExecutions,
     loadBatches,
+    loadMoreBatches,
     refreshBatchStats,
     handleQuickCreate,
   } = useBatches();
@@ -82,7 +86,11 @@ export default function TestSuite() {
           batches={batches}
           selectedBatch={selectedBatch}
           loading={loading}
+          loadingMore={loadingMore}
+          hasMore={hasMore}
+          total={total}
           onSelect={setSelectedBatch}
+          onLoadMore={loadMoreBatches}
         />
 
         {/* 右侧：批次详情 */}

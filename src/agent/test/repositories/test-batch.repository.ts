@@ -124,17 +124,31 @@ export class TestBatchRepository {
   }
 
   /**
-   * 获取批次列表
+   * 获取批次列表（带总数）
    */
-  async findMany(limit = 20, offset = 0): Promise<TestBatch[]> {
+  async findMany(limit = 20, offset = 0): Promise<{ data: TestBatch[]; total: number }> {
     const response = await this.supabaseClient.get<TestBatch[]>('/test_batches', {
       params: {
         order: 'created_at.desc',
         limit,
         offset,
       },
+      headers: {
+        Prefer: 'count=exact',
+      },
     });
-    return response.data;
+
+    // Supabase 返回 content-range header: "0-19/42" 格式
+    const contentRange = response.headers['content-range'];
+    let total = response.data.length;
+    if (contentRange) {
+      const match = contentRange.match(/\/(\d+)$/);
+      if (match) {
+        total = parseInt(match[1], 10);
+      }
+    }
+
+    return { data: response.data, total };
   }
 
   /**
