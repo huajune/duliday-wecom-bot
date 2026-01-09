@@ -6,6 +6,7 @@ import { AgentService } from './agent.service';
 import { AgentRegistryService } from './services/agent-registry.service';
 import { AgentFallbackService } from './services/agent-fallback.service';
 import { AgentApiClientService } from './services/agent-api-client.service';
+import { AgentFacadeService } from './services/agent-facade.service';
 import { AgentConfigValidator } from './utils/agent-validator';
 import { BrandConfigMonitor } from './utils/agent-monitor';
 import { AgentController } from './agent.controller';
@@ -51,6 +52,9 @@ import { BrandConfigService } from './services/brand-config.service';
 
     // 主服务
     AgentService,
+
+    // 门面服务（协调层）
+    AgentFacadeService,
   ],
   exports: [
     AgentService,
@@ -61,6 +65,7 @@ import { BrandConfigService } from './services/brand-config.service';
     BrandConfigMonitor,
     ProfileLoaderService,
     BrandConfigService,
+    AgentFacadeService,
   ],
 })
 export class AgentModule {}

@@ -1,6 +1,11 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { SupabaseService } from '@core/supabase';
+import {
+  ChatMessageRepository,
+  UserHostingRepository,
+  MonitoringRepository,
+} from '@core/supabase/repositories';
 
 /**
  * 数据清理服务
@@ -22,7 +27,12 @@ export class DataCleanupService implements OnModuleInit {
   private readonly USER_ACTIVITY_RETENTION_DAYS = 14; // 用户活跃记录保留 14 天
   private readonly MONITORING_RETENTION_DAYS = 30; // 监控数据保留 30 天（如有历史数据）
 
-  constructor(private readonly supabaseService: SupabaseService) {}
+  constructor(
+    private readonly supabaseService: SupabaseService,
+    private readonly chatMessageRepository: ChatMessageRepository,
+    private readonly userHostingRepository: UserHostingRepository,
+    private readonly monitoringRepository: MonitoringRepository,
+  ) {}
 
   async onModuleInit(): Promise<void> {
     if (this.supabaseService.isAvailable()) {
@@ -59,7 +69,9 @@ export class DataCleanupService implements OnModuleInit {
    */
   private async cleanupChatMessages(): Promise<void> {
     try {
-      const deletedCount = await this.supabaseService.cleanupChatMessages(this.CHAT_RETENTION_DAYS);
+      const deletedCount = await this.chatMessageRepository.cleanupChatMessages(
+        this.CHAT_RETENTION_DAYS,
+      );
       if (deletedCount > 0) {
         this.logger.log(
           `[数据清理] 已清理 ${deletedCount} 条过期聊天消息 (${this.CHAT_RETENTION_DAYS} 天前)`,
@@ -76,7 +88,7 @@ export class DataCleanupService implements OnModuleInit {
    */
   private async cleanupUserActivity(): Promise<void> {
     try {
-      const deletedCount = await this.supabaseService.cleanupUserActivity(
+      const deletedCount = await this.userHostingRepository.cleanupUserActivity(
         this.USER_ACTIVITY_RETENTION_DAYS,
       );
       if (deletedCount > 0) {
@@ -99,7 +111,7 @@ export class DataCleanupService implements OnModuleInit {
       const cutoffDate = new Date();
       cutoffDate.setDate(cutoffDate.getDate() - this.MONITORING_RETENTION_DAYS);
 
-      const deletedCount = await this.supabaseService.deleteMonitoringHourlyBefore(cutoffDate);
+      const deletedCount = await this.monitoringRepository.deleteMonitoringHourlyBefore(cutoffDate);
       if (deletedCount > 0) {
         this.logger.log(
           `[数据清理] 已清理 ${deletedCount} 条过期监控数据 (${this.MONITORING_RETENTION_DAYS} 天前)`,
@@ -132,13 +144,13 @@ export class DataCleanupService implements OnModuleInit {
     }
 
     try {
-      chatMessages = await this.supabaseService.cleanupChatMessages(this.CHAT_RETENTION_DAYS);
+      chatMessages = await this.chatMessageRepository.cleanupChatMessages(this.CHAT_RETENTION_DAYS);
     } catch {
       // ignore
     }
 
     try {
-      userActivity = await this.supabaseService.cleanupUserActivity(
+      userActivity = await this.userHostingRepository.cleanupUserActivity(
         this.USER_ACTIVITY_RETENTION_DAYS,
       );
     } catch {
@@ -148,7 +160,7 @@ export class DataCleanupService implements OnModuleInit {
     try {
       const cutoffDate = new Date();
       cutoffDate.setDate(cutoffDate.getDate() - this.MONITORING_RETENTION_DAYS);
-      monitoringData = await this.supabaseService.deleteMonitoringHourlyBefore(cutoffDate);
+      monitoringData = await this.monitoringRepository.deleteMonitoringHourlyBefore(cutoffDate);
     } catch {
       // ignore
     }

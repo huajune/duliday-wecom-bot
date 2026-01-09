@@ -211,7 +211,7 @@ export interface SubmitFeedbackResponse {
  * 执行单条测试
  */
 export async function executeTest(request: TestChatRequest): Promise<TestChatResponse> {
-  const { data } = await api.post('/agent/test/chat', request);
+  const { data } = await api.post('/test-suite/chat', request);
   return data.data;
 }
 
@@ -230,7 +230,7 @@ export function executeTestStream(
   const controller = new AbortController();
 
   // 使用 fetch 发起 POST 请求接收 SSE
-  fetch('/agent/test/chat/stream', {
+  fetch('/test-suite/chat/stream', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -336,7 +336,7 @@ export async function executeBatchTest(
   failureCount: number;
   results: TestChatResponse[];
 }> {
-  const { data } = await api.post('/agent/test/batch', {
+  const { data } = await api.post('/test-suite/batch', {
     cases,
     batchName,
     parallel,
@@ -353,7 +353,7 @@ export async function createBatch(request: {
   feishuAppToken?: string;
   feishuTableId?: string;
 }): Promise<TestBatch> {
-  const { data } = await api.post('/agent/test/batches', request);
+  const { data } = await api.post('/test-suite/batches', request);
   return data.data;
 }
 
@@ -369,7 +369,7 @@ export interface BatchListResponse {
  * 获取批次列表（支持分页）
  */
 export async function getBatches(limit = 20, offset = 0): Promise<BatchListResponse> {
-  const { data } = await api.get('/agent/test/batches', {
+  const { data } = await api.get('/test-suite/batches', {
     params: { limit, offset },
   });
   return { data: data.data, total: data.total };
@@ -379,7 +379,7 @@ export async function getBatches(limit = 20, offset = 0): Promise<BatchListRespo
  * 获取批次详情
  */
 export async function getBatch(id: string): Promise<TestBatch> {
-  const { data } = await api.get(`/agent/test/batches/${id}`);
+  const { data } = await api.get(`/test-suite/batches/${id}`);
   return data.data;
 }
 
@@ -387,7 +387,7 @@ export async function getBatch(id: string): Promise<TestBatch> {
  * 获取批次统计
  */
 export async function getBatchStats(id: string): Promise<BatchStats> {
-  const { data } = await api.get(`/agent/test/batches/${id}/stats`);
+  const { data } = await api.get(`/test-suite/batches/${id}/stats`);
   return data.data;
 }
 
@@ -395,7 +395,7 @@ export async function getBatchStats(id: string): Promise<BatchStats> {
  * 获取批次分类统计
  */
 export async function getCategoryStats(id: string): Promise<CategoryStats[]> {
-  const { data } = await api.get(`/agent/test/batches/${id}/category-stats`);
+  const { data } = await api.get(`/test-suite/batches/${id}/category-stats`);
   return data.data;
 }
 
@@ -403,7 +403,7 @@ export async function getCategoryStats(id: string): Promise<CategoryStats[]> {
  * 获取批次失败原因统计
  */
 export async function getFailureReasonStats(id: string): Promise<FailureReasonStats[]> {
-  const { data } = await api.get(`/agent/test/batches/${id}/failure-stats`);
+  const { data } = await api.get(`/test-suite/batches/${id}/failure-stats`);
   return data.data;
 }
 
@@ -418,7 +418,7 @@ export async function getBatchExecutions(
     category?: string;
   },
 ): Promise<TestExecution[]> {
-  const { data } = await api.get(`/agent/test/batches/${batchId}/executions`, {
+  const { data } = await api.get(`/test-suite/batches/${batchId}/executions`, {
     params: filters,
   });
   return data.data;
@@ -428,7 +428,7 @@ export async function getBatchExecutions(
  * 获取执行记录列表
  */
 export async function getExecutions(limit = 50, offset = 0): Promise<TestExecution[]> {
-  const { data } = await api.get('/agent/test/executions', {
+  const { data } = await api.get('/test-suite/executions', {
     params: { limit, offset },
   });
   return data.data;
@@ -438,7 +438,7 @@ export async function getExecutions(limit = 50, offset = 0): Promise<TestExecuti
  * 获取执行记录详情
  */
 export async function getExecution(id: string): Promise<TestExecution> {
-  const { data } = await api.get(`/agent/test/executions/${id}`);
+  const { data } = await api.get(`/test-suite/executions/${id}`);
   return data.data;
 }
 
@@ -449,7 +449,7 @@ export async function updateReview(
   executionId: string,
   review: UpdateReviewRequest,
 ): Promise<TestExecution> {
-  const { data } = await api.patch(`/agent/test/executions/${executionId}/review`, review);
+  const { data } = await api.patch(`/test-suite/executions/${executionId}/review`, review);
   return data.data;
 }
 
@@ -460,7 +460,7 @@ export async function batchUpdateReview(
   executionIds: string[],
   review: UpdateReviewRequest,
 ): Promise<{ updatedCount: number }> {
-  const { data } = await api.patch('/agent/test/executions/batch-review', {
+  const { data } = await api.patch('/test-suite/executions/batch-review', {
     executionIds,
     review,
   });
@@ -471,7 +471,7 @@ export async function batchUpdateReview(
  * 从飞书多维表格导入测试用例
  */
 export async function importFromFeishu(request: ImportFromFeishuRequest): Promise<ImportResult> {
-  const { data } = await api.post('/agent/test/batches/import-from-feishu', request);
+  const { data } = await api.post('/test-suite/batches/import-from-feishu', request);
   return data.data;
 }
 
@@ -479,7 +479,7 @@ export async function importFromFeishu(request: ImportFromFeishuRequest): Promis
  * 提交测试反馈（badcase/goodcase）
  */
 export async function submitFeedback(request: SubmitFeedbackRequest): Promise<SubmitFeedbackResponse> {
-  const { data } = await api.post('/agent/test/feedback', request);
+  const { data } = await api.post('/test-suite/feedback', request);
   return data.data;
 }
 
@@ -512,7 +512,7 @@ export interface BatchWriteBackResult {
  * 一键创建批量测试（从预配置的飞书测试集表导入并执行）
  */
 export async function quickCreateBatch(request?: QuickCreateBatchRequest): Promise<ImportResult> {
-  const { data } = await api.post('/agent/test/batches/quick-create', request || {});
+  const { data } = await api.post('/test-suite/batches/quick-create', request || {});
   return data.data;
 }
 
@@ -524,7 +524,7 @@ export async function writeBackToFeishu(
   testStatus: '通过' | '失败' | '跳过',
   failureCategory?: string,
 ): Promise<WriteBackResult> {
-  const { data } = await api.post(`/agent/test/executions/${executionId}/write-back`, {
+  const { data } = await api.post(`/test-suite/executions/${executionId}/write-back`, {
     executionId,
     testStatus,
     failureCategory,
@@ -538,7 +538,7 @@ export async function writeBackToFeishu(
 export async function batchWriteBackToFeishu(
   items: WriteBackFeishuRequest[],
 ): Promise<BatchWriteBackResult> {
-  const { data } = await api.post('/agent/test/executions/batch-write-back', { items });
+  const { data } = await api.post('/test-suite/executions/batch-write-back', { items });
   return data.data;
 }
 

@@ -2,7 +2,8 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bull';
 import { Queue } from 'bull';
 import { RedisService } from '@core/redis';
-import { SupabaseService, AgentReplyConfig } from '@core/supabase';
+import { AgentReplyConfig } from '@core/supabase';
+import { SystemConfigRepository } from '@core/supabase/repositories';
 import { EnterpriseMessageCallbackDto } from '../dto/message-callback.dto';
 import { RedisKeyBuilder } from '../utils/redis-key.util';
 
@@ -33,11 +34,11 @@ export class SimpleMergeService implements OnModuleInit {
 
   constructor(
     private readonly redisService: RedisService,
-    private readonly supabaseService: SupabaseService,
+    private readonly systemConfigRepository: SystemConfigRepository,
     @InjectQueue('message-merge') private readonly messageQueue: Queue,
   ) {
     // 注册配置变更回调
-    this.supabaseService.onAgentReplyConfigChange((config) => {
+    this.systemConfigRepository.onAgentReplyConfigChange((config) => {
       this.onConfigChange(config);
     });
   }
@@ -45,7 +46,7 @@ export class SimpleMergeService implements OnModuleInit {
   async onModuleInit() {
     // 从 Supabase 加载动态配置
     try {
-      const config = await this.supabaseService.getAgentReplyConfig();
+      const config = await this.systemConfigRepository.getAgentReplyConfig();
       this.mergeDelayMs = config.initialMergeWindowMs || 2000;
       this.maxMergedMessages = config.maxMergedMessages || 5;
       this.logger.log(

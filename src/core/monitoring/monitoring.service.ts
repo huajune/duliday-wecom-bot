@@ -23,7 +23,7 @@ import { MonitoringCacheService } from './monitoring-cache.service';
 import { MonitoringMigrationService } from './monitoring-migration.service';
 import { RedisService } from '@core/redis';
 import { FeishuBookingService } from '@/core/feishu/services/feishu-booking.service';
-import { SupabaseService } from '@core/supabase';
+import { MonitoringRepository, BookingRepository } from '@core/supabase/repositories';
 
 /**
  * 监控服务
@@ -46,7 +46,8 @@ export class MonitoringService implements OnModuleInit {
     private readonly migrationService: MonitoringMigrationService,
     private readonly redisService: RedisService,
     private readonly feishuBookingService: FeishuBookingService,
-    private readonly supabaseService: SupabaseService,
+    private readonly monitoringRepository: MonitoringRepository,
+    private readonly bookingRepository: BookingRepository,
   ) {
     // 定期清理超时的临时记录（每10分钟执行一次）
     setInterval(
@@ -752,7 +753,7 @@ export class MonitoringService implements OnModuleInit {
     // 从 interview_booking_records 表获取预约统计
     let successfulBookings = 0;
     try {
-      const bookingStats = await this.supabaseService.getBookingStats({
+      const bookingStats = await this.bookingRepository.getBookingStats({
         startDate,
         endDate,
       });
@@ -1697,23 +1698,23 @@ export class MonitoringService implements OnModuleInit {
         tokenTrendData,
       ] = await Promise.all([
         // 当前时间范围概览统计
-        this.supabaseService.getDashboardOverviewStats(currentStartDate, currentEndDate),
+        this.monitoringRepository.getDashboardOverviewStats(currentStartDate, currentEndDate),
         // 前一时间范围概览统计（用于计算增长率）
-        this.supabaseService.getDashboardOverviewStats(previousStartDate, previousEndDate),
+        this.monitoringRepository.getDashboardOverviewStats(previousStartDate, previousEndDate),
         // 当前时间范围降级统计
-        this.supabaseService.getDashboardFallbackStats(currentStartDate, currentEndDate),
+        this.monitoringRepository.getDashboardFallbackStats(currentStartDate, currentEndDate),
         // 前一时间范围降级统计
-        this.supabaseService.getDashboardFallbackStats(previousStartDate, previousEndDate),
+        this.monitoringRepository.getDashboardFallbackStats(previousStartDate, previousEndDate),
         // 每日趋势（最近 7 天，用于备用）
-        this.supabaseService.getDashboardDailyTrend(sevenDaysAgo, new Date()),
+        this.monitoringRepository.getDashboardDailyTrend(sevenDaysAgo, new Date()),
         // 分钟级趋势（用于响应时间图表）
         timeRange === 'today'
-          ? this.supabaseService.getDashboardMinuteTrend(currentStartDate, currentEndDate, 5)
-          : this.supabaseService.getDashboardDailyTrend(currentStartDate, currentEndDate),
+          ? this.monitoringRepository.getDashboardMinuteTrend(currentStartDate, currentEndDate, 5)
+          : this.monitoringRepository.getDashboardDailyTrend(currentStartDate, currentEndDate),
         // Token 趋势（本日用小时级，本周/本月用天级）
         timeRange === 'today'
-          ? this.supabaseService.getDashboardHourlyTrend(currentStartDate, currentEndDate)
-          : this.supabaseService.getDashboardDailyTrend(currentStartDate, currentEndDate),
+          ? this.monitoringRepository.getDashboardHourlyTrend(currentStartDate, currentEndDate)
+          : this.monitoringRepository.getDashboardDailyTrend(currentStartDate, currentEndDate),
       ]);
 
       // 3. 构建概览指标

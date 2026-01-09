@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { SupabaseService } from '@core/supabase';
+import { ChatMessageRepository } from '@core/supabase/repositories';
 import { FeishuBitableApiService, BatchCreateRequest } from './feishu-bitable-api.service';
 
 /**
@@ -33,7 +33,7 @@ export class ChatRecordSyncService {
   private readonly logger = new Logger(ChatRecordSyncService.name);
 
   constructor(
-    private readonly supabaseService: SupabaseService,
+    private readonly chatMessageRepository: ChatMessageRepository,
     private readonly bitableApi: FeishuBitableApiService,
   ) {}
 
@@ -300,7 +300,7 @@ export class ChatRecordSyncService {
       `查询时间范围内的聊天记录: ${new Date(startTime).toISOString()} ~ ${new Date(endTime).toISOString()}`,
     );
 
-    const records = await this.supabaseService.getChatMessagesByTimeRange(startTime, endTime);
+    const records = await this.chatMessageRepository.getChatMessagesByTimeRange(startTime, endTime);
 
     const result = records.map(({ chatId, messages }) => ({
       chatId,

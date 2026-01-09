@@ -14,8 +14,8 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiQuery, ApiParam } from '@nestjs/swagger';
 import { Response } from 'express';
-import { AgentTestService } from './agent-test.service';
-import { AgentTestProcessor } from './agent-test.processor';
+import { TestSuiteService } from './test-suite.service';
+import { TestSuiteProcessor } from './test-suite.processor';
 import {
   TestChatRequestDto,
   BatchTestRequestDto,
@@ -32,16 +32,17 @@ import {
   FeishuBitableSyncService,
   AgentTestFeedback,
 } from '@core/feishu/services/feishu-bitable.service';
+import { SSEStreamHandler, VercelAIStreamHandler } from './utils/sse-stream-handler';
 
-@ApiTags('Agent 测试')
-@Controller('agent/test')
-export class AgentTestController {
-  private readonly logger = new Logger(AgentTestController.name);
+@ApiTags('测试套件')
+@Controller('test-suite')
+export class TestSuiteController {
+  private readonly logger = new Logger(TestSuiteController.name);
 
   constructor(
-    private readonly testService: AgentTestService,
+    private readonly testService: TestSuiteService,
     private readonly feishuBitableService: FeishuBitableSyncService,
-    private readonly testProcessor: AgentTestProcessor,
+    private readonly testProcessor: TestSuiteProcessor,
   ) {}
 
   // ==================== 单条测试 ====================
@@ -64,12 +65,13 @@ export class AgentTestController {
         success: true,
         data: result,
       };
-    } catch (error: any) {
-      this.logger.error(`测试执行失败: ${error.message}`, error.stack);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logger.error(`测试执行失败: ${errorMessage}`);
       throw new HttpException(
         {
           success: false,
-          error: error.message,
+          error: errorMessage,
         },
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
@@ -100,172 +102,37 @@ export class AgentTestController {
   async testChatStream(@Body() request: TestChatRequestDto, @Res() res: Response) {
     this.logger.log(`[Stream] 执行流式测试: ${request.message.substring(0, 50)}...`);
 
-    // 设置 SSE 响应头
-    res.setHeader('Content-Type', 'text/event-stream');
-    res.setHeader('Cache-Control', 'no-cache');
-    res.setHeader('Connection', 'keep-alive');
-    res.setHeader('X-Accel-Buffering', 'no'); // 禁用 nginx 缓冲
-    res.flushHeaders();
-
-    const startTime = Date.now();
-
-    // 发送 SSE 事件的辅助函数
-    const sendEvent = (event: string, data: any) => {
-      res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
-    };
+    // 使用 SSE 流处理工具类
+    const handler = new SSEStreamHandler(res, '[Stream]');
+    handler.setupHeaders();
 
     try {
       // 发送开始事件
-      sendEvent('start', { timestamp: new Date().toISOString() });
+      handler.sendStart();
 
       // 执行测试并获取流式响应
       const stream = await this.testService.executeTestStream(request);
 
-      // 累积数据用于最终统计
-      let fullText = '';
-      const toolCalls: any[] = [];
-      let tokenUsage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 };
-
       // 处理流式数据
       stream.on('data', (chunk: Buffer) => {
-        const text = chunk.toString();
-        this.logger.debug(`[Stream] 收到数据块: ${text.substring(0, 200)}...`);
-
-        // SSE 格式：以 "data: " 开头的行
-        const lines = text.split('\n').filter((line) => line.startsWith('data: '));
-
-        for (const line of lines) {
-          try {
-            const jsonStr = line.slice(6); // 移除 "data: "
-            if (jsonStr === '[DONE]') {
-              this.logger.debug('[Stream] 收到 [DONE] 信号');
-              continue;
-            }
-
-            const data = JSON.parse(jsonStr);
-            this.logger.debug(`[Stream] 解析事件: ${JSON.stringify(data).substring(0, 300)}`);
-
-            // 处理不同类型的流式事件
-            // 花卷 API 实际格式:
-            // - 文本增量: { type: 'text-delta', id: '0', delta: '你好' }
-            // - 工具调用: { type: 'tool-call', toolCallId: '...', toolName: '...', args: {...} }
-            // - 工具结果: { type: 'tool-result', toolCallId: '...', result: {...} }
-            // - 步骤事件: { type: 'start-step' }, { type: 'finish-step' }
-            // - 完成事件: { type: 'finish', usage: {...} }
-            if (data.type === 'text-delta') {
-              // 花卷 API 文本增量格式 - delta 直接就是文本内容
-              const textContent = data.delta || '';
-              fullText += textContent;
-              sendEvent('text', { text: textContent, fullText });
-            } else if (data.type === 'content_block_delta' && data.delta?.type === 'text_delta') {
-              // Anthropic 原生格式（备用）
-              const textContent = data.delta.text || '';
-              fullText += textContent;
-              sendEvent('text', { text: textContent, fullText });
-            } else if (data.type === 'text' || data.delta?.text) {
-              // 通用格式
-              const textContent = data.delta?.text || data.text || '';
-              fullText += textContent;
-              sendEvent('text', { text: textContent, fullText });
-            } else if (data.type === 'tool-call') {
-              // 花卷 API 工具调用格式
-              const toolCall = {
-                toolCallId: data.toolCallId,
-                toolName: data.toolName,
-                input: data.args,
-              };
-              toolCalls.push(toolCall);
-              sendEvent('tool_call', toolCall);
-            } else if (data.type === 'tool_use' || data.type === 'tool_call' || data.toolName) {
-              // 其他工具调用格式（备用）
-              const toolCall = {
-                toolName: data.name || data.toolName,
-                input: data.input || data.arguments,
-              };
-              toolCalls.push(toolCall);
-              sendEvent('tool_call', toolCall);
-            } else if (data.type === 'tool-result') {
-              // 花卷 API 工具结果格式
-              const toolCallId = data.toolCallId;
-              const matchingTool = toolCalls.find((t) => t.toolCallId === toolCallId);
-              if (matchingTool) {
-                matchingTool.output = data.result;
-              }
-              sendEvent('tool_result', {
-                toolCallId,
-                toolName: matchingTool?.toolName,
-                output: data.result,
-              });
-            } else if (data.type === 'tool_result') {
-              // 其他工具结果格式（备用）
-              const lastTool = toolCalls[toolCalls.length - 1];
-              if (lastTool) {
-                lastTool.output = data.output || data.result || data.content;
-              }
-              sendEvent('tool_result', {
-                toolName: lastTool?.toolName,
-                output: data.output || data.result || data.content,
-              });
-            } else if (data.type === 'finish' && data.usage) {
-              // 花卷 API 完成事件，包含 usage 统计
-              tokenUsage = {
-                inputTokens: data.usage.inputTokens || data.usage.input_tokens || 0,
-                outputTokens: data.usage.outputTokens || data.usage.output_tokens || 0,
-                totalTokens:
-                  data.usage.totalTokens ||
-                  data.usage.total_tokens ||
-                  (data.usage.inputTokens || 0) + (data.usage.outputTokens || 0),
-              };
-            } else if (data.type === 'message_delta' && data.usage) {
-              // Anthropic 原生格式的使用统计（备用）
-              tokenUsage = {
-                inputTokens: data.usage.input_tokens || 0,
-                outputTokens: data.usage.output_tokens || 0,
-                totalTokens: (data.usage.input_tokens || 0) + (data.usage.output_tokens || 0),
-              };
-            } else if (data.usage) {
-              tokenUsage = {
-                inputTokens: data.usage.input_tokens || data.usage.inputTokens || 0,
-                outputTokens: data.usage.output_tokens || data.usage.outputTokens || 0,
-                totalTokens: data.usage.total_tokens || data.usage.totalTokens || 0,
-              };
-            }
-          } catch {
-            // 解析失败，可能是不完整的 JSON，忽略
-          }
-        }
+        handler.processChunk(chunk);
       });
 
       stream.on('end', () => {
-        const durationMs = Date.now() - startTime;
-
-        // 发送最终指标
-        sendEvent('metrics', {
-          durationMs,
-          tokenUsage,
-          toolCallsCount: toolCalls.length,
-        });
-
-        // 发送完成事件
-        sendEvent('done', {
-          status: 'success',
-          actualOutput: fullText,
-          toolCalls,
-          metrics: { durationMs, tokenUsage },
-        });
-
-        res.end();
+        handler.sendDone();
+        handler.end();
       });
 
       stream.on('error', (error: Error) => {
         this.logger.error(`[Stream] 流式处理错误: ${error.message}`);
-        sendEvent('error', { message: error.message });
-        res.end();
+        handler.sendError(error.message);
+        handler.end();
       });
-    } catch (error: any) {
-      this.logger.error(`[Stream] 测试执行失败: ${error.message}`, error.stack);
-      sendEvent('error', { message: error.message });
-      res.end();
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logger.error(`[Stream] 测试执行失败: ${errorMessage}`);
+      handler.sendError(errorMessage);
+      handler.end();
     }
   }
 
@@ -301,14 +168,6 @@ export class AgentTestController {
       `[AI-Stream] 执行流式测试: ${messageText.substring(0, 50)}... (共 ${request.messages.length} 条消息)`,
     );
 
-    // 设置 Vercel AI SDK 兼容的响应头
-    res.setHeader('Content-Type', 'text/event-stream');
-    res.setHeader('Cache-Control', 'no-cache');
-    res.setHeader('Connection', 'keep-alive');
-    res.setHeader('X-Accel-Buffering', 'no');
-    res.setHeader('x-vercel-ai-ui-message-stream', 'v1');
-    res.flushHeaders();
-
     try {
       // 将 UIMessage 格式转换为 SimpleMessage 格式
       const history = request.messages.slice(0, -1).map((msg) => {
@@ -335,65 +194,32 @@ export class AgentTestController {
       const { stream, estimatedInputTokens } =
         await this.testService.executeTestStreamWithMeta(testRequest);
 
-      // 追踪输出文本长度，用于估算 output token
-      let outputTextLength = 0;
+      // 使用 Vercel AI SDK 流处理工具类
+      const handler = new VercelAIStreamHandler(res, estimatedInputTokens, '[AI-Stream]');
+      handler.setupHeaders();
 
+      // 处理流式数据（透传并追踪输出长度）
       stream.on('data', (chunk: Buffer) => {
-        const text = chunk.toString();
-
-        // 解析 SSE 数据，追踪输出文本长度
-        const lines = text.split('\n').filter((line) => line.trim());
-        for (const line of lines) {
-          try {
-            // 解析 SSE 格式: "data: {...}"
-            if (line.startsWith('data: ')) {
-              const jsonStr = line.slice(6);
-              if (jsonStr && jsonStr !== '[DONE]') {
-                const data = JSON.parse(jsonStr);
-                // 累计 text-delta 事件的文本长度
-                if (data.type === 'text-delta' && data.delta) {
-                  outputTextLength += data.delta.length;
-                }
-              }
-            }
-          } catch {
-            // 解析失败，忽略
-          }
-        }
-
-        // 透传原始数据
-        res.write(chunk);
+        handler.processChunk(chunk);
       });
 
       stream.on('end', () => {
-        // 在流结束时，发送估算的 token usage
-        // 使用 Vercel AI SDK v6 的 JSON event stream 格式
-        // data part 格式: {"type":"data-tokenUsage","data":{...}}
-        // 花卷 API 在流式模式下不返回 usage，所以我们使用估算值
-        const estimatedOutputTokens = Math.round(outputTextLength / 4);
-        const tokenUsage = {
-          inputTokens: estimatedInputTokens,
-          outputTokens: estimatedOutputTokens,
-          totalTokens: estimatedInputTokens + estimatedOutputTokens,
-        };
-
-        // Vercel AI SDK v6 使用 JSON event stream 格式，data part type 必须以 "data-" 开头
-        const usageData = `data: ${JSON.stringify({ type: 'data-tokenUsage', data: tokenUsage })}\n\n`;
-        res.write(usageData);
-        this.logger.log(
-          `[AI-Stream] 发送估算 token usage: input=${estimatedInputTokens}, output=${estimatedOutputTokens}`,
-        );
-        res.end();
+        handler.sendUsageAndEnd();
       });
 
       stream.on('error', (error: Error) => {
         this.logger.error(`[AI-Stream] 流式处理错误: ${error.message}`);
-        res.write(`data: {"type":"error","error":"${error.message}"}\n\n`);
-        res.end();
+        handler.sendError(error.message);
       });
-    } catch (error: any) {
-      this.logger.error(`[AI-Stream] 测试执行失败: ${error.message}`, error.stack);
-      res.write(`data: {"type":"error","error":"${error.message}"}\n\n`);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logger.error(`[AI-Stream] 测试执行失败: ${errorMessage}`);
+      // 如果还没设置响应头，设置一下
+      if (!res.headersSent) {
+        res.setHeader('Content-Type', 'text/event-stream');
+        res.flushHeaders();
+      }
+      res.write(`data: {"type":"error","error":"${errorMessage}"}\n\n`);
       res.end();
     }
   }
@@ -430,12 +256,13 @@ export class AgentTestController {
           results,
         },
       };
-    } catch (error: any) {
-      this.logger.error(`批量测试执行失败: ${error.message}`, error.stack);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logger.error(`批量测试执行失败: ${errorMessage}`);
       throw new HttpException(
         {
           success: false,
-          error: error.message,
+          error: errorMessage,
         },
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
@@ -459,12 +286,13 @@ export class AgentTestController {
         success: true,
         data: batch,
       };
-    } catch (error: any) {
-      this.logger.error(`创建批次失败: ${error.message}`, error.stack);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logger.error(`创建批次失败: ${errorMessage}`);
       throw new HttpException(
         {
           success: false,
-          error: error.message,
+          error: errorMessage,
         },
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
@@ -489,12 +317,13 @@ export class AgentTestController {
         success: true,
         data: result,
       };
-    } catch (error: any) {
-      this.logger.error(`导入失败: ${error.message}`, error.stack);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logger.error(`导入失败: ${errorMessage}`);
       throw new HttpException(
         {
           success: false,
-          error: error.message,
+          error: errorMessage,
         },
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
@@ -522,12 +351,13 @@ export class AgentTestController {
         success: true,
         data: result,
       };
-    } catch (error: any) {
-      this.logger.error(`一键创建批量测试失败: ${error.message}`, error.stack);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logger.error(`一键创建批量测试失败: ${errorMessage}`);
       throw new HttpException(
         {
           success: false,
-          error: error.message,
+          error: errorMessage,
         },
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
@@ -601,12 +431,13 @@ export class AgentTestController {
         success: true,
         data: progress,
       };
-    } catch (error: any) {
-      this.logger.error(`获取批次进度失败: ${error.message}`, error.stack);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logger.error(`获取批次进度失败: ${errorMessage}`);
       throw new HttpException(
         {
           success: false,
-          error: error.message,
+          error: errorMessage,
         },
         HttpStatus.NOT_FOUND,
       );
@@ -642,12 +473,13 @@ export class AgentTestController {
           message: `已取消 ${totalCancelled} 个任务（等待=${cancelled.waiting}, 延迟=${cancelled.delayed}, 执行中=${cancelled.active}）`,
         },
       };
-    } catch (error: any) {
-      this.logger.error(`取消批次失败: ${error.message}`, error.stack);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logger.error(`取消批次失败: ${errorMessage}`);
       throw new HttpException(
         {
           success: false,
-          error: error.message,
+          error: errorMessage,
         },
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
@@ -765,12 +597,13 @@ export class AgentTestController {
         success: true,
         data: execution,
       };
-    } catch (error: any) {
-      this.logger.error(`更新评审失败: ${error.message}`, error.stack);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logger.error(`更新评审失败: ${errorMessage}`);
       throw new HttpException(
         {
           success: false,
-          error: error.message,
+          error: errorMessage,
         },
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
@@ -794,12 +627,13 @@ export class AgentTestController {
         success: true,
         data: { updatedCount: count },
       };
-    } catch (error: any) {
-      this.logger.error(`批量更新评审失败: ${error.message}`, error.stack);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logger.error(`批量更新评审失败: ${errorMessage}`);
       throw new HttpException(
         {
           success: false,
-          error: error.message,
+          error: errorMessage,
         },
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
@@ -835,12 +669,13 @@ export class AgentTestController {
         success: result.success,
         data: result,
       };
-    } catch (error: any) {
-      this.logger.error(`回写飞书失败: ${error.message}`, error.stack);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logger.error(`回写飞书失败: ${errorMessage}`);
       throw new HttpException(
         {
           success: false,
-          error: error.message,
+          error: errorMessage,
         },
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
@@ -871,12 +706,13 @@ export class AgentTestController {
           errors: results.errors,
         },
       };
-    } catch (error: any) {
-      this.logger.error(`批量回写飞书失败: ${error.message}`, error.stack);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logger.error(`批量回写飞书失败: ${errorMessage}`);
       throw new HttpException(
         {
           success: false,
-          error: error.message,
+          error: errorMessage,
         },
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
@@ -901,12 +737,13 @@ export class AgentTestController {
         success: true,
         data: status,
       };
-    } catch (error: any) {
-      this.logger.error(`获取队列状态失败: ${error.message}`, error.stack);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logger.error(`获取队列状态失败: ${errorMessage}`);
       throw new HttpException(
         {
           success: false,
-          error: error.message,
+          error: errorMessage,
         },
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
@@ -934,12 +771,13 @@ export class AgentTestController {
           message: `已清理 ${removedCount} 个失败任务`,
         },
       };
-    } catch (error: any) {
-      this.logger.error(`清理失败任务失败: ${error.message}`, error.stack);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logger.error(`清理失败任务失败: ${errorMessage}`);
       throw new HttpException(
         {
           success: false,
-          error: error.message,
+          error: errorMessage,
         },
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
@@ -983,12 +821,13 @@ export class AgentTestController {
       } else {
         throw new Error(result.error || '写入飞书表格失败');
       }
-    } catch (error: any) {
-      this.logger.error(`[Feedback] 提交失败: ${error.message}`, error.stack);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logger.error(`[Feedback] 提交失败: ${errorMessage}`);
       throw new HttpException(
         {
           success: false,
-          error: error.message,
+          error: errorMessage,
         },
         HttpStatus.INTERNAL_SERVER_ERROR,
       );

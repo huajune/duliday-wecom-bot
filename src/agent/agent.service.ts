@@ -148,6 +148,87 @@ export class AgentService {
   }
 
   /**
+   * 调用 /api/v1/chat 接口（流式输出）
+   * 支持完整的 API 契约参数，返回可读流
+   *
+   * @returns 包含流和请求元数据的对象
+   */
+  async chatStream(params: {
+    conversationId: string;
+    userMessage: string;
+    messages?: SimpleMessage[];
+    model?: string;
+    systemPrompt?: string;
+    promptType?: string;
+    allowedTools?: string[];
+    context?: any;
+    toolContext?: any;
+    contextStrategy?: ContextStrategy;
+    prune?: boolean;
+    pruneOptions?: {
+      maxOutputTokens?: number;
+      targetTokens?: number;
+      preserveRecentMessages?: number;
+    };
+  }): Promise<{
+    stream: NodeJS.ReadableStream;
+    requestBody: ChatRequest;
+    estimatedInputTokens: number;
+  }> {
+    const { conversationId, messages = [] } = params;
+
+    // 1. 准备请求（验证 + 构建）
+    const preparedRequest = this.prepareRequest(params, conversationId, messages);
+    const { chatRequest } = preparedRequest;
+
+    // 2. 计算预估输入 Token
+    const estimatedInputTokens = this.estimateInputTokens(chatRequest);
+
+    this.logger.log(
+      `[Stream] 发起流式请求，会话: ${conversationId}, 预估 Token: ${estimatedInputTokens}`,
+    );
+
+    // 3. 调用流式 API
+    const stream = await this.apiClient.chatStream(chatRequest, conversationId);
+
+    return {
+      stream,
+      requestBody: chatRequest,
+      estimatedInputTokens,
+    };
+  }
+
+  /**
+   * 使用配置档案调用流式 chat 接口
+   * @param conversationId 会话ID
+   * @param userMessage 用户消息
+   * @param profile Agent配置档案
+   * @param overrides 覆盖配置档案的参数
+   * @returns 包含流和请求元数据的对象
+   */
+  async chatStreamWithProfile(
+    conversationId: string,
+    userMessage: string,
+    profile: AgentProfile,
+    overrides?: Partial<AgentProfile> & { messages?: SimpleMessage[] },
+  ): Promise<{
+    stream: NodeJS.ReadableStream;
+    requestBody: ChatRequest;
+    estimatedInputTokens: number;
+  }> {
+    // 1. 清洗和合并配置
+    const sanitized = ProfileSanitizer.merge(profile, overrides);
+
+    // 2. 调用 chatStream 方法
+    return this.chatStream({
+      conversationId,
+      userMessage,
+      messages: overrides?.messages,
+      ...sanitized,
+    });
+  }
+
+  /**
    * 获取可用模型列表
    */
   async getModels() {
@@ -472,5 +553,39 @@ export class AgentService {
         skipped: [],
       },
     };
+  }
+
+  /**
+   * 估算输入 Token 数
+   * 简单估算：平均每字符约 0.5 token（中英文混合场景）
+   */
+  private estimateInputTokens(request: ChatRequest): number {
+    let totalChars = 0;
+
+    // 消息内容
+    for (const msg of request.messages) {
+      if ('content' in msg) {
+        totalChars += msg.content.length;
+      } else if ('parts' in msg) {
+        totalChars += msg.parts.reduce((sum, p) => sum + (p.text?.length || 0), 0);
+      }
+    }
+
+    // 系统提示词
+    if (request.systemPrompt) {
+      totalChars += request.systemPrompt.length;
+    }
+
+    // 上下文（JSON 序列化后估算）
+    if (request.context) {
+      try {
+        totalChars += JSON.stringify(request.context).length;
+      } catch {
+        // 忽略序列化错误
+      }
+    }
+
+    // 简单估算：平均每字符 0.5 token
+    return Math.ceil(totalChars * 0.5);
   }
 }

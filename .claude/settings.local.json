@@ -338,7 +338,11 @@
       "Bash(TOKEN=\"t-g10416aIFI3ZY6BRUJBDI2GYMFJH75K7R6DTSDMD\")",
       "Bash(__NEW_LINE__ echo \"=== BadCase 表格字段 ===\")",
       "Bash(ENABLE_BULL_QUEUE=true timeout 20 pnpm run start:dev:*)",
-      "Bash(API_KEY=\"$SUPABASE_SERVICE_ROLE_KEY\" curl -s \"https://uvmbxcilpteaiizplcyp.supabase.co/rest/v1/test_executions?select=id,case_name,agent_response,tool_calls&execution_status=eq.success&limit=3\" -H \"apikey: $API_KEY\" -H \"Authorization: Bearer $API_KEY\")"
+      "Bash(API_KEY=\"$SUPABASE_SERVICE_ROLE_KEY\" curl -s \"https://uvmbxcilpteaiizplcyp.supabase.co/rest/v1/test_executions?select=id,case_name,agent_response,tool_calls&execution_status=eq.success&limit=3\" -H \"apikey: $API_KEY\" -H \"Authorization: Bearer $API_KEY\")",
+      "Bash(API_KEY=\"$SUPABASE_SERVICE_ROLE_KEY\" curl -s \"https://uvmbxcilpteaiizplcyp.supabase.co/rest/v1/rpc/get_chat_session_list\" -X POST -H \"apikey: $API_KEY\" -H \"Authorization: Bearer $API_KEY\" -H \"Content-Type: application/json\" -d '{\"\"p_start_date\"\": \"\"2025-01-01T00:00:00Z\"\", \"\"p_end_date\"\": \"\"2025-01-07T23:59:59Z\"\"}')",
+      "Bash(API_KEY=\"$SUPABASE_SERVICE_ROLE_KEY\" curl -s \"https://uvmbxcilpteaiizplcyp.supabase.co/rest/v1/chat_messages?select=chat_id,timestamp,candidate_name&timestamp=gte.2025-01-01T00:00:00Z&timestamp=lte.2025-01-07T23:59:59Z&order=timestamp.desc&limit=20\" -H \"apikey: $API_KEY\" -H \"Authorization: Bearer $API_KEY\")",
+      "Bash(KEY=\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV2bWJ4Y2lscHRlYWlpenBsY3lwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2MjkwODI2MiwiZXhwIjoyMDc4NDg0MjYyfQ.IU2po4_YttuvOyHwJSR8yU9739tjV5T6zmMyjPcGaTc\")",
+      "Bash(npx ts-node:*)"
     ],
     "deny": [
       "Bash(git restore:*)",

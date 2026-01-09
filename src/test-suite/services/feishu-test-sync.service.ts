@@ -5,7 +5,7 @@ import {
   BitableRecord,
 } from '@core/feishu/services/feishu-bitable-api.service';
 import { testSuiteFieldNames } from '@core/feishu/constants/feishu-bitable.config';
-import { FeishuTestStatus } from '../enums';
+import { FeishuTestStatus, MessageRole } from '../enums';
 
 /**
  * 解析后的测试用例
@@ -15,7 +15,7 @@ export interface ParsedTestCase {
   caseName: string;
   category?: string;
   message: string;
-  history?: Array<{ role: 'user' | 'assistant'; content: string }>;
+  history?: Array<{ role: MessageRole; content: string }>;
   expectedOutput?: string;
 }
 
@@ -146,8 +146,9 @@ export class FeishuTestSyncService {
           history: historyText ? this.parseHistory(historyText) : undefined,
           expectedOutput: expectedOutput || undefined,
         });
-      } catch (error: any) {
-        this.logger.warn(`解析记录 ${record.record_id} 失败: ${error.message}`);
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        this.logger.warn(`解析记录 ${record.record_id} 失败: ${errorMessage}`);
       }
     }
 
@@ -180,7 +181,7 @@ export class FeishuTestSyncService {
   /**
    * 标准化字段值（处理飞书的复杂字段类型）
    */
-  private normalizeFieldValue(value: any): string | undefined {
+  private normalizeFieldValue(value: unknown): string | undefined {
     if (!value) return undefined;
 
     // 文本字段
@@ -191,9 +192,11 @@ export class FeishuTestSyncService {
     // 数组（多行文本或多值字段）
     if (Array.isArray(value)) {
       return value
-        .map((item) => {
+        .map((item: unknown) => {
           if (typeof item === 'string') return item;
-          if (item.text) return item.text;
+          if (item && typeof item === 'object' && 'text' in item) {
+            return (item as { text: string }).text;
+          }
           return String(item);
         })
         .join('\n')
@@ -201,9 +204,9 @@ export class FeishuTestSyncService {
     }
 
     // 对象（富文本等）
-    if (typeof value === 'object') {
-      if (value.text) return value.text.trim();
-      if (value.value) return String(value.value);
+    if (typeof value === 'object' && value !== null) {
+      if ('text' in value) return String((value as { text: string }).text).trim();
+      if ('value' in value) return String((value as { value: unknown }).value);
     }
 
     return String(value).trim();
@@ -212,7 +215,7 @@ export class FeishuTestSyncService {
   /**
    * 解析对话历史文本
    */
-  parseHistory(historyText: string): Array<{ role: 'user' | 'assistant'; content: string }> {
+  parseHistory(historyText: string): Array<{ role: MessageRole; content: string }> {
     if (!historyText?.trim()) return [];
 
     const lines = historyText.split('\n').filter((line) => line.trim());
@@ -228,21 +231,24 @@ export class FeishuTestSyncService {
           userName === '经理' ||
           userName === 'AI' ||
           userName === 'assistant';
-        return { role: isAssistant ? 'assistant' : 'user', content };
+        return { role: isAssistant ? MessageRole.ASSISTANT : MessageRole.USER, content };
       }
 
       // 格式2: user:/候选人: 开头
       if (line.startsWith('user:') || line.startsWith('候选人:')) {
-        return { role: 'user', content: line.replace(/^(user|候选人):\s*/i, '') };
+        return { role: MessageRole.USER, content: line.replace(/^(user|候选人):\s*/i, '') };
       }
 
       // 格式3: AI:/assistant:/招募经理: 开头
       if (line.startsWith('AI:') || line.startsWith('assistant:') || line.startsWith('招募经理:')) {
-        return { role: 'assistant', content: line.replace(/^(AI|assistant|招募经理):\s*/i, '') };
+        return {
+          role: MessageRole.ASSISTANT,
+          content: line.replace(/^(AI|assistant|招募经理):\s*/i, ''),
+        };
       }
 
       // 默认当作用户消息
-      return { role: 'user', content: line };
+      return { role: MessageRole.USER, content: line };
     });
   }
 
@@ -292,9 +298,10 @@ export class FeishuTestSyncService {
 
       this.logger.log(`回写飞书成功: ${recordId} -> ${testStatus}`);
       return { success: true };
-    } catch (error: any) {
-      this.logger.error(`回写飞书异常: ${error.message}`, error.stack);
-      return { success: false, error: error.message };
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logger.error(`回写飞书异常: ${errorMessage}`);
+      return { success: false, error: errorMessage };
     }
   }
 

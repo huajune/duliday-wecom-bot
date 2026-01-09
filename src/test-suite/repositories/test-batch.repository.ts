@@ -1,7 +1,6 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { HttpClientFactory } from '@core/client-http';
-import { AxiosInstance } from 'axios';
+import { Injectable } from '@nestjs/common';
+import { BaseRepository } from '@core/supabase/repositories/base.repository';
+import { SupabaseService } from '@core/supabase';
 import { BatchStatus, BatchSource } from '../enums';
 
 /**
@@ -59,12 +58,11 @@ export interface BatchStatsData {
  * - 管理批次状态转换（状态机）
  * - 更新批次统计信息
  *
- * 从 AgentTestService 中抽取，遵循单一职责原则
+ * 继承 BaseRepository，复用通用 CRUD 方法
  */
 @Injectable()
-export class TestBatchRepository {
-  private readonly logger = new Logger(TestBatchRepository.name);
-  private readonly supabaseClient: AxiosInstance;
+export class TestBatchRepository extends BaseRepository {
+  protected readonly tableName = 'test_batches';
 
   /**
    * 批次状态有效转换规则
@@ -83,24 +81,8 @@ export class TestBatchRepository {
     [BatchStatus.CANCELLED]: [], // 终态
   };
 
-  constructor(
-    private readonly configService: ConfigService,
-    private readonly httpClientFactory: HttpClientFactory,
-  ) {
-    const supabaseUrl = this.configService.get<string>('NEXT_PUBLIC_SUPABASE_URL')!;
-    const supabaseKey = this.configService.get<string>('SUPABASE_SERVICE_ROLE_KEY')!;
-
-    this.supabaseClient = this.httpClientFactory.create({
-      baseURL: `${supabaseUrl}/rest/v1`,
-      timeout: 30000,
-      headers: {
-        apikey: supabaseKey,
-        Authorization: `Bearer ${supabaseKey}`,
-        'Content-Type': 'application/json',
-        Prefer: 'return=representation',
-      },
-    });
-
+  constructor(supabaseService: SupabaseService) {
+    super(supabaseService);
     this.logger.log('TestBatchRepository 初始化完成');
   }
 
@@ -110,7 +92,7 @@ export class TestBatchRepository {
    * 创建测试批次
    */
   async create(data: CreateBatchData): Promise<TestBatch> {
-    const response = await this.supabaseClient.post<TestBatch[]>('/test_batches', {
+    const batch = await this.insert<TestBatch>({
       name: data.name,
       source: data.source || BatchSource.MANUAL,
       feishu_app_token: data.feishuAppToken || null,
@@ -118,7 +100,6 @@ export class TestBatchRepository {
       status: BatchStatus.CREATED,
     });
 
-    const batch = response.data[0];
     this.logger.log(`创建测试批次: ${batch.id} - ${batch.name}`);
     return batch;
   }
@@ -127,7 +108,7 @@ export class TestBatchRepository {
    * 获取批次列表（带总数）
    */
   async findMany(limit = 20, offset = 0): Promise<{ data: TestBatch[]; total: number }> {
-    const response = await this.supabaseClient.get<TestBatch[]>('/test_batches', {
+    const response = await this.getClient().get<TestBatch[]>(`/${this.tableName}`, {
       params: {
         order: 'created_at.desc',
         limit,
@@ -155,12 +136,7 @@ export class TestBatchRepository {
    * 获取批次详情
    */
   async findById(batchId: string): Promise<TestBatch | null> {
-    const response = await this.supabaseClient.get<TestBatch[]>('/test_batches', {
-      params: {
-        id: `eq.${batchId}`,
-      },
-    });
-    return response.data[0] || null;
+    return this.selectOne<TestBatch>({ id: `eq.${batchId}` });
   }
 
   // ==================== 状态管理 ====================
@@ -200,7 +176,7 @@ export class TestBatchRepository {
       updateData.completed_at = new Date().toISOString();
     }
 
-    await this.supabaseClient.patch(`/test_batches?id=eq.${batchId}`, updateData);
+    await this.update({ id: `eq.${batchId}` }, updateData);
     this.logger.log(`[Batch] 状态更新: ${batchId} ${currentStatus} → ${newStatus}`);
   }
 
@@ -210,15 +186,18 @@ export class TestBatchRepository {
    * 更新批次统计信息
    */
   async updateStats(batchId: string, stats: BatchStatsData): Promise<void> {
-    await this.supabaseClient.patch(`/test_batches?id=eq.${batchId}`, {
-      total_cases: stats.totalCases,
-      executed_count: stats.executedCount,
-      passed_count: stats.passedCount,
-      failed_count: stats.failedCount,
-      pending_review_count: stats.pendingReviewCount,
-      pass_rate: stats.passRate,
-      avg_duration_ms: stats.avgDurationMs,
-      avg_token_usage: stats.avgTokenUsage,
-    });
+    await this.update(
+      { id: `eq.${batchId}` },
+      {
+        total_cases: stats.totalCases,
+        executed_count: stats.executedCount,
+        passed_count: stats.passedCount,
+        failed_count: stats.failedCount,
+        pending_review_count: stats.pendingReviewCount,
+        pass_rate: stats.passRate,
+        avg_duration_ms: stats.avgDurationMs,
+        avg_token_usage: stats.avgTokenUsage,
+      },
+    );
   }
 }

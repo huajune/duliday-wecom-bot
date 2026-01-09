@@ -2,7 +2,7 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AxiosInstance } from 'axios';
 import { HttpClientFactory } from '@core/client-http';
-import { SupabaseService } from '@core/supabase/supabase.service';
+import { MessageProcessingRepository, UserHostingRepository } from '@core/supabase/repositories';
 import {
   MessageProcessingRecord,
   HourlyStats,
@@ -39,7 +39,8 @@ export class MonitoringDatabaseService implements OnModuleInit {
   private readonly CACHE_TTL_MS = 60 * 1000; // 1 分钟缓存
 
   constructor(
-    private readonly supabaseService: SupabaseService,
+    private readonly messageProcessingRepository: MessageProcessingRepository,
+    private readonly userHostingRepository: UserHostingRepository,
     private readonly configService: ConfigService,
     private readonly httpClientFactory: HttpClientFactory,
   ) {}
@@ -99,7 +100,7 @@ export class MonitoringDatabaseService implements OnModuleInit {
    */
   async saveDetailRecord(record: MessageProcessingRecord): Promise<void> {
     try {
-      await this.supabaseService.saveMessageProcessingRecord({
+      await this.messageProcessingRepository.saveMessageProcessingRecord({
         messageId: record.messageId,
         chatId: record.chatId,
         userId: record.userId,
@@ -162,12 +163,12 @@ export class MonitoringDatabaseService implements OnModuleInit {
         month: 10000, // 本月最多 10000 条
       };
 
-      const records = await this.supabaseService.getMessageProcessingRecords({
-        startDate: cutoffTime,
+      const result = await this.messageProcessingRepository.getMessageProcessingRecords({
+        startTime: cutoffTime.getTime(),
         limit: limitByRange[range] || 2000,
       });
 
-      return records as MessageProcessingRecord[];
+      return result.records as unknown as MessageProcessingRecord[];
     } catch (error) {
       this.logger.error(`查询消息记录异常 [${range}]:`, error);
       return [];
@@ -179,8 +180,8 @@ export class MonitoringDatabaseService implements OnModuleInit {
    */
   async getRecentDetailRecords(limit: number = 50): Promise<MessageProcessingRecord[]> {
     try {
-      const records = await this.supabaseService.getMessageProcessingRecords({ limit });
-      return records as MessageProcessingRecord[];
+      const result = await this.messageProcessingRepository.getMessageProcessingRecords({ limit });
+      return result.records as unknown as MessageProcessingRecord[];
     } catch (error) {
       this.logger.error('查询最近消息记录异常:', error);
       return [];
@@ -650,11 +651,11 @@ export class MonitoringDatabaseService implements OnModuleInit {
   // ========================================
 
   /**
-   * 保存消息处理记录（委托给 SupabaseService）
+   * 保存消息处理记录（委托给 MessageProcessingRepository）
    */
   async saveMessageProcessingRecord(record: any): Promise<void> {
-    // 委托给 SupabaseService
-    await this.supabaseService.saveMessageProcessingRecord(record);
+    // 委托给 MessageProcessingRepository
+    await this.messageProcessingRepository.saveMessageProcessingRecord(record);
   }
 
   /**
@@ -805,10 +806,10 @@ export class MonitoringDatabaseService implements OnModuleInit {
   }
 
   /**
-   * 获取用户托管状态（委托给 SupabaseService）
+   * 获取用户托管状态（委托给 UserHostingRepository）
    */
   async getUserHostingStatus(chatId: string): Promise<{ isPaused: boolean }> {
-    const status = await this.supabaseService.getUserHostingStatus(chatId);
+    const status = await this.userHostingRepository.getUserHostingStatus(chatId);
     return { isPaused: status.isPaused };
   }
 
@@ -826,15 +827,14 @@ export class MonitoringDatabaseService implements OnModuleInit {
     activeAt: number;
   }): Promise<void> {
     try {
-      await this.supabaseService.upsertUserActivity({
+      await this.userHostingRepository.upsertUserActivity({
         chatId: data.chatId,
         odId: data.userId,
         odName: data.userName,
         groupId: data.groupId,
         groupName: data.groupName,
         messageCount: data.messageCount,
-        tokenUsage: data.tokenUsage,
-        activeAt: data.activeAt,
+        totalTokens: data.tokenUsage,
       });
       this.logger.debug(`[user_activity] 已更新用户活跃记录: ${data.chatId}`);
     } catch (error) {

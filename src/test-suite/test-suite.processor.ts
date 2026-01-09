@@ -1,7 +1,7 @@
 import { Injectable, Logger, OnModuleInit, Inject, forwardRef } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bull';
 import { Queue, Job } from 'bull';
-import { AgentTestService } from './agent-test.service';
+import { TestSuiteService } from './test-suite.service';
 import { TestBatch } from './repositories';
 import { RedisService } from '@core/redis/redis.service';
 import { ExecutionStatus, MessageRole, BatchStatus } from './enums';
@@ -48,7 +48,37 @@ export interface BatchProgress {
 }
 
 /**
- * Agent 测试任务队列处理器
+ * Token 使用统计
+ */
+export interface TokenUsage {
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+}
+
+/**
+ * 工具调用信息
+ */
+export interface ToolCallInfo {
+  toolCallId?: string;
+  toolName: string;
+  input?: unknown;
+  output?: unknown;
+}
+
+/**
+ * 执行记录更新数据
+ */
+export interface ExecutionRecordUpdate {
+  request: { body: unknown };
+  response: { body: unknown; toolCalls?: unknown[] };
+  actualOutput: string;
+  status: ExecutionStatus;
+  metrics: { durationMs: number; tokenUsage: TokenUsage };
+}
+
+/**
+ * 测试套件任务队列处理器
  *
  * 职责：
  * - 处理 Bull Queue 中的测试任务
@@ -56,33 +86,33 @@ export interface BatchProgress {
  * - 提供任务进度查询
  * - 批次完成自动更新状态
  *
- * 队列名: 'agent-test'
+ * 队列名: 'test-suite'
  * Job 类型: 'execute-test' - 执行单个测试用例
  *
  * 架构说明：
- * - 使用 forwardRef() 处理与 AgentTestService 的循环依赖
+ * - 使用 forwardRef() 处理与 TestSuiteService 的循环依赖
  * - 这是 NestJS 官方推荐的做法（见 https://docs.nestjs.com/fundamentals/circular-dependency）
  * - Processor 需要调用 Service 执行测试和更新记录
  * - Service 需要调用 Processor 添加任务到队列
  * - 替代方案（EventEmitter）会增加复杂度，目前不需要
  */
 @Injectable()
-export class AgentTestProcessor implements OnModuleInit {
-  private readonly logger = new Logger(AgentTestProcessor.name);
+export class TestSuiteProcessor implements OnModuleInit {
+  private readonly logger = new Logger(TestSuiteProcessor.name);
 
   // Worker 配置
   private readonly CONCURRENCY = 3; // 并发执行数（Agent 调用耗时长，不宜太高）
   private readonly JOB_TIMEOUT_MS = 120_000; // 单个任务超时时间 2 分钟
 
   // Redis 缓存配置
-  private readonly PROGRESS_CACHE_PREFIX = 'agent-test:progress:';
+  private readonly PROGRESS_CACHE_PREFIX = 'test-suite:progress:';
   private readonly PROGRESS_CACHE_TTL = 3600; // 1 小时过期
 
   constructor(
-    @InjectQueue('agent-test') private readonly testQueue: Queue<TestJobData>,
+    @InjectQueue('test-suite') private readonly testQueue: Queue<TestJobData>,
     // forwardRef 用于解决循环依赖：Processor ↔ Service
-    @Inject(forwardRef(() => AgentTestService))
-    private readonly agentTestService: AgentTestService,
+    @Inject(forwardRef(() => TestSuiteService))
+    private readonly testSuiteService: TestSuiteService,
     private readonly redisService: RedisService,
   ) {}
 
@@ -92,7 +122,7 @@ export class AgentTestProcessor implements OnModuleInit {
     this.setupQueueEventListeners();
 
     this.logger.log(
-      `AgentTestProcessor 已初始化（并发数: ${this.CONCURRENCY}, 超时: ${this.JOB_TIMEOUT_MS}ms）`,
+      `TestSuiteProcessor 已初始化（并发数: ${this.CONCURRENCY}, 超时: ${this.JOB_TIMEOUT_MS}ms）`,
     );
   }
 
@@ -102,24 +132,24 @@ export class AgentTestProcessor implements OnModuleInit {
   private async waitForQueueReady(): Promise<void> {
     return new Promise((resolve, reject) => {
       if (this.testQueue.client?.status === 'ready') {
-        this.logger.log('[AgentTest Queue] 已就绪');
+        this.logger.log('[TestSuite Queue] 已就绪');
         resolve();
         return;
       }
 
       const timeout = setTimeout(() => {
-        reject(new Error('等待 Agent Test Queue 就绪超时'));
+        reject(new Error('等待 TestSuite Queue 就绪超时'));
       }, 30000);
 
       this.testQueue.on('ready', () => {
         clearTimeout(timeout);
-        this.logger.log('[AgentTest Queue] 已就绪');
+        this.logger.log('[TestSuite Queue] 已就绪');
         resolve();
       });
 
       this.testQueue.on('error', (error) => {
         clearTimeout(timeout);
-        this.logger.error('[AgentTest Queue] 连接错误:', error);
+        this.logger.error('[TestSuite Queue] 连接错误:', error);
         reject(error);
       });
     });
@@ -129,13 +159,13 @@ export class AgentTestProcessor implements OnModuleInit {
    * 注册 Worker
    */
   private registerWorkers(): void {
-    this.logger.log(`[AgentTest] 注册 Worker，并发数: ${this.CONCURRENCY}...`);
+    this.logger.log(`[TestSuite] 注册 Worker，并发数: ${this.CONCURRENCY}...`);
 
     this.testQueue.process('execute-test', this.CONCURRENCY, async (job: Job<TestJobData>) => {
       return this.handleTestJob(job);
     });
 
-    this.logger.log('[AgentTest] ✅ Worker 已注册');
+    this.logger.log('[TestSuite] ✅ Worker 已注册');
   }
 
   /**
@@ -151,11 +181,11 @@ export class AgentTestProcessor implements OnModuleInit {
     });
 
     this.testQueue.on('active', (job: Job<TestJobData>) => {
-      this.logger.log(`[AgentTest] 🔄 任务 ${job.id} 开始: ${job.data.caseName}`);
+      this.logger.log(`[TestSuite] 🔄 任务 ${job.id} 开始: ${job.data.caseName}`);
     });
 
     this.testQueue.on('stalled', (job: Job<TestJobData>) => {
-      this.logger.warn(`[AgentTest] ⚠️ 任务 ${job.id} 卡住: ${job.data.caseName}`);
+      this.logger.warn(`[TestSuite] ⚠️ 任务 ${job.id} 卡住: ${job.data.caseName}`);
     });
   }
 
@@ -167,7 +197,7 @@ export class AgentTestProcessor implements OnModuleInit {
     const startTime = Date.now();
 
     this.logger.log(
-      `[AgentTest] 执行测试: ${caseName} (${job.data.caseIndex + 1}/${job.data.totalCases})`,
+      `[TestSuite] 执行测试: ${caseName} (${job.data.caseIndex + 1}/${job.data.totalCases})`,
     );
 
     try {
@@ -175,7 +205,7 @@ export class AgentTestProcessor implements OnModuleInit {
       await job.progress(10);
 
       // 执行测试
-      const result = await this.agentTestService.executeTest({
+      const result = await this.testSuiteService.executeTest({
         message,
         history,
         caseId,
@@ -202,20 +232,21 @@ export class AgentTestProcessor implements OnModuleInit {
         status: result.status,
         durationMs,
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       const durationMs = Date.now() - startTime;
-      const isTimeout = error.message?.includes('timeout') || durationMs >= this.JOB_TIMEOUT_MS;
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const isTimeout = errorMessage?.includes('timeout') || durationMs >= this.JOB_TIMEOUT_MS;
 
-      this.logger.error(`[AgentTest] 测试执行失败: ${caseName}`, error.stack);
+      this.logger.error(`[TestSuite] 测试执行失败: ${caseName} - ${errorMessage}`);
 
       // 更新执行记录为失败状态
-      await this.updateExecutionRecordFailed(batchId, caseId, error.message);
+      await this.updateExecutionRecordFailed(batchId, caseId, errorMessage);
 
       return {
         executionId: caseId,
         status: isTimeout ? ExecutionStatus.TIMEOUT : ExecutionStatus.FAILURE,
         durationMs,
-        error: error.message,
+        error: errorMessage,
       };
     }
   }
@@ -226,7 +257,7 @@ export class AgentTestProcessor implements OnModuleInit {
   private async onJobCompleted(job: Job<TestJobData>, result: TestJobResult): Promise<void> {
     const { batchId, totalCases, caseName } = job.data;
 
-    this.logger.log(`[AgentTest] ✅ 任务完成: ${caseName} (${result.durationMs}ms)`);
+    this.logger.log(`[TestSuite] ✅ 任务完成: ${caseName} (${result.durationMs}ms)`);
 
     // 更新进度缓存
     this.updateProgressCache(batchId, result);
@@ -250,14 +281,14 @@ export class AgentTestProcessor implements OnModuleInit {
     if (!isFinalAttempt) {
       // 还有重试机会，不更新统计，只记录日志
       this.logger.warn(
-        `[AgentTest] ⚠️ 任务失败将重试: ${caseName} (${attemptsMade}/${maxAttempts}) - ${error.message}`,
+        `[TestSuite] ⚠️ 任务失败将重试: ${caseName} (${attemptsMade}/${maxAttempts}) - ${error.message}`,
       );
       return;
     }
 
     // 最终失败，更新统计
     this.logger.error(
-      `[AgentTest] ❌ 任务最终失败: ${caseName} (已重试 ${attemptsMade} 次) - ${error.message}`,
+      `[TestSuite] ❌ 任务最终失败: ${caseName} (已重试 ${attemptsMade} 次) - ${error.message}`,
     );
 
     // 更新进度缓存
@@ -281,16 +312,10 @@ export class AgentTestProcessor implements OnModuleInit {
   private async updateExecutionRecord(
     batchId: string,
     caseId: string,
-    result: {
-      request: { body: any };
-      response: { body: any; toolCalls?: any[] };
-      actualOutput: string;
-      status: ExecutionStatus;
-      metrics: { durationMs: number; tokenUsage: any };
-    },
+    result: ExecutionRecordUpdate,
   ): Promise<void> {
     try {
-      await this.agentTestService.updateExecutionByBatchAndCase(batchId, caseId, {
+      await this.testSuiteService.updateExecutionByBatchAndCase(batchId, caseId, {
         agentRequest: result.request.body,
         agentResponse: result.response.body,
         actualOutput: result.actualOutput,
@@ -299,9 +324,10 @@ export class AgentTestProcessor implements OnModuleInit {
         durationMs: result.metrics.durationMs,
         tokenUsage: result.metrics.tokenUsage,
       });
-      this.logger.debug(`[AgentTest] 更新执行记录成功: ${caseId}`);
-    } catch (error: any) {
-      this.logger.error(`[AgentTest] 更新执行记录失败: ${error.message}`);
+      this.logger.debug(`[TestSuite] 更新执行记录成功: ${caseId}`);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logger.error(`[TestSuite] 更新执行记录失败: ${errorMessage}`);
     }
   }
 
@@ -311,17 +337,18 @@ export class AgentTestProcessor implements OnModuleInit {
   private async updateExecutionRecordFailed(
     batchId: string,
     caseId: string,
-    errorMessage: string,
+    errorMsg: string,
   ): Promise<void> {
     try {
-      await this.agentTestService.updateExecutionByBatchAndCase(batchId, caseId, {
+      await this.testSuiteService.updateExecutionByBatchAndCase(batchId, caseId, {
         executionStatus: ExecutionStatus.FAILURE,
         durationMs: 0,
-        errorMessage,
+        errorMessage: errorMsg,
       });
-      this.logger.debug(`[AgentTest] 标记执行记录为失败: ${caseId}`);
-    } catch (error: any) {
-      this.logger.error(`[AgentTest] 更新执行记录失败状态失败: ${error.message}`);
+      this.logger.debug(`[TestSuite] 标记执行记录为失败: ${caseId}`);
+    } catch (error: unknown) {
+      const errMsg = error instanceof Error ? error.message : String(error);
+      this.logger.error(`[TestSuite] 更新执行记录失败状态失败: ${errMsg}`);
     }
   }
 
@@ -402,27 +429,29 @@ export class AgentTestProcessor implements OnModuleInit {
     // 直接查询数据库获取准确的执行记录统计
     let dbStats: { total: number; success: number; failure: number; timeout: number };
     try {
-      dbStats = await this.agentTestService.countCompletedExecutions(batchId);
-    } catch (error: any) {
-      this.logger.error(`[AgentTest] 查询执行记录失败: ${error.message}`);
+      dbStats = await this.testSuiteService.countCompletedExecutions(batchId);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logger.error(`[TestSuite] 查询执行记录失败: ${errorMessage}`);
       return;
     }
 
-    this.logger.debug(`[AgentTest] 批次 ${batchId} 进度: ${dbStats.total}/${totalCases} 完成`);
+    this.logger.debug(`[TestSuite] 批次 ${batchId} 进度: ${dbStats.total}/${totalCases} 完成`);
 
     // 检查是否全部完成
     if (dbStats.total >= totalCases) {
       this.logger.log(
-        `[AgentTest] 📊 批次 ${batchId} 全部完成: ${dbStats.success}/${totalCases} 成功`,
+        `[TestSuite] 📊 批次 ${batchId} 全部完成: ${dbStats.success}/${totalCases} 成功`,
       );
 
       // 更新批次统计和状态
       try {
-        await this.agentTestService.updateBatchStatsPublic(batchId);
-        await this.agentTestService.updateBatchStatusPublic(batchId, BatchStatus.REVIEWING);
-        this.logger.log(`[AgentTest] 批次 ${batchId} 状态已更新为 reviewing`);
-      } catch (error: any) {
-        this.logger.error(`[AgentTest] 更新批次状态失败: ${error.message}`);
+        await this.testSuiteService.updateBatchStatsPublic(batchId);
+        await this.testSuiteService.updateBatchStatusPublic(batchId, BatchStatus.REVIEWING);
+        this.logger.log(`[TestSuite] 批次 ${batchId} 状态已更新为 reviewing`);
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        this.logger.error(`[TestSuite] 更新批次状态失败: ${errorMessage}`);
       }
 
       // 清理 Redis 缓存
@@ -463,7 +492,7 @@ export class AgentTestProcessor implements OnModuleInit {
       caseName: string;
       category?: string;
       message: string;
-      history?: any[];
+      history?: Array<{ role: MessageRole; content: string }>;
       expectedOutput?: string;
     }>,
   ): Promise<Job<TestJobData>[]> {
@@ -495,7 +524,7 @@ export class AgentTestProcessor implements OnModuleInit {
       jobs.push(job);
     }
 
-    this.logger.log(`[AgentTest] 已添加 ${jobs.length} 个测试任务到队列`);
+    this.logger.log(`[TestSuite] 已添加 ${jobs.length} 个测试任务到队列`);
     return jobs;
   }
 
@@ -507,7 +536,7 @@ export class AgentTestProcessor implements OnModuleInit {
     const cache = await this.getProgressCache(batchId);
 
     // 2. 获取批次基本信息
-    const batch = await this.agentTestService.getBatch(batchId);
+    const batch = await this.testSuiteService.getBatch(batchId);
     if (!batch) {
       throw new Error(`批次 ${batchId} 不存在`);
     }
@@ -613,7 +642,7 @@ export class AgentTestProcessor implements OnModuleInit {
     await this.deleteProgressCache(batchId);
 
     this.logger.log(
-      `[AgentTest] 批次 ${batchId} 取消完成: 等待=${waitingCancelled}, 延迟=${delayedCancelled}, 执行中=${activeCancelled}`,
+      `[TestSuite] 批次 ${batchId} 取消完成: 等待=${waitingCancelled}, 延迟=${delayedCancelled}, 执行中=${activeCancelled}`,
     );
 
     return {

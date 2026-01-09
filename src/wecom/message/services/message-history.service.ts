@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { SupabaseService } from '@core/supabase';
+import { ChatMessageRepository } from '@core/supabase/repositories';
 import { MessageParser } from '../utils/message-parser.util';
 import { EnhancedMessageHistoryItem } from '../types';
 import { SimpleMessage } from '@agent';
@@ -20,7 +20,7 @@ export class MessageHistoryService {
 
   constructor(
     private readonly configService: ConfigService,
-    private readonly supabaseService: SupabaseService,
+    private readonly chatMessageRepository: ChatMessageRepository,
   ) {
     // 从环境变量读取历史消息配置
     this.maxHistoryForContext = parseInt(
@@ -39,7 +39,7 @@ export class MessageHistoryService {
    */
   async getHistory(chatId: string): Promise<SimpleMessage[]> {
     try {
-      const rawHistory = await this.supabaseService.getChatHistory(
+      const rawHistory = await this.chatMessageRepository.getChatHistory(
         chatId,
         this.maxHistoryForContext,
       );
@@ -61,7 +61,7 @@ export class MessageHistoryService {
    */
   async getHistoryForContext(chatId: string, excludeMessageId?: string): Promise<SimpleMessage[]> {
     try {
-      const history = await this.supabaseService.getChatHistory(
+      const history = await this.chatMessageRepository.getChatHistory(
         chatId,
         this.maxHistoryForContext + 1, // 多取一条，以防排除后不够
       );
@@ -75,7 +75,7 @@ export class MessageHistoryService {
       }
 
       // 需要获取完整详情来过滤 messageId
-      const detail = await this.supabaseService.getChatHistoryDetail(chatId);
+      const detail = await this.chatMessageRepository.getChatHistoryDetail(chatId);
       const filtered = detail
         .filter((item) => item.messageId !== excludeMessageId)
         .slice(-this.maxHistoryForContext);
@@ -128,7 +128,7 @@ export class MessageHistoryService {
       const messageId =
         metadata?.messageId || `msg_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
-      await this.supabaseService.saveChatMessage({
+      await this.chatMessageRepository.saveChatMessage({
         chatId,
         messageId,
         role,
@@ -190,7 +190,7 @@ export class MessageHistoryService {
     messageCount: number;
   } | null> {
     try {
-      const messages = await this.supabaseService.getChatHistoryDetail(chatId);
+      const messages = await this.chatMessageRepository.getChatHistoryDetail(chatId);
 
       if (messages.length === 0) {
         return null;
@@ -223,7 +223,7 @@ export class MessageHistoryService {
    */
   async getAllChatIds(): Promise<string[]> {
     try {
-      return await this.supabaseService.getAllChatIds();
+      return await this.chatMessageRepository.getAllChatIds();
     } catch (error) {
       this.logger.error('获取所有会话ID失败:', error);
       return [];
@@ -250,7 +250,10 @@ export class MessageHistoryService {
         `查询时间范围内的聊天记录: ${new Date(startTime).toISOString()} ~ ${new Date(endTime).toISOString()}`,
       );
 
-      const records = await this.supabaseService.getChatMessagesByTimeRange(startTime, endTime);
+      const records = await this.chatMessageRepository.getChatMessagesByTimeRange(
+        startTime,
+        endTime,
+      );
 
       // 转换为 EnhancedMessageHistoryItem 格式
       const result = records.map(({ chatId, messages }) => ({
@@ -335,7 +338,7 @@ export class MessageHistoryService {
         externalUserId: m.externalUserId,
       }));
 
-      const savedCount = await this.supabaseService.saveChatMessagesBatch(messagesWithIds);
+      const savedCount = await this.chatMessageRepository.saveChatMessagesBatch(messagesWithIds);
       this.logger.debug(`批量添加 ${savedCount} 条消息到历史记录`);
       return savedCount;
     } catch (error) {

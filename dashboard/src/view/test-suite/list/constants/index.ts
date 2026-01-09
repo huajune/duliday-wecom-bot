@@ -2,18 +2,8 @@
  * Test Suite 常量定义
  */
 
-/**
- * 失败原因选项
- */
-export const FAILURE_REASONS = [
-  '工具调用错误',
-  '回复内容不准确',
-  '未理解用户意图',
-  '格式/表达问题',
-  '其他问题',
-] as const;
-
-export type FailureReason = (typeof FAILURE_REASONS)[number];
+// 失败原因：复用全局 Agent 错误类型定义
+export { AGENT_ERROR_TYPES as FAILURE_REASONS, type AgentErrorType as FailureReason } from '@/constants';
 
 /**
  * 批次状态配置

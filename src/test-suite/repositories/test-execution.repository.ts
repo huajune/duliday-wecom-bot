@@ -1,7 +1,6 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { HttpClientFactory } from '@core/client-http';
-import { AxiosInstance } from 'axios';
+import { Injectable } from '@nestjs/common';
+import { BaseRepository } from '@core/supabase/repositories/base.repository';
+import { SupabaseService } from '@core/supabase';
 import { ExecutionStatus, ReviewStatus, FailureReason } from '../enums';
 
 /**
@@ -92,31 +91,14 @@ export interface ExecutionFilters {
  * - 管理评审状态更新
  * - 查询执行记录
  *
- * 从 AgentTestService 中抽取，遵循单一职责原则
+ * 继承 BaseRepository，复用通用 CRUD 方法
  */
 @Injectable()
-export class TestExecutionRepository {
-  private readonly logger = new Logger(TestExecutionRepository.name);
-  private readonly supabaseClient: AxiosInstance;
+export class TestExecutionRepository extends BaseRepository {
+  protected readonly tableName = 'test_executions';
 
-  constructor(
-    private readonly configService: ConfigService,
-    private readonly httpClientFactory: HttpClientFactory,
-  ) {
-    const supabaseUrl = this.configService.get<string>('NEXT_PUBLIC_SUPABASE_URL')!;
-    const supabaseKey = this.configService.get<string>('SUPABASE_SERVICE_ROLE_KEY')!;
-
-    this.supabaseClient = this.httpClientFactory.create({
-      baseURL: `${supabaseUrl}/rest/v1`,
-      timeout: 30000,
-      headers: {
-        apikey: supabaseKey,
-        Authorization: `Bearer ${supabaseKey}`,
-        'Content-Type': 'application/json',
-        Prefer: 'return=representation',
-      },
-    });
-
+  constructor(supabaseService: SupabaseService) {
+    super(supabaseService);
     this.logger.log('TestExecutionRepository 初始化完成');
   }
 
@@ -126,7 +108,7 @@ export class TestExecutionRepository {
    * 创建执行记录
    */
   async create(data: CreateExecutionData): Promise<TestExecution> {
-    const response = await this.supabaseClient.post<TestExecution[]>('/test_executions', {
+    return this.insert<TestExecution>({
       batch_id: data.batchId || null,
       case_id: data.caseId || null,
       case_name: data.caseName || null,
@@ -142,41 +124,31 @@ export class TestExecutionRepository {
       token_usage: data.tokenUsage,
       error_message: data.errorMessage,
     });
-
-    return response.data[0];
   }
 
   /**
    * 获取执行记录详情
    */
   async findById(executionId: string): Promise<TestExecution | null> {
-    const response = await this.supabaseClient.get<TestExecution[]>('/test_executions', {
-      params: {
-        id: `eq.${executionId}`,
-      },
-    });
-    return response.data[0] || null;
+    return this.selectOne<TestExecution>({ id: `eq.${executionId}` });
   }
 
   /**
    * 获取执行记录列表
    */
   async findMany(limit = 50, offset = 0): Promise<TestExecution[]> {
-    const response = await this.supabaseClient.get<TestExecution[]>('/test_executions', {
-      params: {
-        order: 'created_at.desc',
-        limit,
-        offset,
-      },
+    return this.select<TestExecution>({
+      order: 'created_at.desc',
+      limit: String(limit),
+      offset: String(offset),
     });
-    return response.data;
   }
 
   /**
    * 获取批次的执行记录
    */
   async findByBatchId(batchId: string, filters?: ExecutionFilters): Promise<TestExecution[]> {
-    const params: any = {
+    const params: Record<string, string> = {
       batch_id: `eq.${batchId}`,
       order: 'created_at.asc',
     };
@@ -191,10 +163,7 @@ export class TestExecutionRepository {
       params.category = `eq.${filters.category}`;
     }
 
-    const response = await this.supabaseClient.get<TestExecution[]>('/test_executions', {
-      params,
-    });
-    return response.data;
+    return this.select<TestExecution>(params);
   }
 
   /**
@@ -207,15 +176,12 @@ export class TestExecutionRepository {
     timeout: number;
   }> {
     // 获取所有非 pending 状态的记录
-    const response = await this.supabaseClient.get<TestExecution[]>('/test_executions', {
-      params: {
-        batch_id: `eq.${batchId}`,
-        execution_status: 'neq.pending',
-        select: 'execution_status',
-      },
+    const records = await this.select<TestExecution>({
+      batch_id: `eq.${batchId}`,
+      execution_status: 'neq.pending',
+      select: 'execution_status',
     });
 
-    const records = response.data;
     return {
       total: records.length,
       success: records.filter((r) => r.execution_status === ExecutionStatus.SUCCESS).length,
@@ -234,8 +200,11 @@ export class TestExecutionRepository {
     caseId: string,
     data: UpdateExecutionResultData,
   ): Promise<void> {
-    await this.supabaseClient.patch(
-      `/test_executions?batch_id=eq.${batchId}&case_id=eq.${caseId}`,
+    await this.update(
+      {
+        batch_id: `eq.${batchId}`,
+        case_id: `eq.${caseId}`,
+      },
       {
         agent_request: data.agentRequest || null,
         agent_response: data.agentResponse || null,
@@ -253,8 +222,8 @@ export class TestExecutionRepository {
    * 更新评审状态
    */
   async updateReview(executionId: string, review: UpdateReviewData): Promise<TestExecution> {
-    const response = await this.supabaseClient.patch<TestExecution[]>(
-      `/test_executions?id=eq.${executionId}`,
+    const results = await this.update<TestExecution>(
+      { id: `eq.${executionId}` },
       {
         review_status: review.reviewStatus,
         review_comment: review.reviewComment || null,
@@ -264,7 +233,7 @@ export class TestExecutionRepository {
       },
     );
 
-    return response.data[0];
+    return results[0];
   }
 
   /**
@@ -274,8 +243,8 @@ export class TestExecutionRepository {
     executionIds: string[],
     review: UpdateReviewData,
   ): Promise<TestExecution[]> {
-    const response = await this.supabaseClient.patch<TestExecution[]>(
-      `/test_executions?id=in.(${executionIds.join(',')})`,
+    return this.update<TestExecution>(
+      { id: `in.(${executionIds.join(',')})` },
       {
         review_status: review.reviewStatus,
         review_comment: review.reviewComment || null,
@@ -284,7 +253,5 @@ export class TestExecutionRepository {
         reviewed_at: new Date().toISOString(),
       },
     );
-
-    return response.data;
   }
 }

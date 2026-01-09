@@ -2,7 +2,7 @@ import { Injectable, Logger, OnModuleInit, forwardRef, Inject } from '@nestjs/co
 import { InjectQueue } from '@nestjs/bull';
 import { Queue, Job } from 'bull';
 import { EnterpriseMessageCallbackDto } from './dto/message-callback.dto';
-import { SupabaseService } from '@core/supabase';
+import { SystemConfigRepository } from '@core/supabase/repositories';
 import { MonitoringService } from '@core/monitoring/monitoring.service';
 
 // 导入子服务
@@ -36,7 +36,7 @@ export class MessageProcessor implements OnModuleInit {
     @Inject(forwardRef(() => MessageService))
     private readonly messageService: MessageService,
     private readonly simpleMergeService: SimpleMergeService,
-    private readonly supabaseService: SupabaseService,
+    private readonly systemConfigRepository: SystemConfigRepository,
     private readonly monitoringService: MonitoringService,
   ) {}
 
@@ -125,7 +125,7 @@ export class MessageProcessor implements OnModuleInit {
 
   private async loadConcurrencyFromConfig(): Promise<void> {
     try {
-      const config = await this.supabaseService.getSystemConfig();
+      const config = await this.systemConfigRepository.getSystemConfig();
       if (config?.workerConcurrency) {
         this.currentConcurrency = Math.max(
           this.MIN_CONCURRENCY,
@@ -233,7 +233,7 @@ export class MessageProcessor implements OnModuleInit {
 
     try {
       this.currentConcurrency = newConcurrency;
-      await this.supabaseService.updateSystemConfig({ workerConcurrency: newConcurrency });
+      await this.systemConfigRepository.updateSystemConfig({ workerConcurrency: newConcurrency });
 
       return {
         success: true,

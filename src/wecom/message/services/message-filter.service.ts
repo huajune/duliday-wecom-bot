@@ -7,7 +7,7 @@ import {
   getMessageSourceDescription,
 } from '../dto/message-callback.dto';
 import { MessageParser } from '../utils/message-parser.util';
-import { SupabaseService } from '@core/supabase';
+import { UserHostingRepository, GroupBlacklistRepository } from '@core/supabase/repositories';
 
 /**
  * 消息过滤原因枚举
@@ -58,7 +58,10 @@ export interface FilterResult {
 export class MessageFilterService implements OnModuleInit {
   private readonly logger = new Logger(MessageFilterService.name);
 
-  constructor(private readonly supabaseService: SupabaseService) {}
+  constructor(
+    private readonly userHostingRepository: UserHostingRepository,
+    private readonly groupBlacklistRepository: GroupBlacklistRepository,
+  ) {}
 
   async onModuleInit() {
     this.logger.log('✅ MessageFilterService 已初始化，使用 Supabase 持久化用户托管状态');
@@ -68,21 +71,21 @@ export class MessageFilterService implements OnModuleInit {
    * 暂停用户托管（持久化到 Supabase）
    */
   async pauseUser(userId: string): Promise<void> {
-    await this.supabaseService.pauseUser(userId);
+    await this.userHostingRepository.pauseUser(userId);
   }
 
   /**
    * 恢复用户托管（持久化到 Supabase）
    */
   async resumeUser(userId: string): Promise<void> {
-    await this.supabaseService.resumeUser(userId);
+    await this.userHostingRepository.resumeUser(userId);
   }
 
   /**
    * 检查用户是否被暂停托管
    */
   async isUserPaused(userId: string): Promise<boolean> {
-    return this.supabaseService.isUserPaused(userId);
+    return this.userHostingRepository.isUserPaused(userId);
   }
 
   /**
@@ -91,7 +94,7 @@ export class MessageFilterService implements OnModuleInit {
   async getPausedUsers(): Promise<
     { userId: string; pausedAt: number; odName?: string; groupName?: string }[]
   > {
-    return this.supabaseService.getPausedUsers();
+    return this.userHostingRepository.getPausedUsers();
   }
 
   // ==================== 小组黑名单管理 ====================
@@ -100,28 +103,28 @@ export class MessageFilterService implements OnModuleInit {
    * 检查小组是否在黑名单中
    */
   async isGroupBlacklisted(groupId: string): Promise<boolean> {
-    return this.supabaseService.isGroupBlacklisted(groupId);
+    return this.groupBlacklistRepository.isGroupBlacklisted(groupId);
   }
 
   /**
    * 添加小组到黑名单
    */
   async addGroupToBlacklist(groupId: string, reason?: string): Promise<void> {
-    await this.supabaseService.addGroupToBlacklist(groupId, reason);
+    await this.groupBlacklistRepository.addGroupToBlacklist(groupId, reason);
   }
 
   /**
    * 从黑名单移除小组
    */
   async removeGroupFromBlacklist(groupId: string): Promise<boolean> {
-    return this.supabaseService.removeGroupFromBlacklist(groupId);
+    return this.groupBlacklistRepository.removeGroupFromBlacklist(groupId);
   }
 
   /**
    * 获取黑名单列表
    */
   async getGroupBlacklist(): Promise<{ groupId: string; reason?: string; addedAt: number }[]> {
-    return this.supabaseService.getGroupBlacklist();
+    return this.groupBlacklistRepository.getGroupBlacklist();
   }
 
   /**

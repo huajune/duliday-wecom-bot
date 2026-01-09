@@ -1,6 +1,7 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { SupabaseService, AgentReplyConfig } from '@core/supabase';
+import { AgentReplyConfig } from '@core/supabase';
+import { SystemConfigRepository } from '@core/supabase/repositories';
 import {
   TYPING_MIN_DELAY_MS,
   TYPING_MAX_DELAY_MS,
@@ -28,7 +29,7 @@ export class TypingDelayService implements OnModuleInit {
 
   constructor(
     private readonly configService: ConfigService,
-    private readonly supabaseService: SupabaseService,
+    private readonly systemConfigRepository: SystemConfigRepository,
   ) {
     // 从环境变量读取配置，提供合理的默认值
     // 注意：这些值随后会被 Supabase 的动态配置覆盖
@@ -40,7 +41,7 @@ export class TypingDelayService implements OnModuleInit {
     this.randomVariation = TYPING_RANDOM_VARIATION;
 
     // 注册配置变更回调
-    this.supabaseService.onAgentReplyConfigChange((config) => {
+    this.systemConfigRepository.onAgentReplyConfigChange((config) => {
       this.onConfigChange(config);
     });
 
@@ -55,7 +56,7 @@ export class TypingDelayService implements OnModuleInit {
    */
   async onModuleInit() {
     try {
-      const config = await this.supabaseService.getAgentReplyConfig();
+      const config = await this.systemConfigRepository.getAgentReplyConfig();
       // 从 Supabase 加载配置
       if (config.typingSpeedCharsPerSec) {
         this.baseTypingSpeed = config.typingSpeedCharsPerSec;

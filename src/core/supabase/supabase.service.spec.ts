@@ -63,142 +63,88 @@ describe('SupabaseService', () => {
     expect(service).toBeDefined();
   });
 
-  describe('isAvailable', () => {
-    it('should return true when initialized', () => {
+  describe('initialization', () => {
+    it('should initialize HTTP client when credentials are provided', () => {
+      expect(mockHttpClientFactory.createWithBearerAuth).toHaveBeenCalledWith(
+        expect.objectContaining({
+          baseURL: 'https://test.supabase.co/rest/v1',
+          timeout: 120000,
+        }),
+        'test-service-key',
+      );
+    });
+
+    it('should be available when initialized', () => {
       expect(service.isAvailable()).toBe(true);
+      expect(service.isClientInitialized()).toBe(true);
     });
   });
 
-  describe('upsertMonitoringHourly', () => {
-    const mockHourlyData = {
-      hour: '2025-11-25T10:00:00.000Z',
-      message_count: 100,
-      success_count: 95,
-      failure_count: 5,
-      avg_duration: 5000.5,
-      p95_duration: 8000.0,
-      active_users: 10,
-      active_chats: 5,
-      total_tokens: 50000,
-    };
+  describe('getHttpClient', () => {
+    it('should return HTTP client when initialized', () => {
+      const client = service.getHttpClient();
+      expect(client).toBeDefined();
+      expect(client).toBe(mockHttpClient);
+    });
+  });
 
-    it('should upsert monitoring hourly data', async () => {
-      mockHttpClient.post.mockResolvedValue({ data: mockHourlyData });
+  describe('getRedisService', () => {
+    it('should return Redis service', () => {
+      const redis = service.getRedisService();
+      expect(redis).toBe(mockRedisService);
+    });
+  });
 
-      await service.upsertMonitoringHourly(mockHourlyData);
+  describe('getCachePrefix', () => {
+    it('should return cache prefix', () => {
+      const prefix = service.getCachePrefix();
+      expect(prefix).toBe('supabase:');
+    });
+  });
 
-      expect(mockHttpClient.post).toHaveBeenCalledWith(
-        '/monitoring_hourly',
-        mockHourlyData,
-        expect.objectContaining({
-          headers: {
-            Prefer: 'resolution=merge-duplicates',
+  describe('getConfigService', () => {
+    it('should return config service', () => {
+      const config = service.getConfigService();
+      expect(config).toBe(mockConfigService);
+    });
+  });
+
+  describe('when credentials are missing', () => {
+    let uninitializedService: SupabaseService;
+
+    beforeEach(async () => {
+      const emptyConfigService = {
+        get: jest.fn().mockReturnValue(''),
+      };
+
+      const module: TestingModule = await Test.createTestingModule({
+        providers: [
+          SupabaseService,
+          {
+            provide: ConfigService,
+            useValue: emptyConfigService,
           },
-        }),
-      );
-    });
-
-    it('should throw error on upsert failure', async () => {
-      mockHttpClient.post.mockRejectedValue(new Error('Database error'));
-
-      await expect(service.upsertMonitoringHourly(mockHourlyData)).rejects.toThrow(
-        'Database error',
-      );
-    });
-  });
-
-  describe('deleteMonitoringHourlyBefore', () => {
-    it('should delete old records and return count', async () => {
-      const deletedRecords = [{ id: 1 }, { id: 2 }, { id: 3 }];
-      mockHttpClient.delete.mockResolvedValue({ data: deletedRecords });
-
-      const cutoffDate = new Date('2025-10-01T00:00:00.000Z');
-      const result = await service.deleteMonitoringHourlyBefore(cutoffDate);
-
-      expect(result).toBe(3);
-      expect(mockHttpClient.delete).toHaveBeenCalledWith(
-        '/monitoring_hourly',
-        expect.objectContaining({
-          params: {
-            hour: `lt.${cutoffDate.toISOString()}`,
+          {
+            provide: HttpClientFactory,
+            useValue: mockHttpClientFactory,
           },
-        }),
-      );
+          {
+            provide: RedisService,
+            useValue: mockRedisService,
+          },
+        ],
+      }).compile();
+
+      uninitializedService = module.get<SupabaseService>(SupabaseService);
     });
 
-    it('should return 0 on delete error', async () => {
-      mockHttpClient.delete.mockRejectedValue(new Error('Delete failed'));
-
-      const result = await service.deleteMonitoringHourlyBefore(new Date());
-
-      expect(result).toBe(0);
-    });
-  });
-
-  describe('getMonitoringHourlyHistory', () => {
-    it('should fetch historical data', async () => {
-      const mockHistory = [
-        {
-          hour: '2025-11-25T10:00:00.000Z',
-          message_count: 100,
-          success_count: 95,
-          failure_count: 5,
-          avg_duration: 5000,
-          p95_duration: 8000,
-          active_users: 10,
-          active_chats: 5,
-          total_tokens: 50000,
-        },
-        {
-          hour: '2025-11-25T09:00:00.000Z',
-          message_count: 80,
-          success_count: 75,
-          failure_count: 5,
-          avg_duration: 4500,
-          p95_duration: 7500,
-          active_users: 8,
-          active_chats: 4,
-          total_tokens: 40000,
-        },
-      ];
-
-      mockHttpClient.get.mockResolvedValue({ data: mockHistory });
-
-      const result = await service.getMonitoringHourlyHistory(7);
-
-      expect(result).toEqual(mockHistory);
-      expect(mockHttpClient.get).toHaveBeenCalledWith(
-        '/monitoring_hourly',
-        expect.objectContaining({
-          params: expect.objectContaining({
-            order: 'hour.desc',
-            select: '*',
-          }),
-        }),
-      );
+    it('should not be available', () => {
+      expect(uninitializedService.isAvailable()).toBe(false);
+      expect(uninitializedService.isClientInitialized()).toBe(false);
     });
 
-    it('should return empty array on fetch error', async () => {
-      mockHttpClient.get.mockRejectedValue(new Error('Fetch failed'));
-
-      const result = await service.getMonitoringHourlyHistory(7);
-
-      expect(result).toEqual([]);
-    });
-
-    it('should use correct cutoff date for days parameter', async () => {
-      mockHttpClient.get.mockResolvedValue({ data: [] });
-
-      await service.getMonitoringHourlyHistory(30);
-
-      expect(mockHttpClient.get).toHaveBeenCalledWith(
-        '/monitoring_hourly',
-        expect.objectContaining({
-          params: expect.objectContaining({
-            hour: expect.stringMatching(/^gte\.\d{4}-\d{2}-\d{2}T/),
-          }),
-        }),
-      );
+    it('should return null for HTTP client', () => {
+      expect(uninitializedService.getHttpClient()).toBeNull();
     });
   });
 });

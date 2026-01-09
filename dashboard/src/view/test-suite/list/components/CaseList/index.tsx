@@ -32,6 +32,22 @@ const getReviewStatusIcon = (status: string) => {
   return config[status] || config.pending;
 };
 
+// 分类标签颜色映射（根据分类编号）
+const getCategoryStyle = (category: string | null | undefined): string => {
+  if (!category) return 'categoryDefault';
+  // 提取分类编号（如 "1-缺少品牌名" -> "1"）
+  const match = category.match(/^(\d+)-/);
+  if (!match) return 'categoryDefault';
+  const num = parseInt(match[1], 10);
+  // 根据编号返回不同的颜色类
+  const colorClasses = [
+    'category1', 'category2', 'category3', 'category4',
+    'category5', 'category6', 'category7', 'category8',
+    'category9', 'category10', 'category11',
+  ];
+  return colorClasses[(num - 1) % colorClasses.length] || 'categoryDefault';
+};
+
 /**
  * 用例列表组件
  */
@@ -62,7 +78,14 @@ export function CaseList({ executions, currentReviewIndex, reviewMode, onSelect 
             >
               <div className={styles.caseIndex}>{index + 1}</div>
               <div className={styles.caseContent}>
-                <div className={styles.caseName}>{exec.case_name || '未命名用例'}</div>
+                <div className={styles.caseNameRow}>
+                  <span className={styles.caseName}>{exec.case_name || '未命名用例'}</span>
+                  {exec.category && (
+                    <span className={`${styles.categoryTag} ${styles[getCategoryStyle(exec.category)]}`}>
+                      {exec.category}
+                    </span>
+                  )}
+                </div>
                 <div className={styles.caseMessage}>
                   {exec.input_message || exec.test_input?.message || '-'}
                 </div>

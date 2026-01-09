@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { FeishuBookingService } from '@core/feishu';
-import { SupabaseService } from '@core/supabase';
+import { BookingRepository } from '@core/supabase/repositories';
 import { ChatResponse, UIMessage } from '@agent';
 import { InterviewBookingInfo } from '@core/feishu/interfaces/feishu.interface';
 
@@ -48,7 +48,7 @@ export class BookingDetectionService {
 
   constructor(
     private readonly feishuBookingService: FeishuBookingService,
-    private readonly supabaseService: SupabaseService,
+    private readonly bookingRepository: BookingRepository,
   ) {}
 
   /**
@@ -245,7 +245,7 @@ export class BookingDetectionService {
     // 使用 setImmediate 确保异步执行，不阻塞主流程
     setImmediate(async () => {
       try {
-        await this.supabaseService.incrementBookingCount({
+        await this.bookingRepository.incrementBookingCount({
           brandName: bookingInfo.brandName,
           storeName: bookingInfo.storeName,
           chatId: bookingInfo.chatId,

@@ -2,7 +2,8 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { MonitoringService } from './monitoring.service';
 import { FeishuAlertService } from '@core/feishu';
-import { SupabaseService, AgentReplyConfig } from '@core/supabase';
+import { AgentReplyConfig } from '@core/supabase';
+import { SystemConfigRepository } from '@core/supabase/repositories';
 
 /**
  * 监控告警服务（简化版）
@@ -43,10 +44,10 @@ export class MonitoringAlertService implements OnModuleInit {
   constructor(
     private readonly monitoringService: MonitoringService,
     private readonly feishuAlertService: FeishuAlertService,
-    private readonly supabaseService: SupabaseService,
+    private readonly systemConfigRepository: SystemConfigRepository,
   ) {
     // 注册配置变更回调
-    this.supabaseService.onAgentReplyConfigChange((config) => {
+    this.systemConfigRepository.onAgentReplyConfigChange((config) => {
       this.onConfigChange(config);
     });
   }
@@ -56,7 +57,7 @@ export class MonitoringAlertService implements OnModuleInit {
    */
   async onModuleInit() {
     try {
-      const config = await this.supabaseService.getAgentReplyConfig();
+      const config = await this.systemConfigRepository.getAgentReplyConfig();
       this.applyConfig(config);
       this.logger.log(
         `业务指标告警配置: 启用=${this.enabled}, 最小样本=${this.minSamples}, 告警间隔=${this.alertIntervalMinutes}分钟`,

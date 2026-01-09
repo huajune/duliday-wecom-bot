@@ -16,7 +16,13 @@ import { DashboardData, MetricsData, TimeRange } from './interfaces/monitoring.i
 import { MessageService } from '@wecom/message/message.service';
 import { MessageFilterService } from '@wecom/message/services/message-filter.service';
 import { MessageProcessor } from '@wecom/message/message.processor';
-import { SupabaseService, AgentReplyConfig, DEFAULT_AGENT_REPLY_CONFIG } from '@core/supabase';
+import { AgentReplyConfig, DEFAULT_AGENT_REPLY_CONFIG } from '@core/supabase';
+import {
+  SystemConfigRepository,
+  ChatMessageRepository,
+  MonitoringRepository,
+  MessageProcessingRepository,
+} from '@core/supabase/repositories';
 
 /**
  * 监控控制器
@@ -34,7 +40,10 @@ export class MonitoringController {
     private readonly filterService: MessageFilterService,
     @Inject(forwardRef(() => MessageProcessor))
     private readonly messageProcessor: MessageProcessor,
-    private readonly supabaseService: SupabaseService,
+    private readonly systemConfigRepository: SystemConfigRepository,
+    private readonly chatMessageRepository: ChatMessageRepository,
+    private readonly monitoringRepository: MonitoringRepository,
+    private readonly messageProcessingRepository: MessageProcessingRepository,
   ) {}
 
   /**
@@ -301,7 +310,7 @@ export class MonitoringController {
     defaults: AgentReplyConfig;
   }> {
     this.logger.debug('获取 Agent 回复策略配置');
-    const config = await this.supabaseService.getAgentReplyConfig();
+    const config = await this.systemConfigRepository.getAgentReplyConfig();
     return {
       config,
       defaults: DEFAULT_AGENT_REPLY_CONFIG,
@@ -431,7 +440,7 @@ export class MonitoringController {
       validatedConfig.errorRateCritical = value;
     }
 
-    const newConfig = await this.supabaseService.setAgentReplyConfig(validatedConfig);
+    const newConfig = await this.systemConfigRepository.setAgentReplyConfig(validatedConfig);
 
     // 根据更新内容生成不同的提示信息
     const message = this.getUpdateMessage(body);
@@ -488,7 +497,9 @@ export class MonitoringController {
   @HttpCode(200)
   async resetAgentReplyConfig(): Promise<{ config: AgentReplyConfig; message: string }> {
     this.logger.log('重置 Agent 回复策略配置为默认值');
-    const newConfig = await this.supabaseService.setAgentReplyConfig(DEFAULT_AGENT_REPLY_CONFIG);
+    const newConfig = await this.systemConfigRepository.setAgentReplyConfig(
+      DEFAULT_AGENT_REPLY_CONFIG,
+    );
     return {
       config: newConfig,
       message: 'Agent 回复策略配置已重置为默认值',
@@ -722,7 +733,7 @@ export class MonitoringController {
       `获取聊天记录: date=${targetDate.toISOString().split('T')[0]}, page=${pageNum}, pageSize=${pageSizeNum}`,
     );
 
-    return this.supabaseService.getTodayChatMessages(targetDate, pageNum, pageSizeNum);
+    return this.chatMessageRepository.getTodayChatMessages(targetDate, pageNum, pageSizeNum);
   }
 
   /**
@@ -757,14 +768,14 @@ export class MonitoringController {
       const end = endDate ? new Date(endDate) : new Date();
       end.setHours(23, 59, 59, 999);
       this.logger.debug(`获取会话列表: ${start.toISOString()} ~ ${end.toISOString()}`);
-      const sessions = await this.supabaseService.getChatSessionListByDateRange(start, end);
+      const sessions = await this.chatMessageRepository.getChatSessionListByDateRange(start, end);
       return { sessions };
     }
 
     // 兼容旧的 days 参数
     const daysNum = parseInt(days || '1', 10);
     this.logger.debug(`获取会话列表: 最近 ${daysNum} 天`);
-    const sessions = await this.supabaseService.getChatSessionList(daysNum);
+    const sessions = await this.chatMessageRepository.getChatSessionList(daysNum);
     return { sessions };
   }
 
@@ -793,7 +804,7 @@ export class MonitoringController {
       `获取每日聊天统计: ${start.toISOString().split('T')[0]} ~ ${end.toISOString().split('T')[0]}`,
     );
 
-    const stats = await this.supabaseService.getChatDailyStats(start, end);
+    const stats = await this.chatMessageRepository.getChatDailyStats(start, end);
     return stats;
   }
 
@@ -820,7 +831,7 @@ export class MonitoringController {
       `获取聊天汇总统计: ${start.toISOString().split('T')[0]} ~ ${end.toISOString().split('T')[0]}`,
     );
 
-    const stats = await this.supabaseService.getChatSummaryStats(start, end);
+    const stats = await this.chatMessageRepository.getChatSummaryStats(start, end);
     return stats;
   }
 
@@ -853,7 +864,7 @@ export class MonitoringController {
       `获取聊天会话列表（优化版）: ${start.toISOString().split('T')[0]} ~ ${end.toISOString().split('T')[0]}`,
     );
 
-    const sessions = await this.supabaseService.getChatSessionListOptimized(start, end);
+    const sessions = await this.chatMessageRepository.getChatSessionListOptimized(start, end);
     return sessions;
   }
 
@@ -872,7 +883,7 @@ export class MonitoringController {
   > {
     const daysNum = parseInt(days || '7', 10);
     this.logger.debug(`获取聊天趋势: 最近 ${daysNum} 天`);
-    const history = await this.supabaseService.getMonitoringHourlyHistory(daysNum);
+    const history = await this.monitoringRepository.getMonitoringHourlyHistory(daysNum);
     return history.map((item) => ({
       hour: item.hour,
       message_count: item.message_count,
@@ -906,7 +917,7 @@ export class MonitoringController {
     }>;
   }> {
     this.logger.debug(`获取会话消息: chatId=${chatId}`);
-    const messages = await this.supabaseService.getChatHistoryDetail(chatId);
+    const messages = await this.chatMessageRepository.getChatHistoryDetail(chatId);
     return { chatId, messages };
   }
 
@@ -984,7 +995,7 @@ export class MonitoringController {
     }
 
     this.logger.debug(`获取最慢消息 Top ${options.limit}: ${JSON.stringify(options)}`);
-    const records = await this.supabaseService.getSlowestMessages(
+    const records = await this.messageProcessingRepository.getSlowestMessages(
       options.startDate?.getTime(),
       options.endDate?.getTime(),
       options.limit,
@@ -1051,8 +1062,8 @@ export class MonitoringController {
     }
 
     this.logger.debug(`获取消息处理记录: ${JSON.stringify(options)}`);
-    const records = await this.supabaseService.getMessageProcessingRecords(options);
-    return records;
+    const result = await this.messageProcessingRepository.getMessageProcessingRecords(options);
+    return result.records;
   }
 
   /**
@@ -1064,7 +1075,7 @@ export class MonitoringController {
     @Param('messageId') messageId: string,
   ): Promise<any | null> {
     this.logger.debug(`获取消息处理记录详情: ${messageId}`);
-    const record = await this.supabaseService.getMessageProcessingRecordById(messageId);
+    const record = await this.messageProcessingRepository.getMessageProcessingRecordById(messageId);
     return record;
   }
 }

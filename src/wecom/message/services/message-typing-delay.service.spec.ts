@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
-import { SupabaseService, AgentReplyConfig, DEFAULT_AGENT_REPLY_CONFIG } from '@core/supabase';
+import { AgentReplyConfig, DEFAULT_AGENT_REPLY_CONFIG } from '@core/supabase';
+import { SystemConfigRepository } from '@core/supabase/repositories';
 import { TypingDelayService } from './message-typing-delay.service';
 import {
   TYPING_MIN_DELAY_MS,
@@ -16,7 +17,7 @@ describe('TypingDelayService', () => {
     get: jest.fn(),
   };
 
-  const mockSupabaseService = {
+  const mockSystemConfigRepository = {
     getAgentReplyConfig: jest.fn(),
     onAgentReplyConfigChange: jest.fn((cb) => {
       configCallback = cb;
@@ -35,8 +36,8 @@ describe('TypingDelayService', () => {
           useValue: mockConfigService,
         },
         {
-          provide: SupabaseService,
-          useValue: mockSupabaseService,
+          provide: SystemConfigRepository,
+          useValue: mockSystemConfigRepository,
         },
       ],
     }).compile();
@@ -61,7 +62,7 @@ describe('TypingDelayService', () => {
       const mockConfig: Partial<AgentReplyConfig> = {
         typingSpeedCharsPerSec: 20,
       };
-      mockSupabaseService.getAgentReplyConfig.mockResolvedValue(mockConfig);
+      mockSystemConfigRepository.getAgentReplyConfig.mockResolvedValue(mockConfig);
 
       await service.onModuleInit();
 
@@ -73,7 +74,7 @@ describe('TypingDelayService', () => {
       const mockConfig: Partial<AgentReplyConfig> = {
         typingDelayPerCharMs: 50, // 1000 / 50 = 20 chars/sec
       };
-      mockSupabaseService.getAgentReplyConfig.mockResolvedValue(mockConfig);
+      mockSystemConfigRepository.getAgentReplyConfig.mockResolvedValue(mockConfig);
 
       await service.onModuleInit();
 

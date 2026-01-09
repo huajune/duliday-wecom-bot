@@ -10,6 +10,11 @@ export { ProfileLoaderService } from './services/agent-profile-loader.service';
 export { BrandConfigService } from './services/brand-config.service';
 export { AgentRegistryService } from './services/agent-registry.service';
 export { AgentConfigValidator } from './utils/agent-validator';
+export {
+  AgentFacadeService,
+  type StreamChatResult,
+  type ScenarioOptions,
+} from './services/agent-facade.service';
 
 // 导出辅助工具
 export {
