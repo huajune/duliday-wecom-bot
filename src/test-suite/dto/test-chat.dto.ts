@@ -5,7 +5,6 @@ import {
   ExecutionStatus,
   ReviewStatus,
   BatchSource,
-  FailureReason,
   FeishuTestStatus,
   MessageRole,
   FeedbackType,
@@ -188,10 +187,17 @@ export class UpdateReviewRequestDto {
   @IsString()
   reviewComment?: string;
 
-  @ApiPropertyOptional({ description: '失败原因', enum: FailureReason })
+  @ApiPropertyOptional({ description: '失败原因（问题归因：工具误触发、回复内容错误等）' })
   @IsOptional()
-  @IsEnum(FailureReason)
-  failureReason?: FailureReason;
+  @IsString()
+  failureReason?: string;
+
+  @ApiPropertyOptional({
+    description: '测试场景分类（1-缺少品牌名、2-品牌名识别等，用于飞书回写）',
+  })
+  @IsOptional()
+  @IsString()
+  testScenario?: string;
 
   @ApiPropertyOptional({ description: '评审人' })
   @IsOptional()

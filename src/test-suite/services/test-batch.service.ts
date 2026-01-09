@@ -135,6 +135,7 @@ export class TestBatchService {
       reviewStatus: review.reviewStatus,
       reviewComment: review.reviewComment,
       failureReason: review.failureReason,
+      testScenario: review.testScenario,
       reviewedBy: review.reviewedBy,
     });
 
@@ -173,6 +174,7 @@ export class TestBatchService {
       reviewStatus: review.reviewStatus,
       reviewComment: review.reviewComment,
       failureReason: review.failureReason,
+      testScenario: review.testScenario,
       reviewedBy: review.reviewedBy,
     });
 

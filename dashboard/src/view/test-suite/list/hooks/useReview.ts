@@ -120,7 +120,7 @@ export function useReview({ executions, onExecutionsChange, onReviewComplete }: 
 
   // 评审操作
   const handleReview = useCallback(
-    async (status: 'passed' | 'failed', failureCategory?: string) => {
+    async (status: 'passed' | 'failed', failureReason?: string) => {
       if (currentReviewIndex < 0) return;
       const exec = executions[currentReviewIndex];
 
@@ -129,13 +129,13 @@ export function useReview({ executions, onExecutionsChange, onReviewComplete }: 
         await updateReview(exec.id, {
           reviewStatus: status,
           reviewedBy: 'dashboard-user',
-          failureReason: failureCategory,
+          failureReason,
         });
 
         // 回写飞书（后台执行，不阻塞）
         if (exec.case_id) {
           const feishuStatus = status === 'passed' ? '通过' : '失败';
-          writeBackToFeishu(exec.id, feishuStatus, failureCategory).catch((writeErr: unknown) => {
+          writeBackToFeishu(exec.id, feishuStatus).catch((writeErr: unknown) => {
             const error = writeErr as { message?: string };
             console.warn('回写飞书失败:', error.message);
           });
@@ -147,7 +147,7 @@ export function useReview({ executions, onExecutionsChange, onReviewComplete }: 
           ...exec,
           review_status: status,
           reviewed_at: new Date().toISOString(),
-          failure_reason: failureCategory || null,
+          failure_reason: failureReason || null,
         };
         onExecutionsChange(updated);
 

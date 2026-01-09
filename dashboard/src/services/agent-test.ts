@@ -124,6 +124,7 @@ export interface UpdateReviewRequest {
   reviewStatus: 'passed' | 'failed' | 'skipped';
   reviewComment?: string;
   failureReason?: string;
+  testScenario?: string;
   reviewedBy?: string;
 }
 

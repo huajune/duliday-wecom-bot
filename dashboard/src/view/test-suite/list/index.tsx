@@ -142,10 +142,7 @@ export default function TestSuite() {
           onPrevious={goToPrevious}
           onNext={goToNext}
           onPass={() => handleReview('passed')}
-          onFail={(reason) => {
-            handleReview('failed', reason);
-            setShowFailureOptions(false);
-          }}
+          onFail={(reason) => handleReview('failed', reason)}
           onShowFailureOptions={setShowFailureOptions}
         />
       )}

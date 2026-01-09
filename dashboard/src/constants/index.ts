@@ -3,12 +3,42 @@
  */
 
 /**
- * Agent 行为问题分类（失败原因/错误类型）
+ * 测试场景分类（与飞书表格一致）
+ *
+ * 用于：
+ * - 测试集页面：标记用例所属场景
+ * - 飞书回写：同步到飞书多维表格的"分类"字段
+ */
+export const TEST_SCENARIO_TYPES = [
+  '1-缺少品牌名',
+  '2-品牌名识别',
+  '3-地区识别',
+  '4-条件不符',
+  '5-过度反应',
+  '6-情绪处理',
+  '7-上下文记忆',
+  '8-查询岗位',
+  '9-了解岗位详情',
+  '10-预约面试',
+  '11-首次接触',
+] as const;
+
+export type TestScenarioType = (typeof TEST_SCENARIO_TYPES)[number];
+
+/**
+ * 测试场景选项（用于下拉选择框）
+ */
+export const TEST_SCENARIO_OPTIONS = [
+  { value: '', label: '请选择场景...' },
+  ...TEST_SCENARIO_TYPES.map((type) => ({ value: type, label: type })),
+] as const;
+
+/**
+ * Agent 错误原因分类（问题归因）
  *
  * 用于：
  * - 测试集页面：评审时标记失败原因
  * - 对话测试页面：反馈弹窗标记错误类型
- * - 飞书回写：同步到飞书多维表格的"分类"字段
  */
 export const AGENT_ERROR_TYPES = [
   '工具误触发',       // 不该调用却调用了（如用户说"好的"却触发岗位查询）
@@ -24,9 +54,9 @@ export const AGENT_ERROR_TYPES = [
 export type AgentErrorType = (typeof AGENT_ERROR_TYPES)[number];
 
 /**
- * 错误类型选项（用于下拉选择框）
+ * 错误原因选项（用于下拉选择框）
  */
 export const AGENT_ERROR_TYPE_OPTIONS = [
-  { value: '', label: '请选择...' },
+  { value: '', label: '请选择原因...' },
   ...AGENT_ERROR_TYPES.map((type) => ({ value: type, label: type })),
 ] as const;

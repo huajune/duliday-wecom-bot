@@ -1,20 +1,20 @@
 import { createPortal } from 'react-dom';
 import { X, Loader2, Sparkles, AlertTriangle } from 'lucide-react';
 import { FeedbackType } from '@/services/agent-test';
-import { ERROR_TYPE_OPTIONS } from '../../constants';
+import { SCENARIO_TYPE_OPTIONS } from '../../constants';
 import { CustomSelect } from '../CustomSelect';
 import styles from './index.module.scss';
 
 export interface FeedbackModalProps {
   isOpen: boolean;
   feedbackType: FeedbackType | null;
-  errorType: string;
+  scenarioType: string;
   remark: string;
   isSubmitting: boolean;
   chatHistoryPreview: string;
-  submitError?: string | null; // 新增：提交错误信息
+  submitError?: string | null;
   onClose: () => void;
-  onErrorTypeChange: (type: string) => void;
+  onScenarioTypeChange: (type: string) => void;
   onRemarkChange: (remark: string) => void;
   onSubmit: () => void;
 }
@@ -25,13 +25,13 @@ export interface FeedbackModalProps {
 export function FeedbackModal({
   isOpen,
   feedbackType,
-  errorType,
+  scenarioType,
   remark,
   isSubmitting,
   chatHistoryPreview,
   submitError,
   onClose,
-  onErrorTypeChange,
+  onScenarioTypeChange,
   onRemarkChange,
   onSubmit,
 }: FeedbackModalProps) {
@@ -68,11 +68,11 @@ export function FeedbackModal({
 
           {!isGoodCase && (
             <div className={styles.formGroup}>
-              <label>错误类型（可选）</label>
+              <label>场景分类（可选）</label>
               <CustomSelect
-                value={errorType}
-                options={ERROR_TYPE_OPTIONS}
-                onChange={onErrorTypeChange}
+                value={scenarioType}
+                options={SCENARIO_TYPE_OPTIONS}
+                onChange={onScenarioTypeChange}
                 placeholder="请选择..."
               />
             </div>

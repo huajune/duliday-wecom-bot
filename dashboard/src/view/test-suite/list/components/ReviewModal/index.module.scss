@@ -583,9 +583,36 @@
 // ==================== 失败原因选择 ====================
 .failureOptions {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
+  gap: 12px;
+  padding: 12px 16px;
+  background: rgba(239, 68, 68, 0.03);
+  border-radius: 14px;
+  border: 1px solid rgba(239, 68, 68, 0.1);
+}
+
+.failureReasonList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.cancelFailBtn {
+  padding: 6px 14px;
+  border-radius: 10px;
+  border: 1px solid $border;
+  background: $bg-primary;
+  color: $text-muted;
+  font-size: $font-size-xs;
+  font-weight: $font-weight-medium;
+  cursor: pointer;
+  transition: all 0.2s;
+  flex-shrink: 0;
+
+  &:hover {
+    border-color: $text-muted;
+    color: $text-secondary;
+  }
 }
 
 .failureLabel {
@@ -607,22 +634,6 @@
   &:hover {
     background: rgba(239, 68, 68, 0.1);
     border-color: rgba(239, 68, 68, 0.3);
-  }
-}
-
-.cancelFailBtn {
-  padding: 6px 14px;
-  border-radius: 10px;
-  border: 1px solid $border;
-  background: $bg-primary;
-  color: $text-muted;
-  font-size: $font-size-xs;
-  cursor: pointer;
-  transition: all 0.2s;
-
-  &:hover {
-    border-color: $text-muted;
-    color: $text-secondary;
   }
 }
 

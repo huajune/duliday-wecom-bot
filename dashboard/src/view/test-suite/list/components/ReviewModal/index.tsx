@@ -1,6 +1,6 @@
 import { X, Check, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import { TestExecution } from '@/services/agent-test';
-import { FAILURE_REASONS } from '../../constants';
+import { AGENT_ERROR_TYPES } from '@/constants';
 import { ExecutionDetailViewer } from '../ExecutionDetailViewer';
 import { DetailSkeleton } from './DetailSkeleton';
 import styles from './index.module.scss';
@@ -37,6 +37,11 @@ export function ReviewModal({
   onFail,
   onShowFailureOptions,
 }: ReviewModalProps) {
+  const handleSelectReason = (reason: string) => {
+    onFail(reason);
+    onShowFailureOptions(false);
+  };
+
   return (
     <div className={styles.reviewModal}>
       <div className={styles.reviewContent}>
@@ -69,17 +74,22 @@ export function ReviewModal({
           <div className={styles.reviewActions}>
             {showFailureOptions ? (
               <div className={styles.failureOptions}>
-                <span className={styles.failureLabel}>选择原因：</span>
-                {FAILURE_REASONS.map((reason) => (
-                  <button
-                    key={reason}
-                    className={styles.failureReasonBtn}
-                    onClick={() => onFail(reason)}
-                  >
-                    {reason}
-                  </button>
-                ))}
-                <button className={styles.cancelFailBtn} onClick={() => onShowFailureOptions(false)}>
+                <span className={styles.failureLabel}>选择错误原因：</span>
+                <div className={styles.failureReasonList}>
+                  {AGENT_ERROR_TYPES.map((type) => (
+                    <button
+                      key={type}
+                      className={styles.failureReasonBtn}
+                      onClick={() => handleSelectReason(type)}
+                    >
+                      {type}
+                    </button>
+                  ))}
+                </div>
+                <button
+                  className={styles.cancelFailBtn}
+                  onClick={() => onShowFailureOptions(false)}
+                >
                   取消
                 </button>
               </div>

@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { BaseRepository } from '@core/supabase/repositories/base.repository';
 import { SupabaseService } from '@core/supabase';
-import { ExecutionStatus, ReviewStatus, FailureReason } from '../enums';
+import { ExecutionStatus, ReviewStatus } from '../enums';
 
 /**
  * 测试执行记录（数据库格式）
@@ -26,7 +26,8 @@ export interface TestExecution {
   review_comment: string | null;
   reviewed_by: string | null;
   reviewed_at: string | null;
-  failure_reason: FailureReason | null;
+  failure_reason: string | null;
+  test_scenario: string | null;
   created_at: string;
 }
 
@@ -70,7 +71,8 @@ export interface UpdateExecutionResultData {
 export interface UpdateReviewData {
   reviewStatus: ReviewStatus;
   reviewComment?: string;
-  failureReason?: FailureReason;
+  failureReason?: string;
+  testScenario?: string;
   reviewedBy?: string;
 }
 
@@ -319,6 +321,7 @@ export class TestExecutionRepository extends BaseRepository {
         review_status: review.reviewStatus,
         review_comment: review.reviewComment || null,
         failure_reason: review.failureReason || null,
+        test_scenario: review.testScenario || null,
         reviewed_by: review.reviewedBy || null,
         reviewed_at: new Date().toISOString(),
       },
@@ -340,6 +343,7 @@ export class TestExecutionRepository extends BaseRepository {
         review_status: review.reviewStatus,
         review_comment: review.reviewComment || null,
         failure_reason: review.failureReason || null,
+        test_scenario: review.testScenario || null,
         reviewed_by: review.reviewedBy || null,
         reviewed_at: new Date().toISOString(),
       },

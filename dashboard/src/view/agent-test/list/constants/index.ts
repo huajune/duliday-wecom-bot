@@ -2,8 +2,8 @@
  * ChatTester 组件常量
  */
 
-// 错误类型选项：复用全局 Agent 错误类型定义
-export { AGENT_ERROR_TYPE_OPTIONS as ERROR_TYPE_OPTIONS } from '@/constants';
+// 场景分类选项：复用全局测试场景类型定义
+export { TEST_SCENARIO_OPTIONS as SCENARIO_TYPE_OPTIONS } from '@/constants';
 
 // 历史记录示例格式
 export const HISTORY_PLACEHOLDER = `粘贴对话记录，格式如：

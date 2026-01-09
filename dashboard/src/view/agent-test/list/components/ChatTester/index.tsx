@@ -287,13 +287,13 @@ export default function ChatTester({ onTestComplete }: ChatTesterProps) {
       <FeedbackModal
         isOpen={feedback.isOpen}
         feedbackType={feedback.feedbackType}
-        errorType={feedback.errorType}
+        scenarioType={feedback.scenarioType}
         remark={feedback.remark}
         isSubmitting={feedback.isSubmitting}
         chatHistoryPreview={historyText.trim()}
         submitError={feedback.submitError}
         onClose={feedback.closeModal}
-        onErrorTypeChange={feedback.setErrorType}
+        onScenarioTypeChange={feedback.setScenarioType}
         onRemarkChange={feedback.setRemark}
         onSubmit={handleSubmitFeedback}
       />
