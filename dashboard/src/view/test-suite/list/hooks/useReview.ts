@@ -1,6 +1,6 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import toast from 'react-hot-toast';
-import { updateReview, writeBackToFeishu, TestExecution } from '@/services/agent-test';
+import { updateReview, writeBackToFeishu, getExecution, TestExecution } from '@/services/agent-test';
 
 interface UseReviewOptions {
   executions: TestExecution[];
@@ -20,6 +20,10 @@ export function useReview({ executions, onExecutionsChange, onReviewComplete }: 
   const [isBatchReviewMode, setIsBatchReviewMode] = useState(false);
   // 评审操作 loading 状态
   const [reviewLoading, setReviewLoading] = useState(false);
+  // 详情加载状态
+  const [detailLoading, setDetailLoading] = useState(false);
+  // 已加载完整数据的执行 ID 缓存
+  const loadedDetailsRef = useRef<Set<string>>(new Set());
 
   // 当前评审的用例
   const currentExecution = useMemo(() => {
@@ -30,6 +34,46 @@ export function useReview({ executions, onExecutionsChange, onReviewComplete }: 
   const pendingCount = useMemo(() => {
     return executions.filter((e) => e.review_status === 'pending').length;
   }, [executions]);
+
+  // 按需加载执行详情
+  const loadExecutionDetail = useCallback(
+    async (index: number) => {
+      const exec = executions[index];
+      if (!exec) return;
+
+      // 如果已经加载过完整数据，跳过
+      if (loadedDetailsRef.current.has(exec.id)) return;
+
+      // 如果已有完整数据（有 actual_output 或 tool_calls），跳过
+      if (exec.actual_output !== undefined || exec.tool_calls !== undefined) {
+        loadedDetailsRef.current.add(exec.id);
+        return;
+      }
+
+      setDetailLoading(true);
+      try {
+        const fullExecution = await getExecution(exec.id);
+        // 更新 executions 数组中对应的记录
+        const updated = [...executions];
+        updated[index] = { ...exec, ...fullExecution };
+        onExecutionsChange(updated);
+        loadedDetailsRef.current.add(exec.id);
+      } catch (err: unknown) {
+        const error = err as { message?: string };
+        console.warn('加载执行详情失败:', error.message);
+      } finally {
+        setDetailLoading(false);
+      }
+    },
+    [executions, onExecutionsChange],
+  );
+
+  // 当打开弹窗或切换用例时，按需加载详情
+  useEffect(() => {
+    if (reviewMode && currentReviewIndex >= 0) {
+      loadExecutionDetail(currentReviewIndex);
+    }
+  }, [reviewMode, currentReviewIndex, loadExecutionDetail]);
 
   // 开始批量评审（通过"开始评审"按钮）
   const startReview = useCallback(() => {
@@ -155,6 +199,7 @@ export function useReview({ executions, onExecutionsChange, onReviewComplete }: 
     pendingCount,
     showFailureOptions,
     reviewLoading,
+    detailLoading,
 
     // 操作
     setShowFailureOptions,

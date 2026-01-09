@@ -200,6 +200,254 @@
   font-weight: $font-weight-medium;
 }
 
+// 详情加载骨架屏
+.detailLoadingSkeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 8px;
+  animation: fadeIn 0.3s ease;
+}
+
+// 骨架屏闪烁动画
+@keyframes skeletonPulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+@keyframes skeletonShimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+// 骨架屏基础样式
+.skeletonBox {
+  background: linear-gradient(
+    90deg,
+    rgba(139, 92, 246, 0.08) 0%,
+    rgba(139, 92, 246, 0.15) 50%,
+    rgba(139, 92, 246, 0.08) 100%
+  );
+  background-size: 200% 100%;
+  animation: skeletonShimmer 1.8s ease-in-out infinite;
+  border-radius: 8px;
+}
+
+// 顶部指标条骨架
+.skeletonMetrics {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 16px;
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.04) 0%, rgba(236, 72, 153, 0.02) 100%);
+  border-radius: 12px;
+  border: 1px solid rgba(139, 92, 246, 0.08);
+
+  .skeletonMetricItem {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+
+    .skeletonIcon {
+      width: 16px;
+      height: 16px;
+      border-radius: 4px;
+      @extend .skeletonBox;
+    }
+
+    .skeletonValue {
+      width: 48px;
+      height: 14px;
+      @extend .skeletonBox;
+    }
+  }
+
+  .skeletonDivider {
+    width: 1px;
+    height: 20px;
+    background: rgba(139, 92, 246, 0.12);
+  }
+
+  .skeletonBadge {
+    width: 60px;
+    height: 24px;
+    border-radius: 12px;
+    @extend .skeletonBox;
+  }
+}
+
+// 主内容区骨架
+.skeletonMainContent {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  min-height: 300px;
+}
+
+// 左侧输入区骨架
+.skeletonInputPanel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+
+  .skeletonSection {
+    .skeletonLabel {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 12px;
+
+      .skeletonLabelIcon {
+        width: 14px;
+        height: 14px;
+        border-radius: 4px;
+        @extend .skeletonBox;
+      }
+
+      .skeletonLabelText {
+        width: 60px;
+        height: 14px;
+        @extend .skeletonBox;
+      }
+    }
+
+    .skeletonMessage {
+      padding: 16px;
+      background: linear-gradient(135deg, rgba(59, 130, 246, 0.04) 0%, rgba(99, 102, 241, 0.02) 100%);
+      border-radius: 12px;
+      border: 1px solid rgba(59, 130, 246, 0.08);
+      min-height: 60px;
+
+      .skeletonLine {
+        height: 14px;
+        margin-bottom: 8px;
+        border-radius: 4px;
+        @extend .skeletonBox;
+
+        &:last-child {
+          width: 60%;
+          margin-bottom: 0;
+        }
+      }
+    }
+  }
+
+  .skeletonHistory {
+    .skeletonHistoryItem {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 12px;
+
+      .skeletonAvatar {
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        flex-shrink: 0;
+        @extend .skeletonBox;
+      }
+
+      .skeletonHistoryContent {
+        flex: 1;
+        height: 32px;
+        border-radius: 8px;
+        @extend .skeletonBox;
+      }
+    }
+  }
+}
+
+// 右侧回复区骨架
+.skeletonReplyPanel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+
+  .skeletonSection {
+    .skeletonLabel {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 12px;
+
+      .skeletonLabelIcon {
+        width: 14px;
+        height: 14px;
+        border-radius: 4px;
+        @extend .skeletonBox;
+      }
+
+      .skeletonLabelText {
+        width: 60px;
+        height: 14px;
+        @extend .skeletonBox;
+      }
+    }
+  }
+
+  .skeletonToolCalls {
+    padding: 12px;
+    background: rgba(139, 92, 246, 0.04);
+    border-radius: 10px;
+    border: 1px solid rgba(139, 92, 246, 0.08);
+    margin-bottom: 12px;
+
+    .skeletonToolItem {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+
+      .skeletonToolIcon {
+        width: 12px;
+        height: 12px;
+        border-radius: 3px;
+        @extend .skeletonBox;
+      }
+
+      .skeletonToolName {
+        width: 100px;
+        height: 12px;
+        @extend .skeletonBox;
+      }
+    }
+  }
+
+  .skeletonReplyContent {
+    padding: 16px;
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.04) 0%, rgba(52, 211, 153, 0.02) 100%);
+    border-radius: 12px;
+    border: 1px solid rgba(16, 185, 129, 0.08);
+    min-height: 120px;
+
+    .skeletonLine {
+      height: 14px;
+      margin-bottom: 10px;
+      border-radius: 4px;
+      @extend .skeletonBox;
+
+      &:nth-child(2) {
+        width: 90%;
+      }
+
+      &:nth-child(3) {
+        width: 75%;
+      }
+
+      &:last-child {
+        width: 40%;
+        margin-bottom: 0;
+      }
+    }
+  }
+}
+
 .spinner {
   animation: spin 1s linear infinite;
 }

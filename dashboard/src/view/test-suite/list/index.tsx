@@ -40,6 +40,7 @@ export default function TestSuite() {
     pendingCount,
     showFailureOptions,
     reviewLoading,
+    detailLoading: executionDetailLoading,
     setShowFailureOptions,
     startReview,
     closeReview,
@@ -136,6 +137,7 @@ export default function TestSuite() {
           totalCount={executions.length}
           showFailureOptions={showFailureOptions}
           loading={reviewLoading}
+          detailLoading={executionDetailLoading}
           onClose={closeReview}
           onPrevious={goToPrevious}
           onNext={goToNext}

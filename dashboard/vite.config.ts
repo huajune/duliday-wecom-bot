@@ -41,6 +41,11 @@ export default defineConfig({
         target: 'http://localhost:8080',
         changeOrigin: true,
       },
+      '/test-suite': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+        timeout: 120000, // 2分钟超时，匹配后端 Supabase 查询
+      },
     },
   },
   build: {

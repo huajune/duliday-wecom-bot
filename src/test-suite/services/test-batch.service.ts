@@ -59,7 +59,7 @@ export class TestBatchService {
   }
 
   /**
-   * 获取批次的执行记录
+   * 获取批次的执行记录（完整版，用于详情展示）
    */
   async getBatchExecutions(
     batchId: string,
@@ -70,6 +70,21 @@ export class TestBatchService {
     },
   ): Promise<TestExecution[]> {
     return this.executionRepository.findByBatchId(batchId, filters);
+  }
+
+  /**
+   * 获取批次的执行记录（列表版，用于列表展示）
+   * 只返回列表显示所需字段，提升性能
+   */
+  async getBatchExecutionsForList(
+    batchId: string,
+    filters?: {
+      reviewStatus?: ReviewStatus;
+      executionStatus?: ExecutionStatus;
+      category?: string;
+    },
+  ) {
+    return this.executionRepository.findByBatchIdForList(batchId, filters);
   }
 
   /**

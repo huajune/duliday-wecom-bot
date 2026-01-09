@@ -152,7 +152,7 @@ export class TestSuiteService {
   }
 
   /**
-   * 获取批次的执行记录
+   * 获取批次的执行记录（完整版）
    */
   async getBatchExecutions(
     batchId: string,
@@ -163,6 +163,20 @@ export class TestSuiteService {
     },
   ): Promise<TestExecution[]> {
     return this.batchService.getBatchExecutions(batchId, filters);
+  }
+
+  /**
+   * 获取批次的执行记录（列表版，轻量）
+   */
+  async getBatchExecutionsForList(
+    batchId: string,
+    filters?: {
+      reviewStatus?: ReviewStatus;
+      executionStatus?: ExecutionStatus;
+      category?: string;
+    },
+  ) {
+    return this.batchService.getBatchExecutionsForList(batchId, filters);
   }
 
   /**

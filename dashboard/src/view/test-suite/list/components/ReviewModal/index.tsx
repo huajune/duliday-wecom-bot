@@ -2,6 +2,7 @@ import { X, Check, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import { TestExecution } from '@/services/agent-test';
 import { FAILURE_REASONS } from '../../constants';
 import { ExecutionDetailViewer } from '../ExecutionDetailViewer';
+import { DetailSkeleton } from './DetailSkeleton';
 import styles from './index.module.scss';
 
 interface ReviewModalProps {
@@ -10,6 +11,7 @@ interface ReviewModalProps {
   totalCount: number;
   showFailureOptions: boolean;
   loading?: boolean;
+  detailLoading?: boolean;
   onClose: () => void;
   onPrevious: () => void;
   onNext: () => void;
@@ -27,6 +29,7 @@ export function ReviewModal({
   totalCount,
   showFailureOptions,
   loading = false,
+  detailLoading = false,
   onClose,
   onPrevious,
   onNext,
@@ -47,7 +50,7 @@ export function ReviewModal({
         </div>
 
         <div className={styles.reviewBody}>
-          <ExecutionDetailViewer execution={execution} showHistory />
+          {detailLoading ? <DetailSkeleton /> : <ExecutionDetailViewer execution={execution} showHistory />}
         </div>
 
         <div className={styles.reviewFooter}>

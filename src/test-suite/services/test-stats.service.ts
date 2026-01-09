@@ -55,10 +55,11 @@ export class TestStatsService {
 
   /**
    * 计算批次统计信息
+   * 使用轻量版查询，只获取统计所需字段，提升性能
    */
   async calculateBatchStats(batchId: string): Promise<BatchStats> {
-    const executions = await this.executionRepository.findByBatchId(batchId);
-    return this.computeStats(executions);
+    const executions = await this.executionRepository.findByBatchIdLite(batchId);
+    return this.computeStats(executions as TestExecution[]);
   }
 
   /**
@@ -117,10 +118,11 @@ export class TestStatsService {
 
   /**
    * 计算分类统计
+   * 使用轻量版查询，只获取统计所需字段，提升性能
    */
   async calculateCategoryStats(batchId: string): Promise<CategoryStats[]> {
-    const executions = await this.executionRepository.findByBatchId(batchId);
-    return this.computeCategoryStats(executions);
+    const executions = await this.executionRepository.findByBatchIdLite(batchId);
+    return this.computeCategoryStats(executions as TestExecution[]);
   }
 
   /**
@@ -146,12 +148,13 @@ export class TestStatsService {
 
   /**
    * 计算失败原因统计
+   * 使用轻量版查询，只获取统计所需字段，提升性能
    */
   async calculateFailureReasonStats(batchId: string): Promise<FailureReasonStats[]> {
-    const executions = await this.executionRepository.findByBatchId(batchId, {
+    const executions = await this.executionRepository.findByBatchIdLite(batchId, {
       reviewStatus: ReviewStatus.FAILED,
     });
-    return this.computeFailureReasonStats(executions);
+    return this.computeFailureReasonStats(executions as TestExecution[]);
   }
 
   /**

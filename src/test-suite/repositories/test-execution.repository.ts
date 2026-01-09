@@ -145,7 +145,7 @@ export class TestExecutionRepository extends BaseRepository {
   }
 
   /**
-   * 获取批次的执行记录
+   * 获取批次的执行记录（完整数据，用于详情展示）
    */
   async findByBatchId(batchId: string, filters?: ExecutionFilters): Promise<TestExecution[]> {
     const params: Record<string, string> = {
@@ -164,6 +164,97 @@ export class TestExecutionRepository extends BaseRepository {
     }
 
     return this.select<TestExecution>(params);
+  }
+
+  /**
+   * 获取批次的执行记录（轻量版，用于统计计算）
+   * 只选择统计所需字段，排除大型 JSON 字段以提升性能
+   */
+  async findByBatchIdLite(
+    batchId: string,
+    filters?: ExecutionFilters,
+  ): Promise<
+    Pick<
+      TestExecution,
+      | 'id'
+      | 'execution_status'
+      | 'review_status'
+      | 'category'
+      | 'duration_ms'
+      | 'token_usage'
+      | 'failure_reason'
+    >[]
+  > {
+    const params: Record<string, string> = {
+      batch_id: `eq.${batchId}`,
+      order: 'created_at.asc',
+      // 只选择统计所需字段，排除 agent_request, agent_response, test_input, actual_output 等大字段
+      select: 'id,execution_status,review_status,category,duration_ms,token_usage,failure_reason',
+    };
+
+    if (filters?.reviewStatus) {
+      params.review_status = `eq.${filters.reviewStatus}`;
+    }
+    if (filters?.executionStatus) {
+      params.execution_status = `eq.${filters.executionStatus}`;
+    }
+    if (filters?.category) {
+      params.category = `eq.${filters.category}`;
+    }
+
+    return this.select(params);
+  }
+
+  /**
+   * 获取批次的执行记录（列表版，用于前端列表展示）
+   * 只选择列表展示所需字段，排除大型 JSON 字段以提升性能
+   */
+  async findByBatchIdForList(
+    batchId: string,
+    filters?: ExecutionFilters,
+  ): Promise<
+    (Pick<
+      TestExecution,
+      | 'id'
+      | 'case_id'
+      | 'case_name'
+      | 'category'
+      | 'execution_status'
+      | 'review_status'
+      | 'created_at'
+    > & { input_message?: string })[]
+  > {
+    const params: Record<string, string> = {
+      batch_id: `eq.${batchId}`,
+      order: 'created_at.asc',
+      // 列表展示需要的字段：id, case_id, case_name, category, execution_status, review_status
+      // 排除大字段：agent_request, agent_response, test_input, actual_output, tool_calls
+      select: 'id,case_id,case_name,category,execution_status,review_status,created_at,test_input',
+    };
+
+    if (filters?.reviewStatus) {
+      params.review_status = `eq.${filters.reviewStatus}`;
+    }
+    if (filters?.executionStatus) {
+      params.execution_status = `eq.${filters.executionStatus}`;
+    }
+    if (filters?.category) {
+      params.category = `eq.${filters.category}`;
+    }
+
+    const results = await this.select<TestExecution>(params);
+
+    // 从 test_input 中提取 input_message，然后清除大字段
+    return results.map((r) => ({
+      id: r.id,
+      case_id: r.case_id,
+      case_name: r.case_name,
+      category: r.category,
+      execution_status: r.execution_status,
+      review_status: r.review_status,
+      created_at: r.created_at,
+      input_message: (r.test_input as { message?: string } | null)?.message || '',
+    }));
   }
 
   /**

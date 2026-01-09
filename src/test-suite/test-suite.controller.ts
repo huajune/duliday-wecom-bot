@@ -519,11 +519,17 @@ export class TestSuiteController {
   // ==================== 执行记录管理 ====================
 
   /**
-   * 获取批次的执行记录
+   * 获取批次的执行记录（列表版，轻量）
    * GET /agent/test/batches/:id/executions
+   *
+   * 只返回列表展示所需字段，排除大型 JSON 字段以提升性能
+   * 如需完整数据，使用 GET /agent/test/executions/:id 获取单条详情
    */
   @Get('batches/:id/executions')
-  @ApiOperation({ summary: '获取批次的执行记录' })
+  @ApiOperation({
+    summary: '获取批次的执行记录（列表版）',
+    description: '返回列表展示所需字段，排除大型 JSON 字段以提升性能',
+  })
   @ApiParam({ name: 'id', description: '批次ID' })
   @ApiQuery({ name: 'reviewStatus', required: false, enum: ReviewStatus })
   @ApiQuery({ name: 'executionStatus', required: false, enum: ExecutionStatus })
@@ -534,7 +540,7 @@ export class TestSuiteController {
     @Query('executionStatus') executionStatus?: ExecutionStatus,
     @Query('category') category?: string,
   ) {
-    const executions = await this.testService.getBatchExecutions(id, {
+    const executions = await this.testService.getBatchExecutionsForList(id, {
       reviewStatus,
       executionStatus,
       category,
